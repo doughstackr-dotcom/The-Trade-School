@@ -531,7 +531,7 @@ export const LIVE_QUOTE_SYMBOLS = Object.freeze([
 
 /**
  * getQuotes({ symbols }?) → { quotes, stale, attribution, fetchedAt, source, error? }
- * Near-real-time last/change via the market-data Edge Function's Yahoo path.
+ * End-of-day last/change via the market-data Edge Function's Massive.com path.
  * Never throws; on failure returns empty quotes (caller should keep last good data).
  */
 export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
@@ -544,7 +544,7 @@ export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
         const change = ((i % 5) - 2) * 0.42;
         const spark = Array.from({ length: 20 }, (_, k) => base + Math.sin(k / 3 + i) * 1.5 + change * (k / 20));
         return {
-          symbol: id, yahooSymbol: id, name: id, price: base + change, prevClose: base,
+          symbol: id, providerSymbol: id, yahooSymbol: id, name: id, price: base + change, prevClose: base,
           change, changePct: (change / base) * 100, currency: 'USD', asOf: now, sparkline: spark, ok: true,
         };
       }),
@@ -561,7 +561,7 @@ export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
       stale: false,
       attribution: '',
       fetchedAt: Date.now(),
-      source: 'yahoo',
+      source: 'massive',
       error: res.error || 'Quotes unavailable',
     };
   }
@@ -569,9 +569,9 @@ export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
   return {
     quotes: Array.isArray(d.quotes) ? d.quotes : [],
     stale: !!d.stale,
-    attribution: d.attribution || 'Quotes: Yahoo Finance (unofficial)',
+    attribution: d.attribution || 'Quotes: Massive.com (end-of-day on free tier)',
     fetchedAt: d.fetchedAt || Date.now(),
-    source: d.source || 'yahoo',
+    source: d.source || 'massive',
     error: d.error || null,
   };
 }

@@ -23,6 +23,7 @@ Set via Dashboard → Edge Functions → Secrets, or:
 | `ALLOWED_ORIGINS` | optional CORS extras | `http://localhost:5173` |
 | `SUPABASE_SERVICE_ROLE_KEY` | deploy scripts / admin only | `eyJ…` (server only) |
 | `ALPHA_VANTAGE_API_KEY` | `market-data` function (if enabled) | `XXXXXXXX` |
+| `MASSIVE_API_KEY` | `market-data` Live Lab quotes (Massive.com) | `XXXXXXXX` |
 
 Until Stripe secrets are present, the site shows **“Subscriptions not open yet”** on subscribe / billing buttons.
 

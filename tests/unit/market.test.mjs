@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  configureMarket, resetMarketCache, getCatalog, getCandles, getHistory, subscribeLive, marketStatus, marketInfo,
+  configureMarket, resetMarketCache, getCatalog, getCandles, getHistory, getQuotes, subscribeLive, marketStatus, marketInfo,
   isMockMode, normalizeCandles, intervalLabel, formatCandleTime, revealLabel, axisLabel, SYMBOLS, INTERVAL_MS, onMarketStatus,
 } from '../../js/core/market.js';
 
@@ -258,6 +258,54 @@ test('live/replay: offline without data, pauses while the tab is hidden', async 
   const n = seen.length;
   await new Promise((r) => setTimeout(r, 80));
   assert.equal(seen.length, n, 'no updates after unsubscribe');
+});
+
+
+test('getQuotes: mock mode returns massive-shaped quotes; live path defaults source to massive', async () => {
+  mock();
+  const mockRes = await getQuotes({ symbols: ['SPY', 'QQQ'] });
+  assert.equal(mockRes.source, 'mock');
+  assert.equal(mockRes.quotes.length, 2);
+  assert.equal(mockRes.quotes[0].ok, true);
+  assert.equal(mockRes.quotes[0].providerSymbol, 'SPY');
+  assert.ok(Number.isFinite(mockRes.quotes[0].price));
+
+  const calls = [];
+  configureMarket({
+    mock: false,
+    url: 'https://x.test',
+    key: 'k',
+    retryMs: [1],
+    fetch: async (url, init) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return json(200, {
+        quotes: [{
+          symbol: 'SPY', providerSymbol: 'SPY', name: 'S&P 500 ETF',
+          price: 500, prevClose: 495, change: 5, changePct: 1.01,
+          currency: 'USD', asOf: 1, sparkline: [490, 495, 500], ok: true,
+        }],
+        stale: false,
+        attribution: 'Quotes: Massive.com (end-of-day on free tier). Educational use.',
+        fetchedAt: 42,
+        source: 'massive',
+      });
+    },
+  });
+  const live = await getQuotes({ symbols: ['SPY'] });
+  assert.equal(live.source, 'massive');
+  assert.match(live.attribution, /Massive\.com/);
+  assert.equal(live.quotes[0].price, 500);
+  assert.equal(calls[0].body.quotes, true);
+  assert.deepEqual(calls[0].body.symbols, ['SPY']);
+
+  configureMarket({
+    mock: false, url: 'https://x.test', key: 'k', retryMs: [1],
+    fetch: async () => json(503, { unconfigured: true, source: 'massive', error: 'no key' }),
+  });
+  const miss = await getQuotes({ symbols: ['SPY'] });
+  assert.equal(miss.source, 'massive');
+  assert.deepEqual(miss.quotes, []);
+  assert.ok(miss.error);
 });
 
 test('labels and candle clean-up helpers', () => {

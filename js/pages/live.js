@@ -1,4 +1,4 @@
-// Live Market Lab — #live. Quote board (Yahoo via market-data edge function) + detail chart.
+// Live Market Lab — #live. Quote board (Massive.com via market-data edge function) + detail chart.
 // Polls every 45s; keeps last good data on failure and marks it stale. Educational only.
 import { h, icon, svg } from '../core/ui.js';
 
@@ -82,9 +82,9 @@ export default {
     const chartHost = h('div', { class: 'chart-frame live__chart' });
     const attrib = h('p', { class: 'faint live-attrib' });
     const note = h('p', { class: 'faint live-footnote' },
-      'Quotes arrive through our server (Yahoo Finance unofficial chart API) so the browser never talks to Yahoo directly. ',
-      'Poll every ~45s with a short server cache. If a refresh fails we keep the last good numbers and mark them stale. ',
-      'Yahoo may rate-limit; this page is educational — not for live trading decisions.');
+      'Quotes arrive through our server (Massive.com / Polygon-compatible REST) so the browser never sees the API key. ',
+      'On the free tier quotes are end-of-day (~5 requests/min upstream) with a ~55s server cache. ',
+      'If a refresh fails we keep the last good numbers and mark them stale. Educational use — not for live trading decisions.');
 
     const setStatus = (key, text) => {
       statusEl.textContent = text || key;

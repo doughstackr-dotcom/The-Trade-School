@@ -128,25 +128,46 @@ adapter.
 - On the site, the Live Market Lab's status bar says **Delayed (end of day)** with the
   Alpha Vantage credit, and games show a **Real market** option.
 
-## 6. Live Lab quotes (Yahoo Finance, unofficial)
+## 6. Live Lab quotes (Massive.com)
 
-The Live Market Lab (`#live`) needs near-real-time last price / daily change. Alpha Vantage’s
-free key is end-of-day only, so quotes use **Yahoo Finance’s unofficial chart API**, fetched
-**server-side** inside the `market-data` Edge Function (`POST { quotes: true, symbols: [...] }`).
+The Live Market Lab (`#live`) needs last price / daily change for a quote board. Alpha Vantage’s
+free key is already used for candle history, so quotes use **Massive.com** (formerly Polygon.io;
+Polygon-compatible REST at `api.massive.com`), fetched **server-side** inside the `market-data`
+Edge Function (`POST { quotes: true, symbols: [...] }`).
 
-Why server-side: browsers cannot call Yahoo reliably (CORS). The client (`js/core/market.js`
+Why server-side: the API key must never reach the browser. The client (`js/core/market.js`
 `getQuotes`) only talks to Supabase with the publishable key — same pattern as candles.
+
+### Secret
+
+1. Get a key at <https://massive.com/> (Basic / free tier is enough for EOD aggregates).
+2. Set the Edge Function secret (never commit the real value):
+
+```bash
+supabase secrets set MASSIVE_API_KEY=YOUR_KEY --project-ref pedcpgmowqhqgersxxqa
+```
+
+Or Dashboard → Edge Functions → Secrets → `MASSIVE_API_KEY`. Then redeploy if the function
+was not yet reading this secret:
+
+```bash
+supabase functions deploy market-data --project-ref pedcpgmowqhqgersxxqa
+```
+
+Local reference only: add `MASSIVE_API_KEY=YOUR_KEY` to `.env` (see `.env.example`).
+
+Without the secret, `POST { quotes: true }` returns **503** `{ unconfigured: true, source: "massive" }`.
 
 | detail | value |
 |---|---|
-| Upstream | `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}` |
-| Symbols | SPY, QQQ, AAPL, MSFT, NVDA, TSLA, BTC-USD, ETH-USD, EUR-USD (`EURUSD=X`), GLD |
-| Server cache | ~45 seconds per symbol (in-memory on the isolate) |
+| Upstream | `https://api.massive.com/v2/aggs/ticker/{ticker}/range/1/day/{from}/{to}` (one call ≈ last + prev + sparkline) |
+| Auth | `Authorization: Bearer …` and `?apiKey=` (secret `MASSIVE_API_KEY`) |
+| Symbols | SPY, QQQ, AAPL, MSFT, NVDA, TSLA, GLD; crypto `X:BTCUSD` / `X:ETHUSD`; FX `C:EURUSD` |
+| Free tier | **End-of-day** aggregates, **~5 requests/min** (no snapshot on Basic) |
+| Server cache | ~55 seconds per symbol (in-memory); upstream calls paced ≥12.5s apart |
 | Client poll | ~45 seconds; pauses while the tab is hidden |
 | On failure | Last good quote is kept and marked `stale`; the page never blanks |
-| Rate limits | Unofficial — be polite; bursts are spaced (~80 ms between symbols). No Yahoo key. |
-| Attribution | Shown on the Live page footnote |
+| Attribution | `Quotes: Massive.com (end-of-day on free tier). Educational use.` |
 
-Yahoo’s terms can change; this path is for **educational display** only. Prefer Alpha Vantage
-(or a licensed feed) for historical OHLC used in games. Redeploy `market-data` after pulling
-`yahoo.ts` changes: `supabase functions deploy market-data`.
+Historical OHLC for games still comes from Alpha Vantage / exchange feeds (sections 1–4). This
+Massive path is for the Live Lab quote board only.
