@@ -1,8 +1,11 @@
-// Live Market Lab — #live. Quote board (Massive.com via market-data edge function) + detail chart.
-// Polls every 45s; keeps last good data on failure and marks it stale. Educational only.
+// Live Market Lab — #live. Quote board (Massive.com via market-data edge function) + detail chart
+// + market-hours clock / session strip + scrolling ticker. Polls quotes every 45s; hours tick
+// every second from the client clock. Educational only.
 import { h, icon, svg } from '../core/ui.js';
+import { getMarketHoursSnapshot } from '../core/market-hours.js';
 
 const POLL_MS = 45_000;
+const HOURS_TICK_MS = 1_000;
 const BOARD = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'BTC-USD', 'EUR-USD'];
 
 function fmtPrice(n, decimals = 2) {
@@ -57,6 +60,47 @@ function quoteCard(q, { selected, onSelect }) {
   );
 }
 
+function hoursCard(st) {
+  const sessions = st.sessions.join(', ');
+  const boundary = st.boundary?.atLabel || '';
+  return h('article', {
+    class: ['live-hours-card', st.open ? 'is-open' : 'is-closed'],
+    'aria-label': `${st.short}: ${st.open ? 'open' : 'closed'}`,
+  },
+    h('div', { class: 'live-hours-card__head' },
+      h('span', { class: 'live-hours-card__name' }, st.short),
+      h('span', {
+        class: ['live-pill', st.open ? 'live-pill--open' : 'live-pill--closed'],
+        'aria-hidden': 'true',
+      },
+        h('span', { class: 'live-pill__dot' }),
+        st.open ? 'Open' : 'Closed')),
+    h('p', { class: 'live-hours-card__clock mono' }, st.localTime),
+    h('p', { class: 'live-hours-card__tz faint' }, `${st.city} · ${st.tzAbbrev}`),
+    h('p', { class: 'live-hours-card__sess faint' }, sessions),
+    boundary ? h('p', { class: 'live-hours-card__next faint' }, boundary) : null,
+  );
+}
+
+function overlapChip(o) {
+  return h('span', {
+    class: ['live-overlap', o.active && 'is-active'],
+    title: o.blurb,
+  },
+    h('span', { class: 'live-overlap__dot', 'aria-hidden': 'true' }),
+    o.label,
+    o.active ? h('span', { class: 'live-overlap__tag' }, 'live') : null);
+}
+
+function tickerItem(q) {
+  const up = (q.change ?? 0) >= 0;
+  const dec = q.symbol?.includes('EUR') ? 4 : 2;
+  return h('span', { class: ['live-ticker__item', up ? 'is-up' : 'is-down'] },
+    h('span', { class: 'live-ticker__sym mono' }, q.symbol),
+    h('span', { class: 'live-ticker__px mono' }, fmtPrice(q.price, dec)),
+    h('span', { class: 'live-ticker__chg mono' }, fmtPct(q.changePct)));
+}
+
 export default {
   id: 'live',
   async mount(root) {
@@ -73,6 +117,7 @@ export default {
     let attribution = '';
     let chart = null;
     let pollTimer = null;
+    let hoursTimer = null;
     let destroyed = false;
 
     const statusEl = h('span', { class: 'live-status__text' });
@@ -85,6 +130,21 @@ export default {
       'Quotes arrive through our server (Massive.com / Polygon-compatible REST) so the browser never sees the API key. ',
       'On the free tier quotes are end-of-day (~5 requests/min upstream) with a ~55s server cache. ',
       'If a refresh fails we keep the last good numbers and mark them stale. Educational use — not for live trading decisions.');
+
+    // —— Market hours / sessions UI ——————————————————————————————————————————
+    const hoursEquity = h('div', { class: 'live-hours__grid', role: 'list', 'aria-label': 'Equity market hours' });
+    const hoursForex = h('div', { class: 'live-hours__grid', role: 'list', 'aria-label': 'Forex session hours' });
+    const sessionContext = h('p', { class: 'live-session__context' });
+    const overlapRow = h('div', { class: 'live-session__overlaps', role: 'list', 'aria-label': 'Session overlaps' });
+    const clientTzEl = h('p', { class: 'faint live-hours__note' });
+    const sessionActive = h('p', { class: 'live-session__active' });
+
+    const tickerTrack = h('div', { class: 'live-ticker__track', 'aria-hidden': 'true' });
+    const ticker = h('div', {
+      class: 'live-ticker',
+      role: 'marquee',
+      'aria-label': 'Scrolling quote ticker',
+    }, tickerTrack);
 
     const setStatus = (key, text) => {
       statusEl.textContent = text || key;
@@ -101,6 +161,21 @@ export default {
       updatedEl.textContent = stale ? `Last updated ${label} · stale` : `Last updated ${label}`;
     };
 
+    const paintTicker = () => {
+      const list = lastQuotes.filter((q) => q.ok !== false && q.price != null);
+      if (!list.length) {
+        tickerTrack.replaceChildren(
+          h('span', { class: 'live-ticker__item live-ticker__item--muted' }, 'Waiting for quotes…'),
+        );
+        ticker.classList.remove('is-running');
+        return;
+      }
+      // Duplicate strip for seamless CSS loop
+      const items = [...list, ...list].map(tickerItem);
+      tickerTrack.replaceChildren(...items);
+      ticker.classList.add('is-running');
+    };
+
     const paintBoard = () => {
       const list = lastQuotes.length
         ? lastQuotes
@@ -113,10 +188,30 @@ export default {
           loadChart(id);
         },
       })));
+      paintTicker();
+    };
+
+    const paintHours = () => {
+      if (destroyed) return;
+      const snap = getMarketHoursSnapshot();
+      hoursEquity.replaceChildren(...snap.equities.map(hoursCard));
+      hoursForex.replaceChildren(...snap.forex.map(hoursCard));
+      overlapRow.replaceChildren(...snap.overlaps.map(overlapChip));
+
+      const eq = snap.activeEquities.length
+        ? `Equities: ${snap.activeEquities.join(', ')}`
+        : 'Equities: none open';
+      const fx = snap.activeForex.length
+        ? `Forex: ${snap.activeForex.join(', ')}`
+        : 'Forex: no major session open';
+      sessionActive.textContent = `${eq} · ${fx}`;
+      sessionContext.textContent = snap.context;
+      clientTzEl.textContent = `Times use each venue’s local zone (DST-aware via your browser). Your clock: ${snap.clientTz}. Exchange holidays not tracked.`;
     };
 
     const loadChart = async (symbol) => {
       if (!chartMod) return;
+      chartHost.classList.add('is-switching');
       let candles = null;
       if (marketMod?.getCandles) {
         try {
@@ -137,7 +232,10 @@ export default {
         candles = dataMod.randomWalk({ seed: symbol.length * 99, count: 90, drift: 0.0003, vol: 0.012 });
         attrib.textContent = [attribution, 'Chart: simulated (real daily history unavailable)'].filter(Boolean).join(' · ');
       }
-      if (!candles?.length) return;
+      if (!candles?.length) {
+        chartHost.classList.remove('is-switching');
+        return;
+      }
       if (!chart) {
         chart = new chartMod.CandleChart(chartHost, {
           candles, height: 360, showVolume: true, ariaLabel: `${symbol} daily chart`,
@@ -145,6 +243,10 @@ export default {
       } else {
         chart.setCandles(candles);
       }
+      // Allow CSS fade to settle
+      requestAnimationFrame(() => {
+        if (!destroyed) chartHost.classList.remove('is-switching');
+      });
     };
 
     const refreshQuotes = async () => {
@@ -190,6 +292,29 @@ export default {
         h('p', { class: 'lead' },
           'Major ETFs, stocks, Bitcoin and EUR/USD with last price, daily change and a tiny sparkline. ',
           'Tap a card to load a daily chart. Beginner-friendly — practice reading, not placing orders.')),
+
+      ticker,
+
+      h('section', { class: 'live-hours card', 'aria-label': 'Market hours and sessions' },
+        h('div', { class: 'live-hours__head row' },
+          h('h2', { class: 't-18' }, 'Market hours'),
+          h('span', { class: 'live-hours__live row' },
+            h('span', { class: 'live-dot', 'data-state': 'live', 'aria-hidden': 'true' }),
+            h('span', { class: 'faint' }, 'Live schedule'))),
+        h('h3', { class: 'live-hours__sub' }, 'Equity floors'),
+        hoursEquity,
+        h('h3', { class: 'live-hours__sub' }, 'Forex sessions'),
+        hoursForex,
+        clientTzEl),
+
+      h('section', { class: 'live-session card', 'aria-label': 'Active market sessions' },
+        h('h2', { class: 't-18' }, 'Active sessions'),
+        sessionActive,
+        h('div', { class: 'live-session__body' },
+          h('p', { class: 'live-session__label faint' }, 'Overlaps'),
+          overlapRow),
+        sessionContext),
+
       h('div', { class: 'live__bar row' },
         h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
         updatedEl,
@@ -207,6 +332,7 @@ export default {
       h('p', { class: 'faint' }, 'Educational only — not financial advice. Prices may be delayed.')));
 
     paintBoard();
+    paintHours();
     await refreshQuotes();
     if (!destroyed) await loadChart(selected);
     if (!destroyed) {
@@ -214,11 +340,16 @@ export default {
         if (typeof document !== 'undefined' && document.hidden) return;
         refreshQuotes();
       }, POLL_MS);
+      hoursTimer = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        paintHours();
+      }, HOURS_TICK_MS);
     }
 
     return () => {
       destroyed = true;
       if (pollTimer) clearInterval(pollTimer);
+      if (hoursTimer) clearInterval(hoursTimer);
       try { chart?.destroy(); } catch (err) { console.error(err); }
     };
   },
