@@ -21,6 +21,15 @@ export const PARTNERS = [
     status: 'live',
   },
   {
+    id: 'robinhood',
+    name: 'Robinhood',
+    description: 'Affiliate partner — replace this placeholder with an accurate product blurb.',
+    logoText: null,
+    logoUrl: null,
+    affiliateUrl: 'https://join.robinhood.com/rehnes',
+    status: 'live',
+  },
+  {
     id: 'partner-tbd-2',
     name: 'Partner TBD',
     description: 'Coming soon — another trading platform or tool partnership will land here.',
