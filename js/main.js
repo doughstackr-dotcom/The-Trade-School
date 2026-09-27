@@ -19,10 +19,10 @@ const THEME_ICON = { system: 'system', light: 'sun', dark: 'moon' };
 /** Brand mark: a hollow bear candle and a gold bull candle. */
 export function brandMark(size = 28) {
   return svg('svg', { class: 'brand__mark', width: size, height: size, viewBox: '0 0 28 28', 'aria-hidden': 'true', focusable: 'false' },
-    svg('path', { d: 'M9 4v5M9 21v3', stroke: 'var(--text-3)', 'stroke-width': 1.75, 'stroke-linecap': 'round' }),
-    svg('rect', { x: 5.5, y: 9, width: 7, height: 12, rx: 1.6, fill: 'none', stroke: 'var(--text-3)', 'stroke-width': 1.75 }),
-    svg('path', { d: 'M19 2.5v4.5M19 19v5', stroke: 'var(--accent)', 'stroke-width': 1.75, 'stroke-linecap': 'round' }),
-    svg('rect', { x: 15.5, y: 7, width: 7, height: 12, rx: 1.6, fill: 'var(--accent)' }));
+    svg('path', { class: 'brand__wick brand__wick--bear', d: 'M9 4v5M9 21v3' }),
+    svg('rect', { class: 'brand__body brand__body--bear', x: 5.5, y: 9, width: 7, height: 12, rx: 1.6 }),
+    svg('path', { class: 'brand__wick brand__wick--bull', d: 'M19 2.5v4.5M19 19v5' }),
+    svg('rect', { class: 'brand__body brand__body--bull', x: 15.5, y: 7, width: 7, height: 12, rx: 1.6 }));
 }
 
 function effectiveTheme(pref) {

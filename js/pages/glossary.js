@@ -173,7 +173,7 @@ export default {
     const search = h('input', {
       class: 'input glossary__search',
       type: 'search',
-      placeholder: 'Search terms — try “RSI”, “stop” or “wick”',
+      placeholder: 'Search — try “RSI” or “wick”',
       'aria-label': 'Search the glossary',
       autocomplete: 'off',
       spellcheck: 'false',

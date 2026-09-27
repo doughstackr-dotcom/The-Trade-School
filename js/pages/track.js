@@ -16,14 +16,16 @@ function unitDone(store, u) {
 /** Rising zig-zag of swing points (one per unit): lows and highs both climb, like an uptrend. */
 function routeChart(units, doneFlags, currentIdx) {
   const n = units.length;
-  const W = 520;
-  const H = 200;
+  // A narrower viewBox on phones keeps the node numbers legible once the SVG scales down.
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 560;
+  const W = narrow ? 360 : 520;
+  const H = narrow ? 170 : 200;
   const padX = 26;
   const padY = 26;
   const pts = units.map((u, i) => {
     const t = n > 1 ? i / (n - 1) : 0;
     const base = 0.08 + t * 0.84; // climbing baseline
-    const swing = i === n - 1 ? 0.08 : i % 2 === 0 ? -0.07 : 0.07; // alternate lows / highs
+    const swing = i === n - 1 ? 0.08 : i % 2 === 0 ? -0.12 : 0.12; // alternate lows / highs
     const y = Math.max(0, Math.min(1, base + swing));
     return [padX + t * (W - padX * 2), H - padY - y * (H - padY * 2)];
   });
@@ -40,20 +42,28 @@ function routeChart(units, doneFlags, currentIdx) {
   const nodes = pts.map(([x, y], i) => {
     const cls = doneFlags[i] ? 'route__node is-done' : i === currentIdx ? 'route__node is-current' : 'route__node';
     return svg('g', { class: cls, transform: `translate(${x} ${y})` },
-      i === currentIdx ? svg('circle', { r: 17, class: 'route__pulse' }) : null,
-      svg('circle', { r: 12, class: 'route__dot' }),
+      i === currentIdx ? svg('circle', { r: 19, class: 'route__pulse' }) : null,
+      svg('circle', { r: 13, class: 'route__dot' }),
       svg('text', { y: 4, 'text-anchor': 'middle' }, String(i + 1)));
   });
   const done = doneFlags.filter(Boolean).length;
+  const gid = `route-fill-${n}`;
+  const area = `M${pts[0][0]} ${H} ` + pts.map(([x, y]) => `L${x} ${y}`).join(' ') + ` L${pts[n - 1][0]} ${H} Z`;
   return svg('svg', { class: 'route', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Route map: ${done} of ${n} units complete` },
-    ...grid, ...segs, ...nodes);
+    svg('defs', null,
+      svg('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
+        svg('stop', { offset: '0%', class: 'route__stop route__stop--top' }),
+        svg('stop', { offset: '100%', class: 'route__stop' }))),
+    ...grid,
+    svg('path', { d: area, fill: `url(#${gid})`, class: 'route__area' }),
+    ...segs, ...nodes);
 }
 
 /** Vertical zig-zag connector between ladder nodes (a price squiggle turned upright). */
 function squiggle(done) {
   const pts = [];
   const steps = 9;
-  for (let i = 0; i <= steps; i++) pts.push(`${i === 0 || i === steps ? 10 : i % 2 ? 4 : 16},${(i / steps) * 100}`);
+  for (let i = 0; i <= steps; i++) pts.push(`${i === 0 || i === steps ? 10 : i % 2 ? 6 : 14},${(i / steps) * 100}`);
   return svg('svg', { class: ['ladder__squiggle', done && 'is-done'], viewBox: '0 0 20 100', preserveAspectRatio: 'none', 'aria-hidden': 'true' },
     svg('polyline', { points: pts.join(' '), 'vector-effect': 'non-scaling-stroke' }));
 }

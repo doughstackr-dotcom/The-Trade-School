@@ -77,8 +77,8 @@ ol {
   margin: 0;
 }
 
-ul[class],
-ol[class] {
+/* :where() keeps this at zero specificity so component classes can set their own padding. */
+:where(ul[class], ol[class]) {
   list-style: none;
   padding: 0;
 }
@@ -260,7 +260,6 @@ samp,
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 main:focus,

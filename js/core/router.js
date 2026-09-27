@@ -24,6 +24,32 @@ let renderToken = 0;
 let fallbackHash = null; // used when writing location.hash is blocked
 let started = false;
 
+// Optional access gate (ARCHITECTURE §9.3). Inert until something registers one, so the
+// router has no dependency on the accounts modules.
+const OPEN_ACCESS = Object.freeze({ level: null, can: () => true });
+let gate = null;
+
+/**
+ * Registers the access gate: { canOpen(entry, route) → boolean | Promise<boolean>,
+ * access: { level, can(plan) } | () => that, paywallPath?: URL string of the page module to
+ * mount instead of a blocked lesson/game/library (default '../pages/paywall.js') }.
+ * Pass null to remove it. Re-renders the current route.
+ */
+export function setAccessGate(next) {
+  gate = next || null;
+  if (outlet && started) render(currentHash());
+}
+
+function accessInfo() {
+  if (!gate) return OPEN_ACCESS;
+  try {
+    const a = typeof gate.access === 'function' ? gate.access() : gate.access;
+    return a || OPEN_ACCESS;
+  } catch {
+    return OPEN_ACCESS;
+  }
+}
+
 /** Parses a hash (with or without '#') into a route descriptor. */
 export function parseHash(hash) {
   let token = String(hash || '').replace(/^#/, '');
@@ -160,7 +186,19 @@ async function render(hash, { initial = false } = {}) {
     return;
   }
 
-  if (entry && (route.kind === 'lesson' || route.kind === 'game')) {
+  // Blocked by the access gate → mount the paywall page instead (entry stays the requested one).
+  let blocked = false;
+  if (gate && (route.kind === 'lesson' || route.kind === 'game' || route.page === 'library')) {
+    try {
+      blocked = !(await gate.canOpen(entry, route));
+    } catch (err) {
+      console.error('[router] access check failed:', err);
+    }
+    if (my !== renderToken) return;
+    if (blocked) path = new URL(gate.paywallPath || '../pages/paywall.js', import.meta.url).href;
+  }
+
+  if (!blocked && entry && (route.kind === 'lesson' || route.kind === 'game')) {
     storeRef?.setLast?.({ type: route.kind, id: entry.id });
   }
 
@@ -183,6 +221,8 @@ async function render(hash, { initial = false } = {}) {
       seed: newSeed(),
       route,
       param: route.param ?? null,
+      access: accessInfo(),
+      blocked,
     };
     let result = def.mount(root, ctx);
     if (result && typeof result.then === 'function') result = await result;

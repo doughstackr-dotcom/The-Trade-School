@@ -120,7 +120,11 @@ export class LessonShell {
     this._doneHost.replaceChildren(this._completionCard(first));
     this._doneHost.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
     sfx.win();
-    if (first) setTimeout(() => confetti(this._doneHost.querySelector('.lesson-done__icon')), 250);
+    if (first) {
+      setTimeout(() => {
+        if (!this._destroyed && this._doneHost.isConnected) confetti(this._doneHost.querySelector('.lesson-done__icon'));
+      }, 250);
+    }
     requestAnimationFrame(() => this._doneHost.querySelector('.btn--primary')?.focus({ preventScroll: true }));
   }
 
@@ -145,6 +149,13 @@ export class LessonShell {
   }
 
   _handleKey(e) {
+    // Safety net: a lesson that forgot to return () => shell.destroy() must not keep
+    // reacting to arrow keys (and completing itself) on other pages.
+    if (this._destroyed) return;
+    if (this.root && !this.root.isConnected) {
+      this.destroy();
+      return;
+    }
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     if (document.body.classList.contains('has-modal')) return;
     if (isTypingTarget(e.target)) return;
@@ -225,9 +236,10 @@ export class LessonShell {
       return h('li', null, btn);
     }));
     const shown = this.done ? n : this.index + 1;
-    this._railLabel.replaceChildren(
+    this._railLabel.replaceChildren(...[
       h('strong', null, this.done ? 'Complete' : `Step ${shown} of ${n}`),
-      this.done ? null : h('span', { class: 'faint' }, ` · ${this.steps[this.index].title}`));
+      this.done ? null : h('span', { class: 'faint' }, ` · ${this.steps[this.index].title}`),
+    ].filter(Boolean));
     setMeter(this._railMeter, this.done ? 1 : (this.index + 1) / n);
   }
 
@@ -263,8 +275,9 @@ export class LessonShell {
     }
     if (s.quiz) {
       const q = s.quiz;
-      this._body.append(h('div', { class: 'lesson__quiz' },
-        h('p', { class: 'eyebrow' }, 'Quick check'),
+      const titled = /quick check|quiz/i.test(s.title || '');
+      this._body.append(h('div', { class: ['lesson__quiz', titled && 'lesson__quiz--solo'] },
+        titled ? null : h('p', { class: 'eyebrow' }, 'Quick check'),
         choiceQuiz({
           ...q,
           onAnswer: (correct, value) => {

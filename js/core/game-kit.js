@@ -1,7 +1,7 @@
 // GameShell: shared intro → rounds → results flow so every game feels the same.
 // Scoring: game.correct() adds points × streak multiplier (streak ≥ 3 → ×1.5, ≥ 6 → ×2).
 // Stars, XP and "perfect" use the base points (before the streak bonus) against maxScore.
-import { h, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer } from './ui.js';
+import { h, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast } from './ui.js';
 import { makeRng, randomSeed } from './rng.js';
 import { findEntry, findTier, nextItem, unitOf, findBadge, hashFor } from '../registry.js';
 
@@ -57,6 +57,10 @@ function createTimer(game) {
 
   const loop = () => {
     if (!running || pausedLeft != null) return;
+    if (!game._alive()) {
+      running = false;
+      return;
+    }
     const left = render();
     const sec = Math.ceil(left / 1000);
     if (sec <= 3 && sec > 0 && sec !== lastTick) {
@@ -210,6 +214,8 @@ export class GameShell {
   }
 
   nextButton(label = null) {
+    // The round is over once Next shows: freeze a per-round clock where it stopped.
+    if (this.opts.timer?.perRound !== false) this.timer.stop();
     const last = this.rounds != null && this.round >= this.rounds;
     const text = label || (last ? 'See results' : 'Next round');
     this._actions.replaceChildren();
@@ -427,7 +433,18 @@ export class GameShell {
     }
   }
 
+  /** False once destroyed, or when the module forgot to return a cleanup and its root left the page. */
+  _alive() {
+    if (this.state === 'destroyed') return false;
+    if (this.root && !this.root.isConnected) {
+      this.destroy();
+      return false;
+    }
+    return true;
+  }
+
   _handleKey(e) {
+    if (!this._alive()) return;
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
     if (document.body.classList.contains('has-modal')) return;
     const t = e.target;
@@ -610,7 +627,7 @@ export class GameShell {
   }
 
   _renderRound() {
-    this._roundEl.replaceChildren(String(this.round), this.rounds != null ? h('span', { class: 'hud__of' }, `/${this.rounds}`) : null);
+    this._roundEl.replaceChildren(...[String(this.round), this.rounds != null ? h('span', { class: 'hud__of' }, `/${this.rounds}`) : null].filter(Boolean));
   }
 
   _renderScore(before, floatText) {
@@ -625,10 +642,11 @@ export class GameShell {
   _renderStreak(bumped) {
     const mult = multiplierFor(this.streak);
     this._streakWrap.classList.toggle('is-hot', this.streak >= 3);
-    this._streakEl.replaceChildren(
+    this._streakEl.replaceChildren(...[
       icon('flame', { size: 16 }),
       String(this.streak),
-      mult > 1 ? h('span', { class: 'hud__mult' }, `×${mult}`) : null);
+      mult > 1 ? h('span', { class: 'hud__mult' }, `×${mult}`) : null,
+    ].filter(Boolean));
     if (bumped && !reducedMotion()) {
       this._streakWrap.classList.remove('is-bump');
       void this._streakWrap.offsetWidth;
@@ -637,7 +655,8 @@ export class GameShell {
   }
 
   _banner(type, text, points, extra) {
-    this._feedback.replaceChildren();
+    // Replace the previous banner only; explanations added with feedback() stay.
+    this._feedback.querySelectorAll(':scope > .feedback').forEach((n) => n.remove());
     const body = h('div', { class: 'feedback__body' });
     if (typeof text === 'string' && /<\w/.test(text)) body.innerHTML = text;
     else body.append(text);
@@ -645,7 +664,7 @@ export class GameShell {
       h('span', { class: 'feedback__icon', 'aria-hidden': 'true' }, icon(type === 'good' ? 'check' : 'x', { size: 20 })),
       body,
       points || extra ? h('span', { class: 'feedback__pts mono' }, points, extra ? h('small', null, extra) : null) : null);
-    this._feedback.append(el);
+    this._feedback.prepend(el);
     return el;
   }
 
@@ -725,8 +744,10 @@ export class GameShell {
 
     animateNumber(scoreVal, 0, s.score, 900);
     requestAnimationFrame(() => card.querySelector('[data-action="again"]')?.focus({ preventScroll: true }));
-    if (s.stars >= 2) setTimeout(() => sfx.win(), 250);
-    if (s.stars === 3) setTimeout(() => confetti(starsEl), 450);
+    const live = () => this.state !== 'destroyed' && card.isConnected;
+    if (s.xp > 0) setTimeout(() => live() && toast(`+${s.xp} XP · ${e.title}`, { type: 'xp' }), 350);
+    if (s.stars >= 2) setTimeout(() => live() && sfx.win(), 250);
+    if (s.stars === 3) setTimeout(() => live() && confetti(starsEl), 450);
     this._renderIntroStats();
   }
 }

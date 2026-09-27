@@ -1,0 +1,203 @@
+/* CandleChart, miniChart and candleSVG (js/core/chart.js). Everything is coloured through the
+   design tokens in css/tokens.css, so light and dark themes follow automatically. */
+
+.tc-chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: var(--radius-sm, 6px);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.tc-chart.is-interactive:focus-visible {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+}
+
+.tc-svg {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  -webkit-touch-callout: none;
+}
+
+.tc-chart.is-interactive .tc-svg { cursor: crosshair; }
+.tc-chart.is-drawing .tc-svg,
+.tc-chart.is-dragging .tc-svg { touch-action: none; }
+.tc-chart.is-dragging .tc-svg { cursor: grabbing; }
+
+.tc-bg { fill: var(--surface); }
+
+/* Grid and axes */
+.tc-grid { fill: none; stroke: var(--grid); stroke-width: 1; shape-rendering: crispEdges; }
+.tc-axis-line,
+.tc-pane-div { fill: none; stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.tc-axis-text {
+  fill: var(--text-3);
+  font: 500 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Candles */
+.tc-bull { fill: var(--bull); stroke: var(--bull); }
+.tc-bear { fill: var(--bear); stroke: var(--bear); }
+.tc-wick { fill: none; shape-rendering: crispEdges; }
+.tc-body { stroke: none; shape-rendering: crispEdges; }
+.tc-vol { stroke: none; opacity: 0.26; shape-rendering: crispEdges; }
+
+/* Overlays */
+.tc-series,
+.tc-path,
+.tc-seg,
+.tc-hline,
+.tc-fib-line,
+.tc-draw-line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.tc-hline,
+.tc-fib-line { stroke-linecap: butt; shape-rendering: crispEdges; }
+.tc-fib-line { opacity: 0.85; }
+.tc-fib-line.is-key { opacity: 1; }
+.tc-fib-trend { fill: none; stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.7; }
+.tc-fib-zone { fill-opacity: 0.13; stroke: none; }
+.tc-band { stroke: none; }
+.tc-band-edge { fill: none; stroke-width: 1; stroke-opacity: 0.55; }
+.tc-zone { stroke: none; }
+.tc-zone-edge { fill: none; stroke-width: 1; stroke-opacity: 0.55; stroke-dasharray: 4 3; shape-rendering: crispEdges; }
+.tc-box { fill-opacity: 0.08; stroke-width: 1.25; stroke-dasharray: 5 3; }
+.tc-level { fill: none; stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; shape-rendering: crispEdges; }
+.tc-zero { fill: none; stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.tc-hist { stroke: none; opacity: 0.75; shape-rendering: crispEdges; }
+.tc-dot { fill: var(--surface); stroke-width: 2; }
+.tc-ring { fill: none; stroke-width: 2; }
+.tc-marker { stroke: var(--surface); stroke-width: 1; paint-order: stroke; }
+.tc-lastline { fill: none; stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.7; shape-rendering: crispEdges; }
+
+/* Text: a halo in the surface colour keeps labels readable over candles */
+.tc-label,
+.tc-legend,
+.tc-pane-title {
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.tc-label {
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.01em;
+}
+.tc-label--strong { font-weight: 700; }
+.tc-legend,
+.tc-pane-title {
+  font: 500 11.5px/1 var(--font-mono);
+  fill: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.tc-legend-k { fill: var(--text-3); }
+.tc-up { fill: var(--bull); }
+.tc-down { fill: var(--bear); }
+.tc-pane-title { fill: var(--text-2); font-family: var(--font-body); font-weight: 600; }
+.tc-pane-title tspan { font-family: var(--font-mono); font-weight: 500; }
+
+/* Pills: solid ones sit on the price axis, outlined ones inside the plot */
+.tc-pill text {
+  fill: var(--surface);
+  font: 600 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.tc-ipill rect,
+.tc-lpill rect {
+  fill: var(--surface);
+  fill-opacity: 0.92;
+  stroke-width: 1;
+}
+.tc-ipill text,
+.tc-lpill text {
+  font: 600 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.tc-lpill text { font-family: var(--font-body); }
+
+/* Crosshair */
+.tc-l-cross { pointer-events: none; }
+.tc-cross-line { fill: none; stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 4 4; shape-rendering: crispEdges; }
+.tc-cross-y rect,
+.tc-cross-x rect { fill: var(--text); }
+.tc-cross-y text,
+.tc-cross-x text {
+  fill: var(--surface);
+  font: 600 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Drawing + handles */
+.tc-l-draw { pointer-events: none; }
+.tc-draw-line { stroke-width: 2; stroke-dasharray: 6 4; }
+.tc-draw-zone { fill-opacity: 0.14; stroke-width: 1; stroke-dasharray: 4 3; }
+.tc-draw-dot { fill: var(--surface); stroke-width: 2.5; }
+.tc-handle { fill: var(--surface); stroke-width: 2.5; pointer-events: none; }
+.tc-hit {
+  fill: transparent;
+  stroke: transparent;
+  cursor: grab;
+  touch-action: none;
+  pointer-events: all;
+}
+.tc-hit-line { fill: none; stroke-width: 24; cursor: ns-resize; }
+.tc-handle-g:hover .tc-handle { stroke-width: 3.5; }
+
+/* Reveal + flash */
+.tc-flash {
+  pointer-events: none;
+  opacity: 0;
+  animation: tc-flash 0.9s var(--ease-out, ease-out);
+}
+@keyframes tc-flash {
+  0% { opacity: 0.38; }
+  100% { opacity: 0; }
+}
+
+.tc-arrowhead { stroke: none; }
+
+/* Screen-reader live region */
+.tc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* miniChart */
+.tc-mini {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+.tc-mini-hl { fill: var(--accent-soft); }
+
+/* candleSVG */
+.tc-candle-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.tc-candle-svg .tc-wick { shape-rendering: auto; stroke-linecap: round; }
+.tc-callout,
+.tc-bracket { fill: none; stroke: var(--text-3); stroke-width: 1; }
+.tc-callout-text { fill: var(--text-2); font: 600 12px/1 var(--font-body); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-flash { animation: none; opacity: 0.22; }
+}

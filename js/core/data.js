@@ -67,8 +67,8 @@ export function synthesize(closes, { seed, rng: rngIn, open, scale, wick = 0.6, 
       if (rng.chance(gapChance)) o += Math.sign(c - out[i - 1].c || 1) * rng.float(0.3, 0.9) * s;
     }
     o = Math.max(o, MIN_PRICE);
-    const up = s * wick * 0.55 * wickDraw(rng);
-    const dn = s * wick * 0.55 * wickDraw(rng);
+    const up = s * wick * 0.85 * wickDraw(rng);
+    const dn = s * wick * 0.85 * wickDraw(rng);
     out[i] = fixCandle({ o, h: Math.max(o, c) + up, l: Math.max(Math.min(o, c) - dn, MIN_PRICE), c, v: 0, t: i });
   }
   return out;
@@ -167,30 +167,74 @@ export function fromPath(points, opts = {}) {
     scale[i] = Math.max(0.55 * sm + 0.45 * avgMove, Math.abs(base[i]) * 0.0012, MIN_PRICE);
   }
 
-  // Noise: AR(1) level noise, tapered to zero at the waypoints when exact.
-  const NOISE_GAIN = 2.1;
-  const phi = 0.35;
+  // Noise. With exact = true: a Brownian bridge per segment (random-walk wiggles that return to
+  // each waypoint), damped within ~2 bars of a waypoint so peaks and troughs stay clean.
+  // Otherwise a persistent AR(1) walk around the path. The gain makes candle-to-candle noise
+  // about the size of the path's own per-candle move at noise = 0.35: trends show a realistic
+  // share of counter-trend candles and small pullbacks while the shape stays obvious.
+  const NOISE_GAIN = 2.5;
   const closes = new Float64Array(n);
-  let e = 0;
-  for (let i = 0; i < n; i++) {
-    e = phi * e + Math.sqrt(1 - phi * phi) * rng.gauss(0, noise * NOISE_GAIN * scale[i] * 0.5);
-    let taper = 1;
-    if (exact) {
-      const a = pts[seg[i]];
-      const b = pts[seg[i] + 1];
-      const t = (i - a.idx) / (b.idx - a.idx);
-      taper = Math.pow(Math.sin(Math.PI * clamp(t, 0, 1)), 0.8);
+  if (exact) {
+    for (let k = 0; k < m - 1; k++) {
+      const a = pts[k].idx;
+      const b = pts[k + 1].idx;
+      const len = b - a;
+      const W = new Float64Array(len + 1);
+      for (let j = 1; j <= len; j++) W[j] = W[j - 1] + rng.gauss(0, noise * NOISE_GAIN * scale[a + j]);
+      for (let j = 0; j <= len; j++) {
+        const i = a + j;
+        const d = Math.min(j, len - j);
+        const damp = Math.pow(Math.min(1, d / 2.5), 0.8);
+        const bridge = W[j] - (j / len) * W[len];
+        const white = rng.gauss(0, noise * 2.2 * scale[i]);
+        closes[i] = base[i] + (bridge + white) * damp;
+      }
     }
-    closes[i] = Math.max(base[i] + e * taper, MIN_PRICE * 10);
+  } else {
+    let e = 0;
+    for (let i = 0; i < n; i++) {
+      e = 0.8 * e + rng.gauss(0, noise * NOISE_GAIN * 0.8 * scale[i]);
+      closes[i] = base[i] + e;
+    }
   }
+  for (let i = 0; i < n; i++) closes[i] = Math.max(closes[i], MIN_PRICE * 10);
 
   // Exact anchors: bounds for closes near peaks / troughs.
   const hiCap = new Float64Array(n).fill(Infinity);
   const loCap = new Float64Array(n).fill(-Infinity);
   const rej = new Float64Array(n);
+  // Each peak is also the highest point of its whole swing — from the previous trough to the
+  // next one — and each trough the lowest (so a labelled Head / Top / Cup bottom is the real
+  // extreme a trader would mark, not just the extreme within ±win bars).
+  const isAnchor = new Uint8Array(n);
+  const kindAt = new Array(n);
+  for (const p of pts) {
+    isAnchor[p.idx] = 1;
+    kindAt[p.idx] = p.kind;
+  }
+  const legs = [];
   if (exact) {
-    for (const p of pts) {
+    for (let q = 0; q < m; q++) {
+      const p = pts[q];
       if (p.kind === 'mid') continue;
+      const opp = p.kind === 'high' ? 'low' : 'high';
+      let a = 0;
+      for (let r = q - 1; r >= 0; r--) {
+        if (pts[r].kind === opp) {
+          a = pts[r].idx + 1;
+          break;
+        }
+      }
+      let b = n - 1;
+      for (let r = q + 1; r < m; r++) {
+        if (pts[r].kind === opp) {
+          b = pts[r].idx - 1;
+          break;
+        }
+      }
+      legs.push({ p, a, b });
+    }
+    for (const { p, a, b } of legs) {
       const k = p.idx;
       const s = scale[k];
       rej[k] = s * rng.float(0.12, 0.55);
@@ -200,6 +244,11 @@ export function fromPath(points, opts = {}) {
         if (p.kind === 'high') hiCap[j] = Math.min(hiCap[j], p.price - margin);
         else loCap[j] = Math.max(loCap[j], p.price + margin);
       }
+      for (let j = a; j <= b; j++) {
+        if (isAnchor[j] || (j >= k - win - 1 && j <= k + win)) continue;
+        if (p.kind === 'high') hiCap[j] = Math.min(hiCap[j], p.price - 0.12 * s);
+        else loCap[j] = Math.max(loCap[j], p.price + 0.12 * s);
+      }
     }
     for (const p of pts) {
       const k = p.idx;
@@ -207,11 +256,15 @@ export function fromPath(points, opts = {}) {
       else if (p.kind === 'low') closes[k] = p.price + rej[k];
       else if (p.k >= 0 || k === 0 || k === n - 1) closes[k] = p.price;
     }
+    // Closes beyond a cap are redrawn a little inside it (not flattened onto it), so capped
+    // stretches still look like ordinary candles.
+    const capRng = rng.fork('caps');
     for (let j = 0; j < n; j++) {
       const lo = loCap[j];
       const hi = hiCap[j];
       if (lo > hi) closes[j] = (lo + hi) / 2;
-      else closes[j] = clamp(closes[j], lo, hi);
+      else if (closes[j] > hi) closes[j] = Math.max(lo, hi - scale[j] * capRng.float(0, 0.35));
+      else if (closes[j] < lo) closes[j] = Math.min(hi, lo + scale[j] * capRng.float(0, 0.35));
     }
   }
 
@@ -225,13 +278,14 @@ export function fromPath(points, opts = {}) {
       if (c.o < loCap[j]) c.o = Math.min(loCap[j], hiCap[j] < Infinity ? hiCap[j] : Infinity);
       fixCandle(c);
     }
-    // Cap neighbouring wicks, then pin the anchor extremes exactly.
-    for (const p of pts) {
-      if (p.kind === 'mid') continue;
+    // Cap neighbouring wicks (and every wick of the swing), then pin the anchor extremes exactly.
+    for (const { p, a, b } of legs) {
       const k = p.idx;
       const s = scale[k];
-      for (let j = Math.max(0, k - win); j <= Math.min(n - 1, k + win); j++) {
-        if (j === k) continue;
+      // a − 1 / b + 1 are the neighbouring opposite swings: only their far-side wick is capped.
+      for (let j = Math.min(a - 1, k - win); j <= Math.max(b + 1, k + win); j++) {
+        if (j === k || j < 0 || j >= n) continue;
+        if (kindAt[j] === p.kind && Math.abs(j - k) > win) continue;
         const c = candles[j];
         if (p.kind === 'high') c.h = Math.max(Math.max(c.o, c.c), Math.min(c.h, p.price - 0.04 * s));
         else c.l = Math.min(Math.min(c.o, c.c), Math.max(c.l, p.price + 0.04 * s));

@@ -8,7 +8,7 @@ export const TIERS = [
     subtitle: 'Read the chart',
     blurb:
       'Learn what every candle is telling you, how trends and levels form, and how moving averages ' +
-      'smooth out the noise. Six short units, each with a game to lock it in.',
+      'smooth out the noise. Six short units, each with a game to lock it in, then a capstone that puts it all together.',
   },
   {
     id: 'advanced',
@@ -241,7 +241,7 @@ export const BADGES = [
   ...GAMES.map((g) => ({
     id: `${g.id}-ace`,
     title: `${g.title} Ace`,
-    description: `Earn 3 stars in ${g.title}.`,
+    description: `Earn 3 stars in ${g.title}${/[.?!]$/.test(g.title) ? '' : '.'}`,
     icon: ACE_ICONS[g.id] || 'star',
     game: g.id,
   })),

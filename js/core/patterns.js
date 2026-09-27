@@ -73,7 +73,7 @@ function invertedShape(a) {
 // ---------------------------------------------------------------------------------------------
 
 function genDoji(rng, { price: P, range: R }) {
-  const s = R * rng.float(0.9, 1.35);
+  const s = R * rng.float(1.05, 1.5);
   const b = s * rng.float(0, 0.055);
   const rest = s - b;
   const up = rest * rng.float(0.35, 0.65);
@@ -81,7 +81,7 @@ function genDoji(rng, { price: P, range: R }) {
   return [parts(o, o + rng.sign() * b, up, rest - up)];
 }
 function genDragonfly(rng, { price: P, range: R }) {
-  const s = R * rng.float(1.15, 1.6);
+  const s = R * rng.float(1.45, 2.0);
   const b = s * rng.float(0, 0.045);
   const up = s * rng.float(0, 0.05);
   const o = P + rng.gauss(0, 0.03 * R);
@@ -104,7 +104,7 @@ function genMarubozu(rng, { price: P, range: R }) {
 }
 /** Small body at the top, long lower wick (hammer / hanging man). */
 function genHammerShape(rng, { price: P, range: R }, bullProb) {
-  const s = R * rng.float(1.2, 1.7);
+  const s = R * rng.float(1.5, 2.1);
   const b = s * rng.float(0.15, 0.3);
   const up = s * rng.float(0, 0.06);
   const low = s - b - up;
@@ -114,7 +114,7 @@ function genHammerShape(rng, { price: P, range: R }, bullProb) {
 }
 /** Small body at the bottom, long upper wick (inverted hammer / shooting star). */
 function genInvertedShape(rng, { price: P, range: R }, bullProb, gap) {
-  const s = R * rng.float(1.2, 1.7);
+  const s = R * rng.float(1.5, 2.1);
   const b = s * rng.float(0.15, 0.3);
   const low = s * rng.float(0, 0.06);
   const up = s - b - low;
@@ -413,14 +413,18 @@ export function findCandlePatterns(candles, { ids = CANDLE_PATTERN_IDS, context 
 
 function leadIn(rng, { n, start, dir, R }) {
   if (n <= 0) return [];
-  const D = n * R * rng.float(0.42, 0.55);
+  // Net move of the lead-in: ~0.45 typical ranges per candle, capped so long lead-ins stay realistic.
+  const D = R * Math.min(n * rng.float(0.42, 0.55), 8 + n * 0.12);
   let pts;
   if (dir === 'range') {
-    pts = [[0, start], [0.3, start + 1.3 * R], [0.62, start - 1.1 * R], [1, start + 0.1 * R]];
+    pts = n >= 16
+      ? [[0, start], [0.3, start + 1.4 * R], [0.65, start - 1.2 * R], [1, start + 0.1 * R]]
+      : [[0, start - 0.6 * R], [0.5, start + 1.1 * R], [1, start - 0.2 * R]];
   } else {
+    // One clean trend leg; a pullback only when every leg can span at least ~5 candles.
     const s = dir === 'down' ? -1 : 1;
-    pts = n >= 8
-      ? [[0, start], [0.5, start + s * 0.58 * D], [0.66, start + s * 0.44 * D], [1, start + s * D]]
+    pts = n >= 22
+      ? [[0, start], [0.42, start + s * 0.6 * D], [0.64, start + s * 0.4 * D], [1, start + s * D]]
       : [[0, start], [1, start + s * D]];
   }
   return fromPath(pts, { seed: rng.fork('lead').seed, count: Math.max(2, n), noise: 0.3, exact: true, volume: false }).candles.slice(-n);
@@ -561,7 +565,7 @@ function doubleTop(rng, inv) {
 
 function tripleTop(rng, inv) {
   const P1 = 100;
-  const T1 = P1 * (1 - rng.float(0.04, 0.06));
+  const T1 = P1 * (1 - rng.float(0.045, 0.065));
   const P2 = P1 * (1 + rng.float(-0.008, 0.008));
   const T2 = T1 * (1 + rng.float(-0.008, 0.008));
   const P3 = P1 * (1 + rng.float(-0.01, 0.006));
@@ -670,14 +674,16 @@ function bullFlag(rng, inv) {
   const Wc = Hp * rng.float(0.2, 0.27);
   const upper = (u) => top - slope * u;
   const lower = (u) => upper(u) - Wc;
-  const Wf = 2.3;
+  // Proportions: the flag lasts under twice as long as the pole (a textbook flag is a brief
+  // pause); the prior trend gets the room so the pole stands out as the steepest move.
+  const Wf = 1.45;
   const us = [0, 0.24, 0.5, 0.76, 1.0];
-  const s = poleStart * (1 + rng.float(-0.012, 0.004));
+  const s = poleStart * (1 - rng.float(0.035, 0.055));
   const items = place([
     { w: 0, p: s },
-    { w: 1.7, p: poleStart * (1 + rng.float(0.014, 0.026)) },
-    { w: 1.35, p: poleStart, label: 'Flagpole start' },
-    { w: 0.72, p: top, label: inv ? 'Flagpole bottom' : 'Flagpole top' },
+    { w: 1.7, p: poleStart * (1 + rng.float(0.018, 0.03)) },
+    { w: 0.75, p: poleStart, label: 'Flagpole start' },
+    { w: 0.8, p: top, label: inv ? 'Flagpole bottom' : 'Flagpole top' },
     { w: (us[1] - us[0]) * Wf, p: lower(us[1]), label: 'Flag' },
     { w: (us[2] - us[1]) * Wf, p: upper(us[2]) - Wc * 0.03, label: 'Flag' },
     { w: (us[3] - us[2]) * Wf, p: lower(us[3]), label: 'Flag' },
@@ -702,8 +708,8 @@ function cupAndHandle(rng) {
       p: u === 1 ? rim2 : cup(u),
       label: u === 0.5 ? 'Cup bottom' : u === 1 ? 'Right rim' : undefined,
     })),
-    { w: 0.8, p: rim2 - D * rng.float(0.25, 0.38), label: 'Handle' },
-    { w: 0.6, p: R * (1 + rng.float(0.016, 0.025)), label: 'Breakout' },
+    { w: 1.1, p: rim2 - D * rng.float(0.28, 0.4), label: 'Handle' },
+    { w: 0.75, p: R * (1 + rng.float(0.016, 0.025)), label: 'Breakout' },
   ]);
   const bo = items.length - 1;
   return finish(items, { breakoutPoint: bo, startPoint: 3, keyStart: 3, neckline: [3, 3], direction: 1, measure: { type: 'neckline', extreme: [7] } }, false);
@@ -863,6 +869,93 @@ export const CHART_PATTERNS = {
 export const CHART_PATTERN_IDS = Object.keys(CHART_PATTERNS);
 
 /**
+ * Make a generated chart pattern read the way the textbook draws it:
+ *  - before the breakout no candle closes beyond the broken line (that close would BE the
+ *    breakout) and, for triangles / wedges / flags, every close stays between the two lines;
+ *    wicks may poke through a line, but only a little;
+ *  - the breakout candle closes decisively beyond the line;
+ *  - a successful breakout holds: later closes stay beyond the broken level (a retest may wick
+ *    back to the line).
+ * Out-of-bounds opens/closes are reflected back inside (not flattened onto the line), so the
+ * adjusted candles still look like ordinary candles. Extremes on the lines are untouched.
+ */
+function tidyChart(candles, { rng, from, breakoutIdx, dir, level, upperL, lowerL, lvl, height, ok }) {
+  const n = candles.length;
+  const fix = (c) => {
+    c.h = Math.max(c.h, c.o, c.c);
+    c.l = Math.min(c.l, c.o, c.c);
+  };
+  let sr = 0;
+  for (let i = from; i <= breakoutIdx; i++) sr += candles[i].h - candles[i].l;
+  const avgR = sr / Math.max(1, breakoutIdx - from + 1) || height * 0.1;
+  const m = 0.04 * avgR;
+  const poke = Math.max(0.2 * avgR, 0.025 * height);
+  const reflect = (v, lo, hi) => {
+    if (lo > hi) return (lo + hi) / 2;
+    if (v < lo) return Math.min(hi, lo + (lo - v) * 0.6);
+    if (v > hi) return Math.max(lo, hi - (v - hi) * 0.6);
+    return v;
+  };
+
+  // 1. Formation: closes (and opens) inside, wicks poke through a line by at most `poke`.
+  for (let i = Math.max(0, from); i < breakoutIdx; i++) {
+    const c = candles[i];
+    let lo = -Infinity;
+    let hi = Infinity;
+    let wickLo = -Infinity;
+    let wickHi = Infinity;
+    if (dir > 0) {
+      hi = level(i) - m;
+      wickHi = level(i) + poke;
+    } else {
+      lo = level(i) + m;
+      wickLo = level(i) - poke;
+    }
+    if (upperL) {
+      hi = Math.min(hi, upperL(i) - m);
+      lo = Math.max(lo, lowerL(i) + m);
+      wickHi = Math.min(wickHi, upperL(i) + poke);
+      wickLo = Math.max(wickLo, lowerL(i) - poke);
+    }
+    c.o = reflect(c.o, lo, hi);
+    c.c = reflect(c.c, lo, hi);
+    c.h = Math.max(Math.max(c.o, c.c), Math.min(c.h, wickHi));
+    c.l = Math.min(Math.min(c.o, c.c), Math.max(c.l, wickLo));
+  }
+
+  // 2. Decisive breakout close.
+  const b = candles[breakoutIdx];
+  const minPen = Math.max(0.3 * avgR, 0.05 * height);
+  const L = level(breakoutIdx);
+  if ((b.c - L) * dir < minPen) {
+    b.c = L + dir * minPen * rng.float(1, 1.4);
+    if (dir > 0) b.h = Math.max(b.h, b.c + avgR * rng.float(0.03, 0.2));
+    else b.l = Math.min(b.l, b.c - avgR * rng.float(0.03, 0.2));
+    fix(b);
+    const nx = candles[breakoutIdx + 1];
+    if (nx) {
+      nx.o = b.c;
+      fix(nx);
+    }
+  }
+
+  // 3. A successful breakout holds beyond the broken level (and, for ~10 bars, beyond the
+  //    extended line when that is further out).
+  if (ok) {
+    for (let i = breakoutIdx + 1; i < n; i++) {
+      const c = candles[i];
+      let ref = lvl;
+      if (i <= breakoutIdx + 10) ref = dir > 0 ? Math.max(lvl, level(i)) : Math.min(lvl, level(i));
+      const lo = dir > 0 ? ref + m : -Infinity;
+      const hi = dir > 0 ? Infinity : ref - m;
+      c.o = reflect(c.o, lo, hi);
+      c.c = reflect(c.c, lo, hi);
+      fix(c);
+    }
+  }
+}
+
+/**
  * chartScenario(patternId, { seed, count = 110, start = 100, after = 20, outcome = 'success' })
  * The prior trend + formation + breakout fill the first count − after candles; `after`
  * follow-through candles show the outcome: 'success' heads for the measured-move target (often
@@ -914,16 +1007,24 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
   }
   const B = pts[bo][1];
   const lvlB = levelX(pts[bo][0]);
-  const targetX = lvlB + dir * heightX;
+  // The real breakout candle can come a little before the breakout waypoint; on a sloping line
+  // that moves the measured target, so plan from the most distant level in that window.
+  const lvlPrev = levelX(pts[bo - 1][0]);
+  const lvlPlan = dir > 0 ? Math.max(lvlB, lvlPrev) : Math.min(lvlB, lvlPrev);
+  const targetX = lvlPlan + dir * heightX;
   const afterPts = [];
   const xa = (f) => xb + f * (1 - xb);
   if (nAfter >= 4) {
     if (ok) {
       if (rng.chance(0.55) && nAfter >= 8) {
+        // Retest: price comes back to the broken line and holds on the far side of it (the
+        // wick touches the line; closes stay beyond — otherwise it would read as a failure).
         const f = rng.float(0.22, 0.32);
-        afterPts.push([xa(f), levelX(xa(f)) - dir * heightX * rng.float(0.03, 0.08)]);
+        const lineNow = levelX(xa(f));
+        const ref = dir > 0 ? Math.max(lvlPlan, lineNow) : Math.min(lvlPlan, lineNow);
+        afterPts.push([xa(f), ref + dir * heightX * rng.float(0.0, 0.05)]);
       }
-      afterPts.push([xa(rng.float(0.75, 0.88)), targetX + dir * heightX * rng.float(0, 0.06)]);
+      afterPts.push([xa(rng.float(0.75, 0.88)), targetX + dir * heightX * rng.float(0.06, 0.14)]);
       afterPts.push([1, targetX + dir * heightX * rng.float(-0.18, 0.12)]);
     } else {
       afterPts.push([xa(rng.float(0.1, 0.18)), B + dir * heightX * rng.float(0.08, 0.18)]);
@@ -977,6 +1078,8 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
   const lvl = level(breakoutIdx);
   const target = lvl + dir * height;
 
+  tidyChart(candles, { rng: rng.fork('tidy'), from: keyStartIdx, breakoutIdx, dir, level, upperL, lowerL, lvl, height, ok });
+
   const seg = (fn, x1, x2) => ({ x1, y1: fn(x1), x2, y2: fn(x2) });
   const neckline = shape.neckline ? seg(level, keyStartIdx, breakoutIdx) : null;
   let boundaries = null;
@@ -996,14 +1099,25 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
 
   // Volume: fades while the pattern forms, expands on a genuine breakout, stays weak on a trap.
   const span = Math.max(1, patternEnd - patternStart);
-  for (let i = patternStart; i <= patternEnd; i++) candles[i].v = Math.max(1, Math.round(candles[i].v * (1 - 0.35 * ((i - patternStart) / span))));
+  for (let i = patternStart; i <= patternEnd; i++) candles[i].v = Math.max(1, Math.round(candles[i].v * (1 - 0.5 * ((i - patternStart) / span))));
   if (shape.measure.type === 'pole') {
-    for (let i = A(shape.measure.from).idx + 1; i <= A(shape.measure.to).idx; i++) candles[i].v = Math.round(candles[i].v * 1.5);
+    for (let i = A(shape.measure.from).idx + 1; i <= A(shape.measure.to).idx; i++) candles[i].v = Math.round(candles[i].v * 1.6);
   }
-  const boost = ok ? [1.9, 1.45, 1.2] : [1.0, 0.9, 0.85];
+  const avgV = (a, b) => {
+    const cs = candles.slice(Math.max(0, a), Math.max(a + 1, b));
+    return cs.reduce((s, c) => s + c.v, 0) / Math.max(1, cs.length);
+  };
+  const vRecent = avgV(Math.max(patternStart, breakoutIdx - 10), breakoutIdx);
+  const vForm = avgV(keyStartIdx, breakoutIdx); // the formation itself (a flag excludes its pole)
+  const vrng = rng.fork('bo-volume');
+  // Real breakout: 1.8–2.6× the recent average, still above average for two more bars.
+  // Trap: the breakout bar is below the recent average — no conviction behind it.
+  const boost = ok ? [vrng.float(1.8, 2.6), vrng.float(1.3, 1.7), vrng.float(1.05, 1.3)] : [vrng.float(0.6, 0.85), vrng.float(0.6, 0.9), vrng.float(0.7, 0.95)];
   boost.forEach((b, j) => {
     const c = candles[breakoutIdx + j];
-    if (c) c.v = Math.max(1, Math.round(c.v * b));
+    if (!c) return;
+    const want = ok ? Math.max(vRecent * b, j === 0 ? vForm * 1.4 : 0) : vRecent * b;
+    c.v = Math.max(1, Math.round(ok ? Math.max(c.v, want) : Math.min(c.v, want)));
   });
 
   let reachedTarget = false;

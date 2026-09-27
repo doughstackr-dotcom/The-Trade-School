@@ -3,7 +3,7 @@ import { h, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/u
 import { TIERS, UNITS, GAMES, BADGES, findEntry, unitsOf, hashFor, learningPath } from '../registry.js';
 import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
-import { sma, swings } from '../core/indicators.js';
+import { sma } from '../core/indicators.js';
 
 const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate' };
 
@@ -115,7 +115,9 @@ function mountHero(host, chartMod) {
       lo = Math.min(lo, c.l);
       hi = Math.max(hi, c.h);
     }
+    // Extra room under the lows so the 'Bounce' marker and its label clear the time axis.
     const pad = (hi - lo) * 0.1;
+    const padBottom = (hi - lo) * 0.18;
     if (chart) {
       try {
         chart.destroy();
@@ -128,7 +130,7 @@ function mountHero(host, chartMod) {
       candles,
       height: heightFor(),
       visible: reduce ? candles.length : 0,
-      autoscale: [lo - pad, hi + pad],
+      autoscale: [lo - padBottom, hi + pad],
       showVolume: false,
       crosshair: true,
       ariaLabel: 'Animated example chart: support, a bounce, a rising trend line and a Fibonacci retracement',
@@ -264,13 +266,12 @@ function mountHero(host, chartMod) {
 // ------------------------------------------------------------------ arcade previews
 
 /** Small seeded miniChart teaser for a game (used by the arcade grid). */
-export function gamePreview(id, seed, { miniChart }, pat = null) {
-  const opts = { width: 280, height: 120, padding: 8 };
-  const rng = makeRng(seed);
+export function gamePreview(id, seed, { miniChart }, pat = null, size = { width: 280, height: 120 }) {
+  const opts = { width: size.width, height: size.height, padding: 8 };
   switch (id) {
     case 'candle-builder': {
       const candles = randomWalk({ seed, count: 9, vol: 0.022, volume: false });
-      return miniChart(candles, { ...opts, overlays: [{ type: 'box', from: 7.5, to: 8.5, color: 'accent' }] });
+      return miniChart(candles, { ...opts, overlays: [{ type: 'box', from: 7.56, to: 8.44, color: 'accent' }] });
     }
     case 'pattern-flash': {
       if (pat?.candleScenario) {
@@ -352,10 +353,16 @@ export function gamePreview(id, seed, { miniChart }, pat = null) {
     }
     case 'trade-simulator':
     default: {
-      const candles = randomWalk({ seed, count: 70, drift: 0.0008, vol: 0.011, volume: false });
-      const lows = swings(candles, { left: 3, right: 3 }).filter((s) => s.type === 'low');
-      const pick = lows[Math.min(lows.length - 1, 1 + (rng.int(0, 1)))];
-      const ov = pick ? [{ type: 'marker', idx: pick.idx, price: pick.price, position: 'below', shape: 'arrow', text: 'Buy', color: 'bull' }] : [];
+      const { candles, anchors } = fromPath([[0, 101], [0.22, 97.6], [0.4, 100.4], [0.52, 98.6], [0.8, 105.5], [1, 104.2]], { seed, count: 110, noise: 0.45, volume: false });
+      const buy = anchors[3];
+      const sell = anchors[4];
+      const entry = candles[buy.idx].l;
+      const ov = [
+        { type: 'zone', from: entry - 1.1, to: entry, color: 'bear', opacity: 0.12, x1: buy.idx, x2: sell.idx },
+        { type: 'zone', from: entry, to: candles[sell.idx].h, color: 'bull', opacity: 0.1, x1: buy.idx, x2: sell.idx },
+        { type: 'marker', idx: buy.idx, price: entry, position: 'below', shape: 'arrow', text: 'Buy', color: 'bull' },
+        { type: 'marker', idx: sell.idx, price: candles[sell.idx].h, position: 'above', shape: 'arrow', text: 'Sell', color: 'bear' },
+      ];
       return miniChart(candles, { ...opts, overlays: ov });
     }
   }
@@ -421,12 +428,13 @@ function trackCard(store, tier) {
     h('a', { class: 'btn track-card__cta', href: `#${tier.id}` }, `Open the ${tier.title} track`, icon('arrow-right')));
 }
 
-function arcadeTile(store, g) {
+function arcadeTile(store, g, feature = false) {
   const st = store.gameStats(g.id);
   const art = h('div', { class: 'game-tile__art', 'aria-hidden': 'true', 'data-art': g.id });
-  const tile = h('a', { class: 'game-tile card card--link', href: `#g.${g.id}` },
+  const tile = h('a', { class: ['game-tile card card--link', feature && 'game-tile--feature'], href: `#g.${g.id}` },
     art,
     h('div', { class: 'game-tile__body' },
+      feature ? h('p', { class: 'eyebrow eyebrow--accent' }, 'Capstone simulation') : null,
       h('div', { class: 'game-tile__top' },
         h('h3', { class: 'game-tile__title' }, g.title),
         st?.plays ? starRow(st.stars || 0, { size: 14 }) : null),
@@ -477,7 +485,11 @@ export default {
       h('div', { class: 'container hero__inner' },
         h('div', { class: 'hero__copy' },
           h('p', { class: 'eyebrow eyebrow--accent hero__eyebrow' }, 'The Trade School · learn by playing'),
-          h('h1', { class: 'hero__title' }, 'Learn to read the market, ', h('span', { class: 'hero__em' }, 'one candle'), ' at a time.'),
+          h('h1', { class: 'hero__title' },
+            h('span', { class: 'hero__line' }, 'Learn to read'), ' ',
+            h('span', { class: 'hero__line' }, 'the market,'), ' ',
+            h('span', { class: 'hero__line' }, h('span', { class: 'hero__em' }, 'one candle')), ' ',
+            h('span', { class: 'hero__line' }, 'at a time.')),
           h('p', { class: 'hero__lead' },
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Every chart is simulated, so you can practise without risking a cent.'),
           h('div', { class: 'hero__ctas' },
@@ -512,8 +524,9 @@ export default {
         arcade,
         levelStrip(store)));
 
+    const FEATURE = 'trade-simulator';
     const arts = GAMES.map((g) => {
-      const { tile, art } = arcadeTile(store, g);
+      const { tile, art } = arcadeTile(store, g, g.id === FEATURE);
       arcadeGrid.append(tile);
       return art;
     });
@@ -536,7 +549,8 @@ export default {
       }
       GAMES.forEach((g, i) => {
         try {
-          arts[i].append(gamePreview(g.id, 1000 + i * 7919, chartMod, pat));
+          const size = g.id === FEATURE ? { width: 640, height: 220 } : undefined;
+          arts[i].append(gamePreview(g.id, 1000 + i * 7919, chartMod, pat, size));
         } catch (err) {
           console.error(`[home] preview for ${g.id} failed:`, err);
         }
