@@ -573,3 +573,99 @@ LEVELS = Paper Trader (0) · Chart Reader (150) · Swing Spotter (400) · Level 
   (git-ignored). `node tests/smoke.mjs g.fib-sniper` checks a single route.
 - Playwright is resolved from the local `node_modules` or, failing that, the global npm
   root. Chromium path: `PLAYWRIGHT_BROWSERS_PATH` or `/opt/pw-browsers/chromium`.
+
+## 9. Accounts, subscriptions and access
+
+Backend: Supabase project `the-trade-school` (ref `pedcpgmowqhqgersxxqa`, us-east-1).
+Schema: `supabase/migrations/20260927180000_accounts_and_billing.sql` (applied).
+Billing: Stripe Checkout + customer portal via Edge Functions in `supabase/functions/`
+(deployed: `create-checkout`, `customer-portal`, `stripe-webhook`). Setup steps for the
+owner live in `docs/ACCOUNTS.md`.
+
+### 9.1 Plans and what they unlock
+
+| plan | price | unlocks |
+|---|---|---|
+| (signed out) | — | home, track overviews, pricing, glossary, sign-in pages |
+| `free` (account, no subscription) | $0 | + unit 1 (`candle-anatomy`, `candle-builder`), the Pattern Library, progress sync |
+| `beginner` | **$19.99 / month** | + every Beginner lesson and game, `what-next` Beginner mode |
+| `advanced` | **$29.99 / month** | + everything in Beginner **and** every Advanced lesson and game |
+
+`public.access_level()` (SQL, security invoker) returns `'free' | 'beginner' | 'advanced'`
+for the caller from `subscriptions` (status active/trialing/past_due) and `access_grants`.
+
+### 9.2 Browser modules
+
+```
+js/config.js         public config: SUPABASE_URL, SUPABASE_KEY (publishable key — safe in
+                     the browser), PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE
+js/vendor/supabase.js  vendored @supabase/supabase-js UMD build (window.supabase), loaded
+                     lazily by auth.js — no CDN
+js/core/auth.js      session, sign up/in/out, magic link, password reset, access level,
+                     checkout + billing portal, 'change' events; mock mode for tests
+js/core/access.js    requiredPlan(entry | mode) and canOpen(); lock labels for the UI
+js/core/sync.js      merges local progress with the `progress` row and pushes debounced
+js/pages/pricing.js  #pricing      plan cards, FAQ, current plan
+js/pages/account.js  #account      profile, plan status, manage billing, sign out
+js/pages/auth.js     #signin #signup #reset #reset.update
+js/pages/paywall.js  rendered by the router in place of a locked lesson/game
+js/pages/legal.js    #terms #privacy (drafts for the owner to review)
+```
+
+`auth` API:
+
+```js
+import { auth } from './core/auth.js';
+await auth.ready;                       // session restored (or none)
+auth.user          // null | { id, email }
+auth.profile       // null | { display_name }
+auth.level         // null (signed out) | 'free' | 'beginner' | 'advanced'
+auth.mode          // 'supabase' | 'mock' | 'offline' (vendor/network unavailable)
+auth.signUp({ email, password, displayName }) → { needsConfirmation }
+auth.signIn({ email, password })
+auth.signInWithMagicLink(email)
+auth.sendPasswordReset(email)
+auth.updatePassword(password)
+auth.signOut()
+auth.refreshAccess() → level
+auth.checkout(plan)                     // redirects to Stripe, or resolves { switched }
+auth.openBillingPortal()                // redirects to the Stripe customer portal
+auth.on('change', fn) / auth.off('change', fn)
+```
+
+- PKCE flow (`flowType: 'pkce'`), so email links come back as `?code=…` and never
+  collide with the hash router; the `code` param is stripped with `history.replaceState`
+  after the exchange. Password recovery lands on `#reset.update`.
+- Checkout returns to `?checkout=success#account`; the account page polls
+  `refreshAccess()` for up to ~30 s while the webhook lands.
+- Mock mode (only on localhost/127.0.0.1): `localStorage['tts-auth-mock']` holds a fake
+  user and level so Playwright can exercise every flow without network access.
+
+### 9.3 Enforcement
+
+- `ACCESS_MODE`: `'auto'` (default) enforces plans on real hosts and leaves everything
+  open on localhost/127.0.0.1 so development and the smoke test see every module;
+  `localStorage['tts-enforce-access'] = '1'` forces enforcement locally for testing.
+- The router checks `access.canOpen(entry)` before importing a lesson/game/library page and
+  mounts `paywall.js` instead when blocked. `ctx.access` is passed to every module
+  (`{ level, can(plan) }`); GameShell modes may declare `requires: 'advanced'` and render
+  locked with an upgrade link.
+- Client-side checks are UX. Real enforcement is `PREMIUM_SOURCE = 'storage'`: paid module
+  files are uploaded to the private `premium` Storage bucket (`beginner/…`, `advanced/…`)
+  by `scripts/publish-premium.mjs`, removed from the public site build, and loaded by the
+  router through Storage (RLS checks `access_level()`), with relative imports rewritten to
+  absolute URLs. This only protects content if the source repository is private.
+
+## 10. Devices
+
+Every page must work on phones (360–430 px, touch), tablets (768–1180 px, touch, portrait
+and landscape) and desktops (mouse + keyboard). Rules:
+
+- Pointer events only; hit targets ≥ 44 px on touch; no hover-only information (every
+  hover readout also appears on tap).
+- Charts size to their container; at tablet widths lessons use a wider chart column.
+- `manifest.webmanifest` + icons (SVG, 192, 512, maskable, apple-touch-icon) make the site
+  installable to a home screen; `sw.js` caches the static shell (never Supabase requests or
+  premium modules) and is only registered on https or localhost.
+- The smoke test covers desktop 1280×800, tablet 820×1180 (touch) and phone 390×844
+  (touch), light and dark.
