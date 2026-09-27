@@ -226,6 +226,9 @@ test('Bollinger bands use the population standard deviation', () => {
   near(b.upper[7], 9, 1e-12, 'upper');
   near(b.lower[7], 1, 1e-12, 'lower');
   assert.deepEqual(I.bollinger([1, 2], 20).upper, [null, null]);
+  // A fractional period behaves like its integer part (no NaN from fractional indexes).
+  const c = I.closes(SERIES.walk);
+  assert.deepEqual(I.bollinger(c, 20.7), I.bollinger(c, 20));
 });
 
 test('ATR is Wilder-smoothed true range seeded with the mean of the first n TRs', () => {

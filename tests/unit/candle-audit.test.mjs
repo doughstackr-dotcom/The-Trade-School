@@ -159,7 +159,7 @@ test('candleScenario: context-true lead-in, pattern at the extreme, one unambigu
           if (m.id === id) assert.equal(m.start, sc.start, `${msg}: second ${id} at ${m.start}`);
           else if (q.bias !== 'neutral') {
             assert.ok(!(m.end >= sc.start && (m.start < sc.start || m.end === sc.end)), `${msg}: ${m.id} competes at ${m.start}-${m.end}`);
-            if (m.end < sc.start && p.bias !== 'neutral' && q.kind === 'reversal') assert.notEqual(q.bias, p.bias, `${msg}: earlier ${m.id}`);
+            if (m.end < sc.start && m.end >= sc.start - 12 && p.bias !== 'neutral' && q.kind === 'reversal') assert.notEqual(q.bias, p.bias, `${msg}: earlier ${m.id}`);
           }
         }
         assert.ok(findCandlePatterns(cs.slice(0, sc.end + 1), { ids: [id] }).some((m) => m.start === sc.start && m.end === sc.end), `${msg}: not found in context`);
@@ -221,6 +221,30 @@ test('candleScenario: deterministic, scales with start, handles leadIn 0 and aft
   const b = candleScenario('morning-star', { seed: 9 }).candles.slice(0, 14);
   assert.notDeepEqual(a, b);
   assert.throws(() => candleScenario('nope', { seed: 1 }), /Unknown candle pattern/);
+});
+
+test('FX scenarios survive rounding to 4 decimals (pips) without losing their geometry', () => {
+  const r4 = (v) => Math.round(v * 1e4) / 1e4;
+  for (const id of CANDLE_PATTERN_IDS) {
+    for (const seed of SEEDS.slice(0, 60)) {
+      const sc = candleScenario(id, { seed, start: 1.085 });
+      const pat = sc.candles.slice(sc.start, sc.end + 1).map((k) => ({ ...k, o: r4(k.o), h: r4(k.h), l: r4(k.l), c: r4(k.c) }));
+      assert.ok(checkCandlePattern(id, pat), `${id} seed ${seed}: broken by rounding`);
+    }
+  }
+});
+
+test('scenario candles are valid for 1000 seeds (mixed patterns, outcomes, prices)', () => {
+  for (let seed = 1; seed <= 1000; seed++) {
+    const id = CANDLE_PATTERN_IDS[seed % CANDLE_PATTERN_IDS.length];
+    const start = [100, 1.085, 25, 2500][seed % 4];
+    const sc = candleScenario(id, { seed, start, after: seed % 9, leadIn: 6 + (seed % 20), outcome: seed % 3 ? 'success' : 'fail' });
+    for (const k of sc.candles) {
+      if (!(k.l > 0 && k.l <= Math.min(k.o, k.c) && Math.max(k.o, k.c) <= k.h && Number.isFinite(k.h) && k.v >= 1)) {
+        assert.fail(`${id} seed ${seed}: invalid ${JSON.stringify(k)}`);
+      }
+    }
+  }
 });
 
 test('findCandlePatterns on random data: every match satisfies its own geometry and context', () => {

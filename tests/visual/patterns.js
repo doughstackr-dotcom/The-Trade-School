@@ -25,6 +25,15 @@ const showFail = params.get('fail') !== '0';
 // follow-through) at a larger size, to judge individual candle geometry.
 const zoom = Number(params.get('zoom')) || 0;
 
+// Theme links keep the other query parameters.
+for (const a of document.querySelectorAll('nav.bar a')) {
+  const t = new URLSearchParams(a.getAttribute('href').slice(1)).get('theme');
+  if (!t) continue;
+  const q = new URLSearchParams(location.search);
+  q.set('theme', t);
+  a.setAttribute('href', `?${q}`);
+}
+
 const sheet = document.getElementById('sheet');
 let problems = 0;
 let cardsDrawn = 0;

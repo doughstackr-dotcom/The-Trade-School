@@ -446,7 +446,7 @@ function waitAbortable(ms: number, signal?: AbortSignal | null): Promise<void> {
 }
 
 const SEEDS: Record<string, number> = {};
-const seedOf = (id: string) => (SEEDS[id] ??= [...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 17);
+export const seedOf = (id: string) => (SEEDS[id] ??= [...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 17);
 
 export class FakeCoinbase extends FakeExchange {
   /** Mutate the raw rows before they are returned (inject garbage). */

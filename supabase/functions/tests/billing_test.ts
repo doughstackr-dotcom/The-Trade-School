@@ -2,9 +2,11 @@
 // customer-portal and stripe-webhook, against in-memory fakes of PostgREST, Supabase Auth
 // and the Stripe API (see billing_fakes.ts). No network access is used.
 //
-// Run from the repository root:
-//   DENO_DIR=/tmp/denotest/cache deno test --no-config --node-modules-dir=none \
-//     --allow-env --allow-read=supabase --allow-net=127.0.0.1 supabase/functions/tests/
+// Run from the repository root (the billing_env_*_test.ts files cover other environments):
+//   deno test --no-config --node-modules-dir=none --allow-env --allow-read=supabase \
+//     --allow-net=127.0.0.1 'supabase/functions/tests/billing*test.ts'
+// BILLING_TEST_VERBOSE=1 prints the functions' console output; BILLING_FAKE_LENIENT_EXPAND=1
+// makes the fake Stripe accept any expand[] path.
 // deno-lint-ignore-file no-explicit-any
 
 import { assert, assertEquals, assertExists, assertMatch, assertNotEquals, assertStringIncludes } from 'jsr:@std/assert@1';

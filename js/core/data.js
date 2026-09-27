@@ -104,8 +104,9 @@ export function randomWalk({ seed, count = 120, start = 100, drift = 0, vol = 0.
  * proportional to the path's own per-candle move (so shapes stay readable at any scale).
  * `start` is the price at x = 0 when the first point is not at x = 0.
  * With exact = true, interior waypoints that are local peaks become a candle whose HIGH equals
- * the waypoint price and no candle within ±3 bars exceeds it (troughs: LOW, symmetric);
- * other waypoints ('mid') are hit exactly by the candle's CLOSE.
+ * the waypoint price and no other candle of that swing (from the previous trough waypoint to the
+ * next one) reaches it (troughs: LOW, symmetric); other waypoints ('mid') are hit exactly by the
+ * candle's CLOSE.
  * → { candles, anchors: [{ idx, price, kind: 'high'|'low'|'mid' }] } (one per input point, input order)
  */
 export function fromPath(points, opts = {}) {
@@ -325,7 +326,8 @@ export function fromPath(points, opts = {}) {
  * trendSeries({ seed, count = 80, start = 100, direction = 'up'|'down'|'range', swings = 4, strength = 1 })
  * Zig-zag market structure. 'up' prints higher highs and higher lows, 'down' lower highs and
  * lower lows, 'range' oscillates between a ceiling and a floor. `swings` = swing highs (and lows).
- * Every returned swing is the exact high/low of its candle and the extreme within ±3 bars.
+ * Every returned swing is the exact high/low of its candle and the extreme of all candles
+ * between its neighbouring swings.
  * → { candles, swings: [{ idx, price, type: 'high'|'low', label: 'HH'|'HL'|'LH'|'LL'|'H'|'L' }] }
  */
 export function trendSeries({ seed, count = 80, start = 100, direction = 'up', swings = 4, strength = 1, volume = true } = {}) {

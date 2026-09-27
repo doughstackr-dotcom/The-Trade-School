@@ -262,8 +262,10 @@ export function fromPath(points, { seed, count = 120, start = 100, noise = 0.35,
   // move (Brownian-bridge wiggles + candle-to-candle noise, damped next to waypoints), so a
   // trend leg shows realistic pullbacks and ~20% counter-trend candles while the shape stays clear.
   // With exact = true: an interior waypoint that is a local PEAK of the path gets a candle whose
-  // HIGH equals the price and no candle within ±3 bars reaches it (troughs: LOW, symmetric);
-  // every other waypoint ('mid': endpoints, points on a monotonic run) is hit by the CLOSE.
+  // HIGH equals the price and no other candle of its swing — from the previous trough waypoint
+  // to the next one — reaches it (troughs: LOW, symmetric), so a labelled peak is the real swing
+  // high a trader would mark; every other waypoint ('mid': endpoints, points on a monotonic
+  // run) is hit by the CLOSE.
   // → { candles, anchors: [{ idx, price, kind: 'high'|'low'|'mid' }] }  (one per point, input order)
   // Keep waypoints ≥ 4 candles apart; closer peaks/troughs squash the candles between them.
 
@@ -272,7 +274,8 @@ export function trendSeries({ seed, count = 80, start = 100, direction = 'up'|'d
   // Zig-zag market structure. `swings` = number of swing highs (and of swing lows).
   // 'up': higher highs + higher lows (every high clearly above the last), 'down' mirrored,
   // 'range' oscillates between a ceiling and a floor. Each swing is the exact high/low of its
-  // candle, the extreme within ±3 bars, and is found by indicators.swings({left:3,right:3}).
+  // candle, the extreme of all candles between its neighbouring swings, and is found by
+  // indicators.swings({left:3,right:3}); labels equal labelStructure() of the swings.
   // → { candles, swings: [{ idx, price, type: 'high'|'low', label: 'HH'|'HL'|'LH'|'LL'|'H'|'L' }] }
 
 export function aggregate(candles, factor, { partial = true } = {})
@@ -281,6 +284,8 @@ export function aggregate(candles, factor, { partial = true } = {})
   // A trailing incomplete group is kept (the still-forming candle) unless partial = false.
 
 export function addVolume(candles, { seed, base = 1000, trendBoost = true })
+  // Causal: bar i's volume depends only on bars 0..max(i, 9), so a different future never
+  // changes the volume of candles already shown.
 export function scale(candles, factor) / shift(candles, delta)   // pure helpers
 export function roundPrice(p, decimals = 2)
 // additions:
@@ -313,19 +318,33 @@ export const CANDLE_PATTERNS = {
 // three-white-soldiers, three-black-crows
 // Contexts: bullish reversals → 'downtrend', bearish reversals → 'uptrend', marubozu
 // (continuation) → the trend in its own direction, doji / spinning top → 'any'.
-// Generators satisfy the textbook definitions for every seed (see tests/unit/patterns.test.mjs):
-// e.g. doji |c−o| ≤ 8% of range; hammer lower wick ≥ 2× body and upper wick ≤ 10% of range;
-// engulfing body strictly engulfs the opposite-colour prior body; tweezer highs/lows within 0.1%.
+// Generators satisfy the textbook definitions for every seed at any price scale (see
+// tests/unit/candle-audit.test.mjs): e.g. doji |c−o| ≤ 8% of range; hammer lower wick ≥ 2× body
+// and upper wick ≤ 10% of range; engulfing body strictly engulfs the opposite-colour prior body;
+// the whole harami candle sits inside the first body; tweezer highs/lows within 0.1% of price AND
+// within 4% of the larger candle's range (0.1% alone is most of a candle at FX prices). A
+// generated pattern never also satisfies a rival definition (engulfing ≠ tweezer, tweezer ≠
+// harami / piercing / dark cloud, …); a dragonfly/gravestone is also a doji by definition.
 
 export function candleScenario(patternId, { seed, leadIn = 14, after = 0, start = 100,
                                             outcome = 'success' | 'fail' })
   // Lead-in trend that matches the pattern's context (downtrend before bullish reversals,
   // uptrend before bearish ones, a trend in the pattern's direction for continuation, any for
   // neutral), then the pattern, then `after` follow-through candles. 'success' moves in the
-  // pattern's bias direction (first candle confirms); 'fail' moves against it and, with
-  // after ≥ 3, closes beyond the pattern's extreme. Neutral patterns move in a random direction.
+  // pattern's bias direction and its first candle closes beyond `confirm` — the confirmation
+  // level from the pattern's howToTrade text (above a hammer's high, above a harami's first
+  // open, below a shooting star's body, …); 'fail' moves against it and, with after ≥ 3, closes
+  // beyond the pattern's extreme. Neutral patterns move in a random direction.
+  // The lead-in is chosen so that (a) findCandlePatterns / trendBefore see the right context,
+  // (b) a reversal pattern prints the extreme of the move (soldiers/crows start from it), and
+  // (c) there is exactly one answer: no other instance of the pattern, no recent reversal signal
+  // in the same direction, nothing else ending on or straddling into the pattern candles.
+  // Lead-in and pattern OHLC are identical for both outcomes and any `after`; only the pattern
+  // candle's volume differs (strong on success, weak on fail — a harami's inside day is quiet).
+  // Use leadIn >= 6 (shorter lead-ins are too short for trend context).
   // → { candles, start: idx, end: idx,          (inclusive indexes of the pattern)
-  //     id, bias, context, trend: 'up'|'down'|'range', outcome, direction: 1|-1 }
+  //     id, bias, context, trend: 'up'|'down'|'range', outcome, direction: 1|-1,
+  //     confirm: price }                        (addition)
 // additions:
 export const CANDLE_PATTERN_IDS
 export function checkCandlePattern(id, candles) → boolean       // geometry only
@@ -355,8 +374,19 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
                                            outcome = 'success' | 'fail' })
   // Prior trend + formation + breakout fill the first count − after candles; `after`
   // candles show the outcome. 'success' reaches the measured-move target (often retesting the
-  // broken line first); 'fail' breaks out briefly on weak volume, then reverses back through
-  // the pattern (a trap). Volume fades during the formation and expands on real breakouts.
+  // broken line first; the retest holds — no close back through the broken level); 'fail'
+  // breaks out briefly on weak volume, then reverses back through the pattern (a trap, ending
+  // at least 0.3 × height back inside). Both outcomes of a seed share identical candles up to
+  // and including the breakout candle (only volume from the breakout candle on differs).
+  // Guarantees: key points are the real swing extremes (highest high / lowest low between the
+  // neighbouring key points); no close beyond the broken line before breakoutIdx and, for
+  // triangles / wedges / flags, every close between the two lines (wicks may poke through a
+  // little); the breakout candle closes beyond the line by ≥ max(0.3 × average range,
+  // 0.05 × height). Volume: fades through the formation (flags: heavy pole, fading flag;
+  // cup / saucer: U-shaped, driest at the bottom, quiet handle); each retest of a level
+  // (Top 2, Top 3, right shoulder) is lighter than the first; the breakout bar is ≥ 1.35× the
+  // formation average on success and below the recent average on a trap.
+  // Use count ≥ 90 (the default 110 is right for ~60–80 visible candles on phones).
   // → { candles, patternStart, patternEnd, breakoutIdx,
   //     keyPoints: [{ idx, price, label }],          // labels e.g. 'Left shoulder', 'Head',
   //                                                  // 'Right shoulder', 'Neckline', 'Top 1',
@@ -410,7 +440,9 @@ divergence(candles, oscillator, { lookback = 40, left = 3, right = 3 })
      // consecutive swing lows (highs) of price vs the oscillator extreme within ±2 bars;
      // pairs more than `lookback` bars apart are skipped
 linearRegression(points) → { slope, intercept, r2 }   // [[x,y]] | [{x,y}] | [{idx,price}] | numbers
-highest(values, period) / lowest(values, period)       // (additions)
+highest(values, period) / lowest(values, period)       // (additions) nulls are ignored
+// rsi: a window with no gains and no losses reads 50; only gains → 100; only losses → 0.
+// Verified against the StockCharts/Wilder worked example to 0.01 (tests/unit/indicators-reference).
 ```
 
 ### 6.5 `js/core/chart.js` — `CandleChart`
@@ -680,8 +712,13 @@ LEVELS = Paper Trader (0) · Chart Reader (150) · Swing Spotter (400) · Level 
 ## 8. Testing
 
 - `npm test` → `node --test "tests/unit/*.test.mjs"` (core modules must not touch the DOM at
-  import time). Node 22 does not accept a bare directory (`node --test tests/unit/` fails with
-  MODULE_NOT_FOUND); the quoted glob is expanded by node itself, so it also works on Windows.
+  import time). Node 22 does not expand a bare directory, so `tests/unit/index.js` exists to
+  make `node --test tests/unit/` work too (node resolves the directory to that file, which
+  imports every `*.test.mjs` in one process). The whole suite runs in under 10 s.
+- `tests/visual/patterns.html` (serve the repo root, open `/tests/visual/patterns.html`) is a
+  contact sheet of every candlestick and chart pattern for several seeds, with key points,
+  neckline / boundaries, target and confirmation level drawn in. Query: `?theme=dark`,
+  `?only=candle|chart`, `?id=<patternId>`, `?seeds=1,2,3`, `?zoom=6`, `?fail=0`.
 - `npm run smoke` → `node tests/smoke.mjs`: starts a static server on a free port, opens
   every route (desktop 1280×800 and phone 390×844, light and dark), fails on any console
   error / page error / failed request, saves screenshots to `tests/screenshots/`

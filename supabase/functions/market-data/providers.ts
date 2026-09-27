@@ -73,6 +73,10 @@ export type Provider = {
   available(): boolean;
   supports(interval: Interval): boolean;
   fetch(meta: SymbolMeta, interval: Interval, startMs: number, endMs: number): Promise<Candle[]>;
+  /** Only the latest `maxBack` candles are served (unset: full history back to the listing). */
+  maxBack?: number;
+  /** Intervals without trades are left out instead of repeated flat (the caller fills them). */
+  sparse?: boolean;
 };
 
 // Coinbase Exchange public candles: GET /products/{id}/candles?granularity=&start=&end=
@@ -81,6 +85,7 @@ export type Provider = {
 const coinbase: Provider = {
   attribution: 'Market data: Coinbase Exchange',
   delayed: false,
+  sparse: true, // minutes/hours with no trades have no row
   available: () => true,
   supports: () => true,
   async fetch(meta, interval, startMs, endMs) {
@@ -113,6 +118,7 @@ const KRAKEN_MINUTES: Partial<Record<Interval, number>> = { '1m': 1, '5m': 5, '1
 const kraken: Provider = {
   attribution: 'Market data: Kraken',
   delayed: false,
+  maxBack: 720,
   available: () => true,
   supports: (interval) => interval in KRAKEN_MINUTES,
   async fetch(meta, interval, startMs, endMs) {

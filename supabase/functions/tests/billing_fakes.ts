@@ -668,6 +668,8 @@ export class FakeStripe {
   /** Force the API version used to render responses (simulates a newer pinned version). */
   forceVersion: string | null = null;
   latencyMs = 5;
+  /** Reject expand paths Stripe does not allow (set BILLING_FAKE_LENIENT_EXPAND=1 to accept any). */
+  strictExpand = !Deno.env.get('BILLING_FAKE_LENIENT_EXPAND');
   /** Idempotency outcomes: 409 while the first request was in flight, and replays afterwards. */
   idempotencyStats = { inFlightConflicts: 0, replays: 0 };
   failures: { method: string; path: RegExp; status: number; type: string; message: string }[] = [];
@@ -881,7 +883,7 @@ export class FakeStripe {
       const sub = this.subscriptions.get(m[1]);
       if (!sub) return stripeError(404, 'invalid_request_error', `No such subscription: '${m[1]}'`, 'resource_missing', 'id');
       for (const e of p.expand ?? []) {
-        if (!EXPANDABLE_SUBSCRIPTION.has(e)) return stripeError(400, 'invalid_request_error', `This property cannot be expanded (${e}).`);
+        if (this.strictExpand && !EXPANDABLE_SUBSCRIPTION.has(e)) return stripeError(400, 'invalid_request_error', `This property cannot be expanded (${e}).`);
       }
       if (method === 'GET') return jsonResponse(this.render(sub, version));
       if (method === 'POST') {

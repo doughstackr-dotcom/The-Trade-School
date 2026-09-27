@@ -13,7 +13,15 @@
 // Deployed with verify_jwt = false: this is public market data and callers use the
 // publishable key (not a JWT). Every input is validated against a fixed allow-list.
 import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
-import { INTERVAL_MS, PROVIDERS, SYMBOLS, type Candle, type Interval, type SymbolMeta } from './providers.ts';
+import {
+  INTERVAL_MS,
+  PROVIDERS,
+  SYMBOLS,
+  type Candle,
+  type Interval,
+  type ProviderName,
+  type SymbolMeta,
+} from './providers.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -28,6 +36,14 @@ const TTL_MS: Record<Interval, number> = {
   '1d': 1_800_000,
 };
 const MAX_LIMIT = 1000;
+/** Candles per upstream page (Coinbase's maximum): asking for fewer costs the same request. */
+const PAGE = 300;
+/** How long a caller waits for another caller's in-flight refresh before serving the cache. */
+const WAIT_MS = 3_000;
+const POLL_MS = 250;
+/** Earlier `end` values are rejected (catches seconds passed where milliseconds are expected). */
+const MIN_END = Date.UTC(1980, 0, 1);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const CORS = {
   'Access-Control-Allow-Origin': '*', // public, read-only data
@@ -48,11 +64,13 @@ function respond(body: unknown, status = 200, maxAgeMs = 0): Response {
 
 async function readParams(req: Request): Promise<Record<string, unknown>> {
   if (req.method === 'GET') return Object.fromEntries(new URL(req.url).searchParams);
-  return await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  return body && typeof body === 'object' && !Array.isArray(body) ? body : {}; // `null` body must not throw
 }
 
 function sanitize(c: Candle): Candle | null {
-  if (![c.t, c.o, c.h, c.l, c.c].every(Number.isFinite)) return null;
+  // Fractional ms would collapse onto the same timestamptz as a real candle and fail the whole upsert.
+  if (!Number.isSafeInteger(c.t) || ![c.o, c.h, c.l, c.c].every(Number.isFinite)) return null;
   if (c.o <= 0 || c.c <= 0 || c.h <= 0 || c.l <= 0) return null;
   return {
     t: c.t,
@@ -64,11 +82,32 @@ function sanitize(c: Candle): Candle | null {
   };
 }
 
-async function store(symbol: string, interval: Interval, candles: Candle[]) {
-  const rows = candles
-    .map(sanitize)
-    .filter((c): c is Candle => c !== null)
-    .map((c) => ({ symbol, interval, t: new Date(c.t).toISOString(), o: c.o, h: c.h, l: c.l, c: c.c, v: c.v }));
+/**
+ * Fill the intervals a sparse provider left out because nothing traded: flat at the previous
+ * close with zero volume (what Kraken returns for them), between the candles we got and after
+ * the last one up to `until`. Otherwise a quiet market looks like a hole in the cache and is
+ * re-fetched on every request. Candles must be sorted and unique.
+ */
+function fillGaps(candles: Candle[], step: number, until: number): Candle[] {
+  const out: Candle[] = [];
+  const flat = (t: number, p: number): Candle => ({ t, o: p, h: p, l: p, c: p, v: 0 });
+  for (const c of candles) {
+    const prev = out[out.length - 1];
+    if (prev) for (let t = prev.t + step; t < c.t; t += step) out.push(flat(t, prev.c));
+    out.push(c);
+  }
+  const last = out[out.length - 1];
+  if (last) for (let t = last.t + step; t <= until; t += step) out.push(flat(t, last.c));
+  return out;
+}
+
+/** Store what `source` returned for a range ending at `fetchEnd`. */
+async function store(symbol: string, interval: Interval, candles: Candle[], source: ProviderName, fetchEnd: number) {
+  const step = INTERVAL_MS[interval];
+  let clean = candles.map(sanitize).filter((c): c is Candle => c !== null);
+  // Only intervals that have closed, with one interval of slack for candles published late.
+  if (PROVIDERS[source].sparse) clean = fillGaps(clean, step, Math.min(fetchEnd - 1, Date.now() - 2 * step));
+  const rows = clean.map((c) => ({ symbol, interval, t: new Date(c.t).toISOString(), o: c.o, h: c.h, l: c.l, c: c.c, v: c.v }));
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await admin
       .from('market_candles')
@@ -117,6 +156,9 @@ async function fetchUpstream(meta: SymbolMeta, interval: Interval, startMs: numb
   for (const name of meta.providers) {
     const provider = PROVIDERS[name];
     if (!provider.available() || !provider.supports(interval)) continue;
+    // Kraken only keeps the latest 720 candles: for an older range it would answer "nothing",
+    // which would be cached as an empty window (and read as the listing date).
+    if (provider.maxBack && endMs < Date.now() - (provider.maxBack - 1) * INTERVAL_MS[interval]) continue;
     try {
       return { candles: await provider.fetch(meta, interval, startMs, endMs), source: name };
     } catch (err) {
@@ -152,6 +194,32 @@ async function releaseClaim(symbol: string, interval: Interval) {
   await admin.from('market_fetches').update({ fetched_at: retryAt }).eq('symbol', symbol).eq('interval', interval);
 }
 
+/** Remember that the provider has nothing before `t`. Creates the row when only history was asked for so far. */
+async function saveFloor(symbol: string, interval: Interval, t: number) {
+  const oldest_complete = new Date(t).toISOString();
+  const { data } = await admin
+    .from('market_fetches')
+    .update({ oldest_complete })
+    .eq('symbol', symbol)
+    .eq('interval', interval)
+    .select('symbol');
+  if (data?.length) return;
+  // fetched_at in the past, so creating the row doesn't hold back the first refresh of the latest candles.
+  await admin
+    .from('market_fetches')
+    .upsert(
+      { symbol, interval, oldest_complete, fetched_at: new Date(0).toISOString() },
+      { onConflict: 'symbol,interval', ignoreDuplicates: true },
+    );
+}
+
+function staleResponse(meta: SymbolMeta, symbol: string, interval: Interval, candles: Candle[]): Response {
+  const provider = PROVIDERS[meta.providers[0]];
+  return respond({
+    symbol, interval, candles, source: 'cache', attribution: provider.attribution, delayed: true, stale: true,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'GET' && req.method !== 'POST') return respond({ error: 'Use GET or POST.' }, 405);
@@ -165,72 +233,96 @@ Deno.serve(async (req) => {
     ? null
     : Number.isFinite(Number(endRaw)) ? Number(endRaw) : Date.parse(String(endRaw));
 
-  const meta = SYMBOLS[symbol];
+  // hasOwn: `interval in INTERVAL_MS` also accepted "toString", "constructor", "__proto__", …
+  const meta = Object.hasOwn(SYMBOLS, symbol) ? SYMBOLS[symbol] : undefined;
   if (!meta) return respond({ error: `Unknown symbol "${symbol}".`, symbols: Object.keys(SYMBOLS) }, 400);
-  if (!(interval in INTERVAL_MS)) return respond({ error: 'interval must be one of 1m 5m 15m 1h 6h 1d.' }, 400);
-  if (endMs !== null && !Number.isFinite(endMs)) return respond({ error: 'end must be a timestamp.' }, 400);
+  if (!Object.hasOwn(INTERVAL_MS, interval)) return respond({ error: 'interval must be one of 1m 5m 15m 1h 6h 1d.' }, 400);
+  if (endMs !== null && !(Number.isFinite(endMs) && endMs >= MIN_END)) {
+    return respond({ error: 'end must be a timestamp in milliseconds or an ISO 8601 date.' }, 400);
+  }
   if (!meta.providers.some((n) => PROVIDERS[n].available() && PROVIDERS[n].supports(interval))) {
     return respond({ error: `${symbol} ${interval} is not available yet.`, unconfigured: true }, 503);
   }
 
   const step = INTERVAL_MS[interval];
+  const gap = maxGap(meta, interval);
   const now = Date.now();
   const wantEnd = endMs === null ? now : Math.min(endMs, now);
+  const wantStart = wantEnd - spanMs(meta, interval, limit);
   const isLatest = now - wantEnd < step * 2;
   let source: string = meta.providers[0];
-  let refreshedLatest = false;
+  let claimed = false;
 
   try {
     // 1. Keep the newest candles fresh (one caller per TTL does the upstream request).
     if (isLatest && (await claimRefresh(symbol, interval))) {
+      claimed = true;
       try {
-        const recent = await fetchUpstream(meta, interval, now - 120 * step, now);
-        await store(symbol, interval, recent.candles);
+        // Start at the newest cached candle: it may have been stored while still forming, and an
+        // idle spell would otherwise leave a hole. On a cold cache, cover this request's window.
+        const [newest] = await load(symbol, interval, 1, null);
+        const from = Math.min(now - 120 * step, newest ? Math.max(newest.t, now - MAX_LIMIT * step) : wantStart);
+        const recent = await fetchUpstream(meta, interval, from, now);
+        await store(symbol, interval, recent.candles, recent.source, now);
         await admin.from('market_fetches').update({ source: recent.source }).eq('symbol', symbol).eq('interval', interval);
         source = recent.source;
-        refreshedLatest = true;
       } catch (err) {
         await releaseClaim(symbol, interval);
         throw err;
       }
     }
 
-    // 2. Back-fill history the cache doesn't cover yet (bounded by the provider's listing date).
     let candles = await load(symbol, interval, limit, endMs);
+    const lastT = () => (candles.length ? candles[candles.length - 1].t : -Infinity);
+
+    // 2. Someone else holds the refresh claim. If the cache doesn't reach "now" yet, their refresh
+    //    is in flight: wait for it instead of every caller going upstream at once.
+    if (isLatest && !claimed && wantEnd - lastT() > gap) {
+      for (let waited = 0; waited < WAIT_MS && wantEnd - lastT() > gap; waited += POLL_MS) {
+        await sleep(POLL_MS);
+        candles = await load(symbol, interval, limit, endMs);
+      }
+      if (candles.length && wantEnd - lastT() > gap) return staleResponse(meta, symbol, interval, candles);
+    }
+
+    // 3. Back-fill history the cache doesn't cover yet (bounded by the provider's listing date).
     const { data: state } = await admin
       .from('market_fetches')
       .select('oldest_complete, source')
       .eq('symbol', symbol)
       .eq('interval', interval)
       .maybeSingle();
-    if (state?.source && !refreshedLatest) source = state.source;
+    if (state?.source && !claimed) source = state.source;
     const floor = state?.oldest_complete ? Date.parse(state.oldest_complete) : -Infinity;
-    const wantStart = wantEnd - spanMs(meta, interval, limit);
-    const lastT = candles.length ? candles[candles.length - 1].t : -Infinity;
     // The cache must reach the requested end, have no holes, and go back far enough.
-    const tailMissing = wantEnd - lastT > maxGap(meta, interval);
+    const tailMissing = wantEnd - lastT() > gap;
     const hole = hasHole(candles, meta, interval);
     const headMissing = candles.length < limit && (candles.length === 0 || candles[0].t - step > Math.max(floor, wantStart));
 
     if (tailMissing || hole || headMissing) {
       const fetchEnd = tailMissing || hole ? wantEnd : candles[0].t;
-      const hist = await fetchUpstream(meta, interval, Math.max(wantStart, floor), fetchEnd);
-      await store(symbol, interval, hist.candles);
-      // If the provider has nothing before some point, remember it so we never ask again.
-      const earliest = hist.candles.length ? hist.candles[0].t : fetchEnd;
-      if (earliest - step > wantStart) {
-        await admin
-          .from('market_fetches')
-          .update({ oldest_complete: new Date(earliest).toISOString() })
-          .eq('symbol', symbol)
-          .eq('interval', interval);
+      // At least one full page (same cost), never below what is known to be empty.
+      const fetchStart = Math.max(floor, Math.min(wantStart, fetchEnd - PAGE * step));
+      if (fetchStart < fetchEnd) {
+        const hist = await fetchUpstream(meta, interval, fetchStart, fetchEnd);
+        await store(symbol, interval, hist.candles, hist.source, fetchEnd);
+        // Nothing in [fetchStart, emptyUntil): that is the listing date if the provider keeps full
+        // history and either the known floor was the start or the empty stretch is a whole page
+        // long (a few quiet minutes in a thin market are not a listing date).
+        const emptyUntil = hist.candles.length ? hist.candles[0].t : fetchEnd;
+        if (
+          !PROVIDERS[hist.source].maxBack && emptyUntil > floor &&
+          (fetchStart <= floor || emptyUntil - fetchStart >= PAGE * step)
+        ) {
+          await saveFloor(symbol, interval, emptyUntil);
+        }
+        candles = await load(symbol, interval, limit, endMs);
       }
-      candles = await load(symbol, interval, limit, endMs);
     }
 
     if (Math.random() < 0.01) await admin.rpc('prune_market_candles');
 
-    const provider = PROVIDERS[(source in PROVIDERS ? source : meta.providers[0]) as keyof typeof PROVIDERS];
+    const provider = PROVIDERS[(Object.hasOwn(PROVIDERS, source) ? source : meta.providers[0]) as ProviderName];
     return respond(
       { symbol, interval, candles, source, attribution: provider.attribution, delayed: provider.delayed },
       200,
@@ -240,12 +332,7 @@ Deno.serve(async (req) => {
     console.error(`market-data ${symbol} ${interval} failed: ${(err as Error).message}`);
     try {
       const cached = await load(symbol, interval, limit, endMs);
-      if (cached.length) {
-        const provider = PROVIDERS[meta.providers[0]];
-        return respond({
-          symbol, interval, candles: cached, source: 'cache', attribution: provider.attribution, delayed: true, stale: true,
-        });
-      }
+      if (cached.length) return staleResponse(meta, symbol, interval, cached);
     } catch { /* fall through */ }
     return respond({ error: 'Market data is unavailable right now.' }, 502);
   }

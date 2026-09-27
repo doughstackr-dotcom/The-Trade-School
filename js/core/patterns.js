@@ -558,10 +558,10 @@ function settleLeadIn(p, lead, pat, trend, R) {
       // Straddles the lead-in and the pattern (e.g. hammer + prior candle = tweezer bottom), or
       // ends on the pattern's last candle: a second valid answer for the same candles.
       if (m.end >= s && (m.start < s || m.end === e)) ok = false;
-      // An earlier reversal signal in the same direction steals the pattern's thunder. (A
+      // A recent reversal signal in the same direction steals the pattern's thunder. (A
       // pattern's own first candle may match a one-candle pattern, e.g. the long red candle of
       // a piercing line is a bearish marubozu — that is part of the story, not a rival.)
-      else if (m.end < s && p.bias !== 'neutral' && q.kind === 'reversal' && q.bias === p.bias) ok = false;
+      else if (m.end < s && m.end >= s - 12 && p.bias !== 'neutral' && q.kind === 'reversal' && q.bias === p.bias) ok = false;
       if (!ok) break;
     }
   }

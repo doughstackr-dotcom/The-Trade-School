@@ -334,6 +334,20 @@ test('the setup is identical for both outcomes: only the future differs', () => 
   }
 });
 
+test('scenario candles are valid for 1000 seeds (mixed patterns, outcomes, prices, counts)', () => {
+  for (let seed = 1; seed <= 1000; seed++) {
+    const id = CHART_PATTERN_IDS[seed % CHART_PATTERN_IDS.length];
+    const start = [100, 1.085, 25, 2500][seed % 4];
+    const sc = chartScenario(id, { seed, start, count: 90 + (seed % 70), after: 10 + (seed % 21), outcome: seed % 2 ? 'success' : 'fail' });
+    for (const k of sc.candles) {
+      if (!(k.l > 0 && k.l <= Math.min(k.o, k.c) && Math.max(k.o, k.c) <= k.h && Number.isFinite(k.h) && k.v >= 1)) {
+        assert.fail(`${id} seed ${seed}: invalid ${JSON.stringify(k)}`);
+      }
+    }
+    assert.ok(sc.breakoutIdx > sc.patternStart && sc.height > 0 && Number.isFinite(sc.target));
+  }
+});
+
 test('chartScenario: other counts, FX / high prices, determinism', () => {
   for (const id of CHART_PATTERN_IDS) {
     for (const [count, after] of [[160, 30], [90, 15], [110, 0], [110, 3]]) {

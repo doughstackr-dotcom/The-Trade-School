@@ -129,15 +129,16 @@ export function macd(closeValues, fast = 12, slow = 26, signal = 9) {
 /** Bollinger Bands: SMA ± mult × population standard deviation; width = (upper − lower) / mid. */
 export function bollinger(closeValues, period = 20, mult = 2) {
   const n = closeValues.length;
-  const mid = sma(closeValues, period);
+  const p = Math.max(1, Math.floor(period));
+  const mid = sma(closeValues, p);
   const upper = new Array(n).fill(null);
   const lower = new Array(n).fill(null);
   const width = new Array(n).fill(null);
   for (let i = 0; i < n; i++) {
     if (mid[i] == null) continue;
     let ss = 0;
-    for (let j = i - period + 1; j <= i; j++) ss += (closeValues[j] - mid[i]) ** 2;
-    const sd = Math.sqrt(ss / period);
+    for (let j = i - p + 1; j <= i; j++) ss += (closeValues[j] - mid[i]) ** 2;
+    const sd = Math.sqrt(ss / p);
     upper[i] = mid[i] + mult * sd;
     lower[i] = mid[i] - mult * sd;
     width[i] = mid[i] !== 0 ? (upper[i] - lower[i]) / mid[i] : null;
