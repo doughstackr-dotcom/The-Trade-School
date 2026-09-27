@@ -1,25 +1,154 @@
-// Setup Playbook (stub) — #playbook lists rule-based setups, #playbook.<setupId> opens one.
-// The full page (ARCHITECTURE §12.6) adds a ChartStory animation, textbook and real examples,
-// real-sample stats and common mistakes. This stub proves the routes and the layout.
+// Setup Playbook — rule-based setups with checklist + Home-hero-style playback on detail.
+// List keeps static miniChart thumbs; detail keeps the diagram and ADDS a stepped simulation.
 import { h, icon, tierChip } from '../core/ui.js';
 import { takeaway, figure } from '../core/lesson-kit.js';
+import { mountPatternPlayback } from '../core/pattern-playback.js';
 
 // id = scanner setup kind where one exists (§12.4), so real examples can be looked up by id.
+// Candle pattern ids must exist in CANDLE_PATTERNS / candleScenario.
 const SETUPS = [
+  // —— Japanese reversal candlesticks framed for scalping ——
+  {
+    id: 'doji', name: 'Doji pause (scalp)', tier: 'beginner', bias: 'neutral', kind: 'candle',
+    pattern: 'doji', fib: true,
+    summary: 'On a short timeframe, a doji at a micro level flags indecision — trade only the break of its range with a tight stop.',
+    rules: [
+      'Clear prior push into a level (VWAP, prior high/low, or session open)',
+      'Doji body ≤ ~8% of its range',
+      'Wait for the next candle to close beyond the doji high (long) or low (short)',
+      'Skip if the doji is mid-range with no level',
+    ],
+    entry: 'Buy/sell the confirmation close beyond the doji extreme.',
+    stop: 'A few ticks beyond the opposite wick — scalp-tight.',
+    target: '1–1.5R or the next micro swing; take profit quick.',
+  },
+  {
+    id: 'dragonfly-doji', name: 'Dragonfly doji scalp', tier: 'beginner', bias: 'bullish', kind: 'candle',
+    pattern: 'dragonfly-doji', fib: true,
+    summary: 'Long lower wick, open/high/close near the top after a dip — buyers absorbed the sell. Scalp the reclaim.',
+    rules: [
+      'Short-term decline or flush into support / Fib 50–61.8%',
+      'Open, high and close clustered at the top of a long lower wick',
+      'Next candle closes above the dragonfly high',
+      'Volume on the reclaim is not thinner than the flush',
+    ],
+    entry: 'Buy the close above the dragonfly high (or a 1-tick break).',
+    stop: 'Just below the long wick low.',
+    target: '1.5–2R or prior micro swing high.',
+  },
+  {
+    id: 'gravestone-doji', name: 'Gravestone doji scalp', tier: 'beginner', bias: 'bearish', kind: 'candle',
+    pattern: 'gravestone-doji', fib: true,
+    summary: 'Long upper wick with open/low/close at the bottom after a pop — sellers rejected the high. Scalp the failure.',
+    rules: [
+      'Short-term rally into resistance / Fib retracement of the last drop',
+      'Open, low and close clustered at the bottom of a long upper wick',
+      'Next candle closes below the gravestone low',
+      'Avoid if a strong trend day is still expanding higher',
+    ],
+    entry: 'Sell the close below the gravestone low.',
+    stop: 'Just above the upper wick high.',
+    target: '1.5–2R or prior micro swing low.',
+  },
   {
     id: 'hammer', name: 'Hammer at support', tier: 'beginner', bias: 'bullish', kind: 'candle',
-    pattern: 'hammer',
-    summary: 'After a decline, a candle with a long lower wick closes near its high at a support zone.',
-    rules: ['A clear decline into the candle', 'Lower wick at least 2× the body, little or no upper wick', 'At or near a support zone', 'Next candle closes above the hammer high'],
-    entry: 'Buy on the close of the confirmation candle.', stop: 'Just below the hammer’s low.', target: 'The next resistance, at least 2R away.',
+    pattern: 'hammer', fib: true,
+    summary: 'After a decline, a candle with a long lower wick closes near its high at a support zone — classic long scalp trigger.',
+    rules: [
+      'A clear decline into the candle',
+      'Lower wick at least 2× the body, little or no upper wick',
+      'At or near a support zone or Fib golden pocket',
+      'Next candle closes above the hammer high',
+    ],
+    entry: 'Buy on the close of the confirmation candle (or a tick above the hammer high).',
+    stop: 'Just below the hammer’s low — tight for scalps.',
+    target: '1.5–2R or the next micro resistance.',
+  },
+  {
+    id: 'shooting-star', name: 'Shooting star scalp', tier: 'beginner', bias: 'bearish', kind: 'candle',
+    pattern: 'shooting-star', fib: true,
+    summary: 'After a short-term rally, a small body with a long upper wick rejects the high — fade with a stop above the wick.',
+    rules: [
+      'Prior up-push into resistance or Fib of the last decline',
+      'Upper wick ≥ 2× body, little lower wick',
+      'Next candle closes below the star’s body (ideally below its low)',
+      'Skip if higher-timeframe trend is violently bullish',
+    ],
+    entry: 'Sell the confirmation close below the star.',
+    stop: 'A few ticks above the upper wick.',
+    target: '1.5–2R or next micro support.',
+  },
+  {
+    id: 'inverted-hammer', name: 'Inverted hammer scalp', tier: 'beginner', bias: 'bullish', kind: 'candle',
+    pattern: 'inverted-hammer',
+    summary: 'After a dip, a long upper wick with a small body near the low shows buyers probing — weaker than a hammer; demand confirmation.',
+    rules: [
+      'Short-term decline into a level',
+      'Long upper wick, small body near the low',
+      'Next candle closes above the inverted hammer high',
+      'Prefer confluence with support or VWAP',
+    ],
+    entry: 'Buy only after a close above the pattern high.',
+    stop: 'Below the pattern low.',
+    target: '1–2R; take profit at the first micro resistance.',
   },
   {
     id: 'bullish-engulfing', name: 'Bullish engulfing', tier: 'beginner', bias: 'bullish', kind: 'candle',
-    pattern: 'bullish-engulfing',
-    summary: 'A bullish body completely engulfs the previous bearish body after a pullback.',
-    rules: ['A downtrend or a pullback in an uptrend', 'The green body engulfs the prior red body', 'Forms at a level (support, MA, trend line)', 'Above-average volume on the engulfing candle'],
-    entry: 'Buy above the engulfing candle’s high.', stop: 'Below the engulfing candle’s low.', target: 'The prior swing high or 2R.',
+    pattern: 'bullish-engulfing', fib: true,
+    summary: 'A bullish body completely engulfs the previous bearish body after a pullback — strong scalp long when it prints at a level.',
+    rules: [
+      'A downtrend or a pullback in an uptrend',
+      'The green body engulfs the prior red body',
+      'Forms at a level (support, MA, Fib 50–61.8%, trend line)',
+      'Above-average volume on the engulfing candle',
+    ],
+    entry: 'Buy above the engulfing candle’s high (or on its close for aggressive scalps).',
+    stop: 'Below the engulfing candle’s low.',
+    target: '1.5–2R or the prior swing high.',
   },
+  {
+    id: 'bearish-engulfing', name: 'Bearish engulfing', tier: 'beginner', bias: 'bearish', kind: 'candle',
+    pattern: 'bearish-engulfing', fib: true,
+    summary: 'A bearish body engulfs the prior bullish body after a rally — short scalp with stop above the pattern high.',
+    rules: [
+      'Uptrend or bounce into resistance',
+      'Red body fully engulfs the prior green body',
+      'At resistance / Fib / session high',
+      'Prefer expanding volume on the engulfing bar',
+    ],
+    entry: 'Sell below the engulfing low (or on the close).',
+    stop: 'Above the engulfing high.',
+    target: '1.5–2R or prior micro swing low.',
+  },
+  {
+    id: 'bullish-harami', name: 'Bullish harami scalp', tier: 'beginner', bias: 'bullish', kind: 'candle',
+    pattern: 'bullish-harami',
+    summary: 'A small green body inside a large red body after a selloff — momentum stall. Scalp only with a break of the mother candle.',
+    rules: [
+      'Clear short-term decline',
+      'Small green body inside the prior long red body',
+      'Wait for a close above the mother candle’s open',
+      'Stop stays below the pattern low',
+    ],
+    entry: 'Buy the close above the first candle’s open.',
+    stop: 'Below the pattern low (tight).',
+    target: '1–2R; harami is weaker — bank quick.',
+  },
+  {
+    id: 'bearish-harami', name: 'Bearish harami scalp', tier: 'beginner', bias: 'bearish', kind: 'candle',
+    pattern: 'bearish-harami',
+    summary: 'A small red body inside a large green body after a rally — stall warning. Short the break of the mother candle.',
+    rules: [
+      'Clear short-term rally',
+      'Small red body inside the prior long green body',
+      'Wait for a close below the mother candle’s open',
+      'Stop above the pattern high',
+    ],
+    entry: 'Sell the close below the first candle’s open.',
+    stop: 'Above the pattern high.',
+    target: '1–2R; take profit at the first micro support.',
+  },
+  // —— Chart setups (existing) ——
   {
     id: 'breakout-up', name: 'Breakout and retest', tier: 'advanced', bias: 'bullish', kind: 'chart',
     pattern: 'ascending-triangle',
@@ -57,7 +186,7 @@ function diagram(setup, chartMod, patMod, width = 320, height = 150) {
       const sc = patMod.candleScenario(setup.pattern, { seed: 101, leadIn: 16, after: 4 });
       return chartMod.miniChart(sc.candles, {
         width, height, yPad: 0.16,
-        overlays: [{ type: 'box', from: sc.start, to: sc.end, color: setup.bias === 'bullish' ? 'bull' : 'bear' }],
+        overlays: [{ type: 'box', from: sc.start, to: sc.end, color: setup.bias === 'bullish' ? 'bull' : setup.bias === 'bearish' ? 'bear' : 'accent' }],
         ariaLabel: `${setup.name} diagram`,
       });
     }
@@ -83,7 +212,9 @@ function listView(root, mods) {
       art,
       h('div', { class: 'playbook-card__body' },
         h('div', { class: 'row row--sm' }, tierChip(s.tier, { small: true }),
-          h('span', { class: `chip chip--sm ${s.bias === 'bullish' ? 'chip--bull' : 'chip--bear'}` }, s.bias === 'bullish' ? 'Long' : 'Short')),
+          h('span', { class: `chip chip--sm ${s.bias === 'bullish' ? 'chip--bull' : s.bias === 'bearish' ? 'chip--bear' : 'chip--outline'}` },
+            s.bias === 'bullish' ? 'Long' : s.bias === 'bearish' ? 'Short' : 'Watch'),
+          h('span', { class: 'chip chip--sm chip--outline playbook-card__play' }, icon('play', { size: 12 }), ' Sim')),
         h('h2', { class: 'playbook-card__title' }, s.name),
         h('p', { class: 'playbook-card__summary' }, s.summary),
         h('span', { class: 'playbook-card__go' }, `${s.rules.length}-point checklist`, icon('arrow-right', { size: 16 }))));
@@ -92,21 +223,30 @@ function listView(root, mods) {
     h('header', { class: 'page-head' },
       h('p', { class: 'eyebrow eyebrow--accent' }, 'Setup Playbook'),
       h('h1', null, 'Exact setups, exact rules'),
-      h('p', { class: 'lead' }, 'Each setup is a checklist you can verify on any chart, with an entry, a stop and a target decided before you trade.')),
+      h('p', { class: 'lead' }, 'Each setup is a checklist you can verify on any chart, with an entry, a stop and a target decided before you trade. Open a card for the stepped simulation.')),
     h('div', { class: 'playbook__grid' }, cards),
-    h('p', { class: 'faint playbook__note' }, 'Coming next: animated walk-throughs, real-market examples and how often each setup worked in the real-data sample.')));
+    h('p', { class: 'faint playbook__note' }, 'Simulations are educational — not live signals. Japanese candle setups below are framed for short-timeframe scalps with tight stops.')));
 }
 
 function detailView(root, setup, mods) {
+  const simHost = h('div', { class: 'playbook-sim', 'data-keys': 'capture' });
   root.append(h('div', { class: 'container container--wide playbook-detail' },
     h('a', { class: 'link-btn', href: '#playbook' }, icon('arrow-left', { size: 16 }), 'All setups'),
     h('header', { class: 'page-head' },
       h('p', { class: 'eyebrow eyebrow--accent' }, 'Setup Playbook'),
       h('h1', null, setup.name),
       h('div', { class: 'row row--sm' }, tierChip(setup.tier),
-        h('span', { class: `chip ${setup.bias === 'bullish' ? 'chip--bull' : 'chip--bear'}` }, setup.bias === 'bullish' ? 'Long setup' : 'Short setup')),
+        h('span', { class: `chip ${setup.bias === 'bullish' ? 'chip--bull' : setup.bias === 'bearish' ? 'chip--bear' : 'chip--outline'}` },
+          setup.bias === 'bullish' ? 'Long setup' : setup.bias === 'bearish' ? 'Short setup' : 'Indecision / break')),
       h('p', { class: 'lead' }, setup.summary)),
-    figure(diagram(setup, ...mods, 720, 260), 'Textbook example. Real examples and the animated walk-through are coming soon.', { label: 'Diagram' }),
+    figure(diagram(setup, ...mods, 720, 260), 'Textbook snapshot of the completed setup.', { label: 'Diagram' }),
+    h('section', { class: 'section--tight playbook-sim-section', 'aria-labelledby': 'playbook-sim-h' },
+      h('div', { class: 'section-head' },
+        h('div', null,
+          h('p', { class: 'eyebrow' }, 'Interactive'),
+          h('h2', { id: 'playbook-sim-h', class: 't-22' }, 'Walk-through simulation')),
+        h('p', { class: 'muted' }, 'Same teaching chart style as the home page: candles reveal step by step with Entry, Stop and Target marked.')),
+      simHost),
     h('section', { class: 'section--tight' },
       h('h2', { class: 't-22' }, 'Checklist'),
       h('ol', { class: 'playbook-rules' }, setup.rules.map((r, i) => h('li', null, h('span', { class: 'playbook-rules__n mono' }, String(i + 1)), h('span', null, r))))),
@@ -115,6 +255,27 @@ function detailView(root, setup, mods) {
       h('div', null, h('dt', null, 'Stop'), h('dd', null, setup.stop)),
       h('div', null, h('dt', null, 'Target'), h('dd', null, setup.target))),
     takeaway('Only take the setup when <strong>every</strong> rule is met. A setup with a missing rule is a different, weaker trade.')));
+
+  let playback = null;
+  try {
+    playback = mountPatternPlayback(simHost, {
+      kind: setup.kind,
+      patternId: setup.pattern,
+      bias: setup.bias === 'neutral' ? undefined : setup.bias,
+      seed: setup.kind === 'candle' ? 101 + setup.id.length : 202 + setup.id.length,
+      outcome: setup.outcome || 'success',
+      fib: !!setup.fib,
+      height: 300,
+      autoplay: false,
+      interval: setup.kind === 'candle' ? '5M' : '1H',
+    });
+  } catch (err) {
+    console.error('[playbook] playback failed:', err);
+    simHost.append(h('p', { class: 'callout callout--warn' }, 'Simulation failed to load.'));
+  }
+  return () => {
+    try { playback?.destroy?.(); } catch (err) { console.error(err); }
+  };
 }
 
 export default {
@@ -135,8 +296,8 @@ export default {
           h('a', { class: 'btn btn--primary', href: '#playbook' }, icon('arrow-left'), 'All setups'))));
       return undefined;
     }
-    if (setup) detailView(root, setup, mods);
-    else listView(root, mods);
+    if (setup) return detailView(root, setup, mods);
+    listView(root, mods);
     return undefined;
   },
 };

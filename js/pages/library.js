@@ -1,9 +1,11 @@
 // Pattern Library — every candlestick and chart pattern with diagram, psychology, how to trade.
+// Detail view ADDS a Home-hero-style stepped simulation alongside the existing static thumb.
 import { h, icon } from '../core/ui.js';
 import { miniChart } from '../core/chart.js';
 import {
   CANDLE_PATTERNS, CHART_PATTERNS, candleScenario, chartScenario,
 } from '../core/patterns.js';
+import { mountPatternPlayback } from '../core/pattern-playback.js';
 
 const BIAS_TONE = { bullish: 'bull', bearish: 'bear', neutral: 'outline' };
 
@@ -67,7 +69,9 @@ function patternCard(p, kind) {
     h('a', { class: 'lib-card__link', href },
       h('header', { class: 'lib-card__head' },
         h('h3', { class: 'lib-card__title' }, p.name),
-        h('div', { class: 'lib-card__meta' }, biasChip(p.bias), reliabilityDots(p.reliability))),
+        h('div', { class: 'lib-card__meta' }, biasChip(p.bias), reliabilityDots(p.reliability),
+          h('span', { class: 'chip chip--sm chip--outline lib-card__play' }, icon('play', { size: 11 }), ' Sim')),
+      ),
       h('div', { class: 'lib-card__thumb' }, kind === 'candle' ? candleThumb(p.id) : chartThumb(p.id)),
       h('p', { class: 'lib-card__sum' }, p.summary),
       h('p', { class: 'faint lib-card__kind' }, kind === 'candle'
@@ -78,7 +82,8 @@ function patternCard(p, kind) {
 
 function detailView(p, kind, onBack) {
   const thumb = kind === 'candle' ? candleThumb(p.id) : chartThumb(p.id);
-  return h('article', { class: 'lib-detail card card--raised', 'aria-labelledby': 'lib-detail-h' },
+  const simHost = h('div', { class: 'lib-sim', 'data-keys': 'capture' });
+  const article = h('article', { class: 'lib-detail card card--raised', 'aria-labelledby': 'lib-detail-h' },
     h('button', { type: 'button', class: 'btn btn--ghost', on: { click: onBack } }, icon('arrow-left', { size: 14 }), 'All patterns'),
     h('header', { class: 'lib-detail__head' },
       h('p', { class: 'eyebrow' }, kind === 'candle' ? 'Candlestick pattern' : 'Chart pattern'),
@@ -87,6 +92,10 @@ function detailView(p, kind, onBack) {
         kind === 'candle' ? h('span', { class: 'chip chip--sm chip--outline' }, `${p.candles} candle${p.candles > 1 ? 's' : ''}`) : null,
         h('span', { class: 'chip chip--sm chip--outline' }, p.kind))),
     h('div', { class: 'lib-detail__chart' }, thumb),
+    h('section', { class: 'lib-sim-section', 'aria-labelledby': 'lib-sim-h' },
+      h('h3', { id: 'lib-sim-h', class: 't-18' }, 'Animated walk-through'),
+      h('p', { class: 'muted' }, 'Candle-by-candle reveal with Entry, Stop and Target derived from the pattern bias and extremes — same style as the home teaching chart.'),
+      simHost),
     h('section', null,
       h('h3', { class: 't-18' }, 'What it looks like'),
       h('p', null, p.summary)),
@@ -110,6 +119,28 @@ function detailView(p, kind, onBack) {
         : h('a', { class: 'btn btn--ghost', href: '#l.chart-patterns' }, 'Chart patterns lesson'),
       h('a', { class: 'btn btn--ghost', href: '#playbook' }, 'Setup Playbook')),
   );
+
+  let playback = null;
+  try {
+    playback = mountPatternPlayback(simHost, {
+      kind,
+      patternId: p.id,
+      bias: p.bias === 'neutral' ? undefined : p.bias,
+      seed: hashId(p.id),
+      fib: kind === 'candle' && p.kind === 'reversal',
+      height: 280,
+      autoplay: false,
+      interval: kind === 'candle' ? '15M' : '1H',
+    });
+  } catch (err) {
+    console.error('[library] playback failed:', err);
+    simHost.append(h('p', { class: 'callout callout--warn' }, 'Simulation failed to load.'));
+  }
+
+  article._ppsDestroy = () => {
+    try { playback?.destroy?.(); } catch (err) { console.error(err); }
+  };
+  return article;
 }
 
 function filterBar(state, onChange) {
@@ -156,22 +187,32 @@ export default {
     const total = candles.length + charts.length;
     let state = { kind: 'all', bias: 'all', q: '' };
     const host = h('div', { class: 'container library-page' });
+    let activeDestroy = null;
+
+    const clearDetail = () => {
+      try { activeDestroy?.(); } catch (err) { console.error(err); }
+      activeDestroy = null;
+    };
 
     const showDetail = (id) => {
+      clearDetail();
       const p = CANDLE_PATTERNS[id] || CHART_PATTERNS[id];
       if (!p) {
         renderList();
         return;
       }
       const kind = CANDLE_PATTERNS[id] ? 'candle' : 'chart';
+      const detail = detailView(p, kind, () => {
+        clearDetail();
+        ctx.navigate('library');
+        renderList();
+      });
+      activeDestroy = detail._ppsDestroy || null;
       host.replaceChildren(
         h('header', { class: 'page-head' },
           h('p', { class: 'eyebrow eyebrow--accent' }, 'Reference'),
           h('h1', null, 'Pattern Library')),
-        detailView(p, kind, () => {
-          ctx.navigate('library');
-          renderList();
-        }),
+        detail,
       );
       host.querySelector('#lib-detail-h')?.focus?.();
     };
@@ -192,6 +233,7 @@ export default {
     };
 
     const renderList = () => {
+      clearDetail();
       const { candles: cList, charts: hList } = matches();
       const shown = cList.length + hList.length;
       host.replaceChildren(
@@ -199,7 +241,7 @@ export default {
           h('p', { class: 'eyebrow eyebrow--accent' }, 'Reference'),
           h('h1', null, 'Pattern Library'),
           h('p', { class: 'lead' },
-            'Every candlestick and chart pattern taught in the school — annotated diagram, the psychology behind it, and how traders typically use it. Educational only, not advice.')),
+            'Every candlestick and chart pattern taught in the school — annotated diagram, the psychology behind it, and how traders typically use it. Open any card for a stepped simulation. Educational only, not advice.')),
         h('p', { class: 'muted lib-count' },
           h('strong', { class: 'mono' }, String(shown)), ` of ${total} patterns`,
           ` · ${candles.length} candlestick · ${charts.length} chart`),
@@ -221,6 +263,6 @@ export default {
     if (param && (CANDLE_PATTERNS[param] || CHART_PATTERNS[param])) showDetail(param);
     else renderList();
 
-    return () => {};
+    return () => { clearDetail(); };
   },
 };
