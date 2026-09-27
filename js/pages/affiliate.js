@@ -39,6 +39,15 @@ export const PARTNERS = [
     status: 'live',
   },
   {
+    id: 'webull',
+    name: 'Webull',
+    description: 'Affiliate partner — replace this placeholder with an accurate product blurb.',
+    logoText: null,
+    logoUrl: null,
+    affiliateUrl: 'https://www.webull.com/s/3Kh5mWpood8i1GGOz9',
+    status: 'live',
+  },
+  {
     id: 'partner-tbd-2',
     name: 'Partner TBD',
     description: 'Coming soon — another trading platform or tool partnership will land here.',
