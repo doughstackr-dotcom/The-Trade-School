@@ -1,5 +1,5 @@
-// Pattern Library — every candlestick and chart pattern with diagram, psychology, how to trade.
-// Detail view ADDS a Home-hero-style stepped simulation alongside the existing static thumb.
+// Pattern Library — candlestick flashcards (clean pattern silhouette) + chart cards (mini scenario).
+// Detail view: animated walk-through (mountPatternPlayback) plus psychology / how-to-trade.
 import { h, icon } from '../core/ui.js';
 import { miniChart } from '../core/chart.js';
 import {
@@ -23,13 +23,21 @@ function reliabilityDots(n = 1) {
   }, '●'.repeat(Math.max(1, Math.min(max, n))) + '○'.repeat(Math.max(0, max - n)));
 }
 
-function candleThumb(id) {
+/** Clean flashcard illustration — pattern candles only, no lead-in / overlays. */
+function candleArt(id, { width, height } = {}) {
   try {
-    const sc = candleScenario(id, { seed: hashId(id), leadIn: 14, after: 3 });
-    return miniChart(sc.candles, {
-      width: 280, height: 120, yPad: 0.14,
-      overlays: [{ type: 'box', from: sc.start, to: sc.end, color: sc.bias === 'bearish' ? 'bear' : sc.bias === 'bullish' ? 'bull' : 'accent', label: CANDLE_PATTERNS[id]?.name }],
-      ariaLabel: `${CANDLE_PATTERNS[id]?.name || id} example`,
+    const sc = candleScenario(id, { seed: hashId(id), leadIn: 0, after: 0 });
+    const candles = sc.candles.slice(sc.start, sc.end + 1);
+    const n = Math.max(1, candles.length);
+    const w = width ?? (n === 1 ? 140 : n === 2 ? 180 : 220);
+    const hgt = height ?? 132;
+    return miniChart(candles, {
+      width: w,
+      height: hgt,
+      padding: 20,
+      yPad: 0.28,
+      overlays: [],
+      ariaLabel: `${CANDLE_PATTERNS[id]?.name || id} pattern`,
     });
   } catch {
     return h('div', { class: 'lib-thumb-fallback muted' }, 'Diagram unavailable');
@@ -65,6 +73,16 @@ function hashId(id) {
 
 function patternCard(p, kind) {
   const href = `#library.${p.id}`;
+  if (kind === 'candle') {
+    return h('article', { class: 'lib-card lib-card--candle card', id: `lib-card-${p.id}` },
+      h('a', { class: 'lib-card__link', href },
+        h('header', { class: 'lib-card__head' },
+          h('h3', { class: 'lib-card__title' }, p.name),
+          h('div', { class: 'lib-card__meta' }, biasChip(p.bias), reliabilityDots(p.reliability))),
+        h('div', { class: 'lib-card__art' }, candleArt(p.id)),
+        h('p', { class: 'faint lib-card__kind' }, `${p.candles}-candle · ${p.kind}`)),
+    );
+  }
   return h('article', { class: 'lib-card card', id: `lib-card-${p.id}` },
     h('a', { class: 'lib-card__link', href },
       h('header', { class: 'lib-card__head' },
@@ -72,16 +90,16 @@ function patternCard(p, kind) {
         h('div', { class: 'lib-card__meta' }, biasChip(p.bias), reliabilityDots(p.reliability),
           h('span', { class: 'chip chip--sm chip--outline lib-card__play' }, icon('play', { size: 11 }), ' Sim')),
       ),
-      h('div', { class: 'lib-card__thumb' }, kind === 'candle' ? candleThumb(p.id) : chartThumb(p.id)),
+      h('div', { class: 'lib-card__thumb' }, chartThumb(p.id)),
       h('p', { class: 'lib-card__sum' }, p.summary),
-      h('p', { class: 'faint lib-card__kind' }, kind === 'candle'
-        ? `${p.candles}-candle · ${p.kind} · context: ${p.context}`
-        : `${p.kind} · chart pattern`)),
+      h('p', { class: 'faint lib-card__kind' }, `${p.kind} · chart pattern`)),
   );
 }
 
 function detailView(p, kind, onBack) {
-  const thumb = kind === 'candle' ? candleThumb(p.id) : chartThumb(p.id);
+  const art = kind === 'candle'
+    ? candleArt(p.id, { width: p.candles === 1 ? 120 : p.candles === 2 ? 160 : 200, height: 120 })
+    : chartThumb(p.id);
   const simHost = h('div', { class: 'lib-sim', 'data-keys': 'capture' });
   const article = h('article', { class: 'lib-detail card card--raised', 'aria-labelledby': 'lib-detail-h' },
     h('button', { type: 'button', class: 'btn btn--ghost', on: { click: onBack } }, icon('arrow-left', { size: 14 }), 'All patterns'),
@@ -91,11 +109,11 @@ function detailView(p, kind, onBack) {
       h('div', { class: 'row' }, biasChip(p.bias), reliabilityDots(p.reliability),
         kind === 'candle' ? h('span', { class: 'chip chip--sm chip--outline' }, `${p.candles} candle${p.candles > 1 ? 's' : ''}`) : null,
         h('span', { class: 'chip chip--sm chip--outline' }, p.kind))),
-    h('div', { class: 'lib-detail__chart' }, thumb),
     h('section', { class: 'lib-sim-section', 'aria-labelledby': 'lib-sim-h' },
       h('h3', { id: 'lib-sim-h', class: 't-18' }, 'Animated walk-through'),
       h('p', { class: 'muted' }, 'Candle-by-candle reveal with Entry, Stop and Target derived from the pattern bias and extremes — same style as the home teaching chart.'),
       simHost),
+    h('div', { class: kind === 'candle' ? 'lib-detail__art' : 'lib-detail__chart' }, art),
     h('section', null,
       h('h3', { class: 't-18' }, 'What it looks like'),
       h('p', null, p.summary)),
