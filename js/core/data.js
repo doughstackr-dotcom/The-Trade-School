@@ -454,16 +454,23 @@ export function aggregate(candles, factor, { partial = true } = {}) {
 /**
  * addVolume(candles, { seed, base = 1000, trendBoost = true }) → new candles with `v`
  * Volume grows with the candle's range (relative to recent ranges), is higher on candles
- * that move with the short-term trend, and spikes on unusually large candles.
+ * that move with the short-term trend, and spikes on unusually large candles. Causal: bar i's
+ * volume only depends on bars 0..max(i, 9).
  */
 export function addVolume(candles, { seed, base = 1000, trendBoost = true } = {}) {
   const rng = makeRng(seed ?? 11).fork('volume');
   const ranges = candles.map((c) => Math.max(c.h - c.l, 0));
-  const avgAll = mean(ranges) || 1;
-  let rolling = avgAll;
+  // Causal: a bar's volume depends only on bars up to it (after a 10-bar warm-up), so appending
+  // candles (a different future) never changes the volume of the bars already shown.
+  const warm = Math.min(ranges.length, 10);
+  const warmAvg = mean(ranges.slice(0, warm)) || 1;
+  let rolling = warmAvg;
+  let sum = 0;
   return candles.map((c, i) => {
+    sum += ranges[i];
+    const expanding = i + 1 > warm ? sum / (i + 1) : warmAvg;
     rolling = rolling * 0.88 + ranges[i] * 0.12;
-    const rel = clamp(ranges[i] / (0.5 * rolling + 0.5 * avgAll), 0.2, 4);
+    const rel = clamp(ranges[i] / (0.5 * rolling + 0.5 * expanding || 1), 0.2, 4);
     let v = base * (0.32 + 0.68 * Math.pow(rel, 1.15));
     if (trendBoost && i >= 5) {
       const trend = Math.sign(c.c - candles[i - 5].c);

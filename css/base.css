@@ -40,6 +40,12 @@ svg {
   overflow: visible;
 }
 
+/* Line icons (ui.icon) keep their size inside flex rows instead of shrinking via max-width. */
+svg.icon {
+  flex-shrink: 0;
+  max-width: none;
+}
+
 input,
 button,
 textarea,

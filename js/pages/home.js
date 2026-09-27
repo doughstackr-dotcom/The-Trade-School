@@ -276,7 +276,7 @@ export function gamePreview(id, seed, { miniChart }, pat = null, size = { width:
     case 'pattern-flash': {
       if (pat?.candleScenario) {
         const sc = pat.candleScenario('hammer', { seed, leadIn: 12, after: 3 });
-        return miniChart(sc.candles, { ...opts, overlays: [{ type: 'box', from: sc.start - 0.5, to: sc.end + 0.5, color: 'accent', label: 'Hammer' }] });
+        return miniChart(sc.candles, { ...opts, overlays: [{ type: 'box', from: sc.start - 0.5, to: sc.end + 0.5, color: 'accent', label: size.width >= 200 ? 'Hammer' : undefined }] });
       }
       const { candles } = fromPath([[0, 106], [0.8, 99], [1, 101.5]], { seed, count: 22, volume: false });
       return miniChart(candles, { ...opts, overlays: [{ type: 'box', from: 16.5, to: 18.5, color: 'accent' }] });
@@ -547,9 +547,16 @@ export default {
       } catch (err) {
         console.error('[home] hero failed:', err);
       }
+      // Phones show the arcade as compact rows with a squarer thumbnail beside the text.
+      let compact = false;
+      try {
+        compact = matchMedia('(max-width: 559.98px)').matches;
+      } catch {
+        /* old browsers */
+      }
       GAMES.forEach((g, i) => {
         try {
-          const size = g.id === FEATURE ? { width: 640, height: 220 } : undefined;
+          const size = g.id === FEATURE ? { width: 640, height: 220 } : compact ? { width: 150, height: 140 } : undefined;
           arts[i].append(gamePreview(g.id, 1000 + i * 7919, chartMod, pat, size));
         } catch (err) {
           console.error(`[home] preview for ${g.id} failed:`, err);

@@ -146,7 +146,9 @@ function runCleanup() {
   }
 }
 
-async function render(hash, { initial = false } = {}) {
+let retries = 0;
+
+async function render(hash, { initial = false, retry = false } = {}) {
   if (!outlet) return;
   const route = parseHash(hash);
   const my = ++renderToken;
@@ -207,7 +209,9 @@ async function render(hash, { initial = false } = {}) {
   }, 180);
 
   try {
-    const mod = await import(path);
+    // "Try again" re-fetches the page module itself (a failed or broken import is cached by URL);
+    // shared core modules keep their URLs, so they stay single instances.
+    const mod = await import(retry ? `${path}?retry=${++retries}` : path);
     if (my !== renderToken) return;
     const def = mod.default;
     if (!def || typeof def.mount !== 'function') throw new Error(`Module for "${route.key}" has no default export with mount().`);
@@ -246,7 +250,7 @@ async function render(hash, { initial = false } = {}) {
     clearTimeout(loadingTimer);
     if (my !== renderToken) return;
     console.error(`[router] Failed to load route "${route.key}":`, err);
-    root.replaceChildren(errorCard(route, entry, err, () => render(currentHash())));
+    root.replaceChildren(errorCard(route, entry, err, () => render(currentHash(), { retry: true })));
     root.setAttribute('data-mounted', route.key);
     root.setAttribute('data-route-error', '1');
   }

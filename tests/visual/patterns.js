@@ -21,6 +21,9 @@ const seeds = (params.get('seeds') || '1,2,3')
   .map((s) => Number(s.trim()))
   .filter((s) => Number.isFinite(s));
 const showFail = params.get('fail') !== '0';
+// ?zoom=N: candle cards show only the N candles before the pattern (plus pattern and
+// follow-through) at a larger size, to judge individual candle geometry.
+const zoom = Number(params.get('zoom')) || 0;
 
 const sheet = document.getElementById('sheet');
 let problems = 0;
@@ -67,7 +70,7 @@ function candleRow(id) {
     ),
   );
   const cards = el('div', { class: 'cards' });
-  cards.style.setProperty('--card-w', '220px');
+  cards.style.setProperty('--card-w', zoom ? '280px' : '220px');
   const variants = seeds.map((seed) => ({ seed, outcome: 'success' }));
   if (showFail && p.bias !== 'neutral') variants.push({ seed: seeds[0], outcome: 'fail' });
   for (const { seed, outcome } of variants) {
@@ -78,10 +81,17 @@ function candleRow(id) {
     const tr = trendBefore(sc.candles, sc.start, 10);
     if (p.context === 'downtrend' && tr !== 'down') issues.push(`lead-in ${tr}`);
     if (p.context === 'uptrend' && tr !== 'up') issues.push(`lead-in ${tr}`);
-    const svg = miniChart(sc.candles, {
-      width: 240,
-      height: 150,
-      highlight: [sc.start, sc.end],
+    const from = zoom ? Math.max(0, sc.start - zoom) : 0;
+    const shown = sc.candles.slice(from);
+    const overlays = [];
+    if (outcome === 'success' && sc.confirm != null) {
+      overlays.push({ type: 'hline', price: sc.confirm, color: 'info', dashed: true, width: 1, from: sc.end - from, to: sc.end - from + 1.5 });
+    }
+    const svg = miniChart(shown, {
+      width: zoom ? 300 : 240,
+      height: zoom ? 220 : 150,
+      highlight: [sc.start - from, sc.end - from],
+      overlays,
       ariaLabel: `${p.name}, seed ${seed}, ${outcome}`,
     });
     cards.append(card(`seed ${seed}`, svg, issues, `${sc.trend} → ${outcome}`));
@@ -207,6 +217,7 @@ function chartRow(id) {
       height: 210,
       overlays: chartOverlays(sc),
       highlight: [sc.patternStart, sc.patternEnd],
+      yPad: 0.14,
       ariaLabel: `${P.name}, seed ${seed}, ${outcome}`,
     });
     const extra = `${sc.bias} · ${outcome}${outcome === 'success' ? '' : sc.reachedTarget ? ' (hit target)' : ''}`;

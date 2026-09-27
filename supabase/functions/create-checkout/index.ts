@@ -51,8 +51,14 @@ Deno.serve(async (req) => {
     if (subError) throw subError;
 
     if (current) {
-      const customerId = await findCustomerId(user.id);
-      if (current.plan === plan && customerId) {
+      if (current.plan === plan) {
+        // Already on this plan: manage it in the portal. If the customers row is missing, use
+        // the subscription's own customer rather than "switching" to the same price.
+        let customerId = await findCustomerId(user.id);
+        if (!customerId) {
+          const existing = await stripe.subscriptions.retrieve(current.id);
+          customerId = typeof existing.customer === 'string' ? existing.customer : existing.customer.id;
+        }
         const portal = await stripe.billingPortal.sessions.create({
           customer: customerId,
           return_url: `${base}#account`,

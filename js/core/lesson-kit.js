@@ -96,7 +96,10 @@ export class LessonShell {
     if (!initial) {
       const top = this._main.getBoundingClientRect().top;
       const topbar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 60;
-      if (top < topbar || top > window.innerHeight * 0.6) {
+      // On narrow screens the compact step rail is sticky under the top bar.
+      const compact = this._railLabel.parentNode && getComputedStyle(this._railLabel.parentNode).display !== 'none';
+      const covered = topbar + (compact ? this._railLabel.parentNode.parentNode.getBoundingClientRect().height : 0);
+      if (top < covered || top > window.innerHeight * 0.6) {
         this._main.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
       }
       this._stepTitle.focus({ preventScroll: true });
@@ -186,7 +189,7 @@ export class LessonShell {
     this._stepEyebrow = h('p', { class: 'eyebrow' });
     this._stepTitle = h('h2', { class: 'lesson__step-title', tabindex: '-1' });
     this._body = h('div', { class: 'lesson__body' });
-    this._backBtn = h('button', { type: 'button', class: 'btn', 'data-action': 'back', on: { click: () => this.back() } }, icon('arrow-left'), 'Back');
+    this._backBtn = h('button', { type: 'button', class: 'btn', 'data-action': 'back', on: { click: () => this.back() } }, icon('arrow-left'), h('span', { class: 'lesson__back-label' }, 'Back'));
     this._nextBtn = h('button', { type: 'button', class: 'btn btn--primary', 'data-action': 'next', on: { click: () => this.next() } });
     this._gateNote = h('span', { class: 'lesson__gate faint' });
     const nav = h('div', { class: 'lesson__nav' },
@@ -250,7 +253,7 @@ export class LessonShell {
     this._nextBtn.replaceChildren(h('span', null, last ? 'Finish lesson' : 'Next'), icon(last ? 'check' : 'arrow-right'));
     this._nextBtn.disabled = !can;
     const s = this.step;
-    this._gateNote.textContent = can ? '' : s.quiz ? 'Answer to continue' : 'Complete the task to continue';
+    this._gateNote.textContent = can ? '' : s.quiz ? 'Answer to continue' : 'Finish the task to continue';
     this._renderRail();
   }
 

@@ -73,6 +73,7 @@ node tests/smoke.mjs g.fib-sniper      # one route (prefixes work too: "g." = ev
 node tests/smoke.mjs --phone --dark    # one viewport / theme
 node tests/smoke.mjs --no-shots        # skip screenshots
 node tests/smoke.mjs --fonts           # load Google Fonts (uses $HTTPS_PROXY if set)
+node tests/smoke.mjs --no-storage      # every localStorage call throws (private-mode check)
 ```
 
 Playwright is resolved from a local `node_modules` or the global npm root; it is only needed

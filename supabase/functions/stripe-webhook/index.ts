@@ -29,21 +29,29 @@ async function userIdFor(sub: Stripe.Subscription, hint?: string | null): Promis
 }
 
 async function syncSubscription(subscriptionId: string, userHint?: string | null) {
-  const sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['items.data.price'] });
-  const userId = await userIdFor(sub, userHint);
-  if (!userId) throw new Error(`No user for subscription ${sub.id}`);
+  let userId: string | null = null;
+  let customerId = '';
+  let written = '';
+  // Deliveries run concurrently, so one holding an older snapshot can write after one holding
+  // a newer snapshot. Re-read after writing and write again until the row matches Stripe.
+  for (let round = 0; round < 3; round++) {
+    // items.data[].price is always a full Price object; it is not expandable, and asking to
+    // expand it makes Stripe reject the request.
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    userId ??= await userIdFor(sub, userHint);
+    if (!userId) throw new Error(`No user for subscription ${sub.id}`);
+    customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
-  const item = sub.items.data[0];
-  const price = item?.price;
-  const plan = planForPrice(price?.id, price?.lookup_key);
-  if (!plan) throw new Error(`Unknown price ${price?.id} on subscription ${sub.id}`);
+    const item = sub.items.data[0];
+    const price = item?.price;
+    const plan = planForPrice(price?.id, price?.lookup_key);
+    if (!plan) throw new Error(`Unknown price ${price?.id} on subscription ${sub.id}`);
 
-  // Newer Stripe API versions moved the billing period onto subscription items.
-  // deno-lint-ignore no-explicit-any
-  const periodEnd = (sub as any).current_period_end ?? (item as any)?.current_period_end ?? null;
+    // Newer Stripe API versions moved the billing period onto subscription items.
+    // deno-lint-ignore no-explicit-any
+    const periodEnd = (sub as any).current_period_end ?? (item as any)?.current_period_end ?? null;
 
-  const { error } = await admin.from('subscriptions').upsert(
-    {
+    const row = {
       id: sub.id,
       user_id: userId,
       status: sub.status,
@@ -51,13 +59,16 @@ async function syncSubscription(subscriptionId: string, userHint?: string | null
       price_id: price!.id,
       current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       cancel_at_period_end: sub.cancel_at_period_end,
-    },
-    { onConflict: 'id' },
-  );
-  if (error) throw error;
+    };
+    const snapshot = JSON.stringify(row);
+    if (snapshot === written) break; // what we stored is still Stripe's current state
+
+    const { error } = await admin.from('subscriptions').upsert(row, { onConflict: 'id' });
+    if (error) throw error;
+    written = snapshot;
+  }
 
   // Keep the customer mapping complete even if checkout started elsewhere.
-  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
   await admin
     .from('customers')
     .upsert({ user_id: userId, stripe_customer_id: customerId }, { onConflict: 'user_id', ignoreDuplicates: true });
@@ -97,7 +108,11 @@ Deno.serve(async (req) => {
       await syncSubscription(sub.id);
     } else if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
       const invoice = event.data.object as Stripe.Invoice;
-      const subId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+      // Webhook payloads use the endpoint's API version: from 2025-03-31 on, the subscription
+      // moved from invoice.subscription to invoice.parent.subscription_details.subscription.
+      // deno-lint-ignore no-explicit-any
+      const ref = invoice.subscription ?? (invoice as any).parent?.subscription_details?.subscription;
+      const subId = typeof ref === 'string' ? ref : ref?.id;
       if (subId) await syncSubscription(subId);
     }
 

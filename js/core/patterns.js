@@ -45,8 +45,8 @@ const CHECKS = {
   'bearish-harami': ([a, b]) => isBull(a) && isLong(a) && isBear(b) && b.o < a.c && b.c > a.o,
   'piercing-line': ([a, b]) => isBear(a) && isLong(a) && isBull(b) && b.o < a.c && b.c > mid(a) && b.c < a.o,
   'dark-cloud-cover': ([a, b]) => isBull(a) && isLong(a) && isBear(b) && b.o > a.c && b.c < mid(a) && b.c > a.o,
-  'tweezer-bottom': ([a, b]) => isBear(a) && isBull(b) && Math.abs(a.l - b.l) <= 0.001 * a.l,
-  'tweezer-top': ([a, b]) => isBull(a) && isBear(b) && Math.abs(a.h - b.h) <= 0.001 * a.h,
+  'tweezer-bottom': ([a, b]) => isBear(a) && isBull(b) && Math.abs(a.l - b.l) <= tweezerTol(a, b, a.l),
+  'tweezer-top': ([a, b]) => isBull(a) && isBear(b) && Math.abs(a.h - b.h) <= tweezerTol(a, b, a.h),
   'morning-star': ([a, b, c]) =>
     isBear(a) && isLong(a) && body(b) <= 0.35 * body(a) && Math.max(b.o, b.c) < a.c && isBull(c) && c.c > mid(a),
   'evening-star': ([a, b, c]) =>
@@ -58,6 +58,11 @@ const CHECKS = {
     cs.every((k) => isBear(k) && isLong(k) && lowerWick(k) <= 0.15 * span(k)) &&
     cs.slice(1).every((k, i) => k.o < cs[i].o && k.o > cs[i].c && k.c < cs[i].c),
 };
+/** 'Same' high/low: within 0.1% of price and within 4% of the larger candle's range (so the
+ *  rule also holds at FX scale, where 0.1% of 1.0850 is most of a candle). */
+function tweezerTol(a, b, price) {
+  return Math.min(0.001 * Math.abs(price), 0.04 * Math.max(span(a), span(b)));
+}
 function hammerShape(a) {
   const s = span(a);
   return s > 0 && body(a) >= 0.1 * s && lowerWick(a) >= 2 * body(a) && upperWick(a) <= 0.1 * s;
@@ -103,12 +108,14 @@ function genMarubozu(rng, { price: P, range: R }) {
   return [parts(P, P + b, rest * f, rest * (1 - f))];
 }
 /** Small body at the top, long lower wick (hammer / hanging man). */
-function genHammerShape(rng, { price: P, range: R }, bullProb) {
+function genHammerShape(rng, { price: P, range: R }, bullProb, gap) {
   const s = R * rng.float(1.5, 2.1);
   const b = s * rng.float(0.15, 0.3);
   const up = s * rng.float(0, 0.06);
   const low = s - b - up;
-  const o = P;
+  // Opens a little beyond the prior close in the trend's direction (a hanging man above it,
+  // a hammer below it), so the candle prints at the extreme of the move.
+  const o = P + gap * R * rng.float(0.1, 0.25);
   const c = rng.chance(bullProb) ? o + b : o - b;
   return [parts(o, c, up, low)];
 }
@@ -118,7 +125,9 @@ function genInvertedShape(rng, { price: P, range: R }, bullProb, gap) {
   const b = s * rng.float(0.15, 0.3);
   const low = s * rng.float(0, 0.06);
   const up = s - b - low;
-  const o = P + gap * R * rng.float(0, 0.15);
+  // Opens a little beyond the prior close (below it after a decline, above it after a rally)
+  // so the small body prints at the extreme of the move.
+  const o = P + gap * R * rng.float(0.1, 0.25);
   const c = rng.chance(bullProb) ? o + b : o - b;
   return [parts(o, c, up, low)];
 }
@@ -129,16 +138,22 @@ function genBullEngulfing(rng, { price: P, range: R }) {
   const k1 = parts(o1, c1, R * rng.float(0.05, 0.2), R * rng.float(0.05, 0.2));
   const o2 = c1 - R * rng.float(0.04, 0.18);
   const c2 = o1 + R * rng.float(0.12, 0.5);
-  return [k1, parts(o2, c2, R * rng.float(0.02, 0.15), R * rng.float(0.03, 0.2))];
+  // The engulfing candle trades clearly below the first low (so it never doubles as a tweezer).
+  const l2 = Math.min(k1.l, o2) - R * rng.float(0.15, 0.3);
+  return [k1, K(o2, c2 + R * rng.float(0.02, 0.15), l2, c2)];
 }
 function genBullHarami(rng, { price: P, range: R }) {
   const b1 = R * rng.float(1.3, 1.9);
   const o1 = P + rng.gauss(0, 0.03 * R);
   const c1 = o1 - b1;
-  const k1 = parts(o1, c1, R * rng.float(0.04, 0.15), R * rng.float(0.04, 0.15));
+  const k1 = parts(o1, c1, R * rng.float(0.04, 0.15), R * rng.float(0.07, 0.18));
   const b2 = b1 * rng.float(0.18, 0.38);
   const o2 = c1 + b1 * rng.float(0.12, 0.3);
-  return [k1, parts(o2, o2 + b2, b1 * rng.float(0.03, 0.12), b1 * rng.float(0.03, 0.12))];
+  // The whole second candle sits inside the first body (the classic 'pregnant' picture).
+  const c2 = o2 + b2;
+  const up2 = Math.min(b1 * rng.float(0.03, 0.12), (o1 - c2) * 0.6);
+  const lo2 = Math.min(b1 * rng.float(0.03, 0.12), (o2 - c1) * 0.5);
+  return [k1, parts(o2, c2, up2, lo2)];
 }
 function genPiercing(rng, { price: P, range: R }) {
   const b1 = R * rng.float(1.3, 1.8);
@@ -147,16 +162,18 @@ function genPiercing(rng, { price: P, range: R }) {
   const k1 = parts(o1, c1, R * rng.float(0.03, 0.15), R * rng.float(0.02, 0.1));
   const o2 = k1.l - R * rng.float(0.03, 0.18);
   const c2 = mid(k1) + b1 * rng.float(0.1, 0.38);
-  return [k1, parts(o2, c2, R * rng.float(0.02, 0.12), R * rng.float(0.02, 0.12))];
+  return [k1, parts(o2, c2, R * rng.float(0.02, 0.12), R * rng.float(0.12, 0.25))];
 }
 function genTweezerBottom(rng, { price: P, range: R }) {
   const b1 = R * rng.float(0.6, 1.05);
   const o1 = P;
   const c1 = o1 - b1;
   const k1 = parts(o1, c1, R * rng.float(0.03, 0.2), R * rng.float(0.18, 0.4));
-  const o2 = c1 + R * rng.float(-0.03, 0.08);
-  const low2 = k1.l + rng.float(-1, 1) * Math.min(0.0006 * k1.l, 0.04 * R);
-  const c2 = o2 + R * rng.float(0.55, 1.0);
+  // Second candle opens just inside the first body and closes above the first open, so the
+  // pair is a pure tweezer (not also a harami, piercing line or engulfing).
+  const o2 = c1 + R * rng.float(0.01, 0.06);
+  const low2 = k1.l + rng.float(-1, 1) * Math.min(0.0006 * k1.l, 0.02 * R);
+  const c2 = o1 + R * rng.float(0.08, 0.35);
   return [k1, K(o2, c2 + R * rng.float(0.03, 0.18), low2, c2)];
 }
 function genMorningStar(rng, { price: P, range: R }) {
@@ -170,7 +187,7 @@ function genMorningStar(rng, { price: P, range: R }) {
   const k2 = parts(o2, c2, R * rng.float(0.1, 0.35), R * rng.float(0.1, 0.35));
   const o3 = top2 + R * rng.float(0.02, 0.15);
   const c3 = mid(k1) + b1 * rng.float(0.12, 0.42);
-  return [k1, k2, parts(o3, c3, R * rng.float(0.02, 0.12), R * rng.float(0.02, 0.12))];
+  return [k1, k2, parts(o3, c3, R * rng.float(0.02, 0.12), R * rng.float(0.01, 0.07))];
 }
 function genSoldiers(rng, { price: P, range: R }) {
   const out = [];
@@ -250,7 +267,7 @@ export const CANDLE_PATTERNS = {
       'Sellers pushed price to new lows, but buyers stepped in hard and drove it back up to close near the high. The long wick shows lower prices were rejected.',
     howToTrade:
       "Only valid after a downtrend. Wait for confirmation — the next candle closing above the hammer's high — then enter with a stop just below the hammer's low.",
-  }, (rng, o) => genHammerShape(rng, o, 0.65)),
+  }, (rng, o) => genHammerShape(rng, o, 0.65, -1)),
   'inverted-hammer': def('inverted-hammer', 'Inverted hammer', 1, 'bullish', 'reversal', 'downtrend', 1, {
     summary: 'After a decline, a small body near the bottom of the range with a long upper wick and little or no lower wick.',
     psychology:
@@ -264,7 +281,7 @@ export const CANDLE_PATTERNS = {
       'Sellers managed to drive price sharply lower during the session. Buyers recovered, but the sell-off shows supply is appearing near the highs.',
     howToTrade:
       "A warning rather than a signal. Wait for a bearish candle that closes below the hanging man's body before acting; the stop goes above its high.",
-  }, (rng, o) => genHammerShape(rng, o, 0.4)),
+  }, (rng, o) => genHammerShape(rng, o, 0.4, 1)),
   'shooting-star': def('shooting-star', 'Shooting star', 1, 'bearish', 'reversal', 'uptrend', 2, {
     summary: 'After a rally, a small body near the bottom of the range with a long upper wick at least twice the body.',
     psychology: 'Buyers pushed price to new highs, but sellers took over and drove it back down near the open. Higher prices were rejected.',
@@ -430,9 +447,15 @@ function leadIn(rng, { n, start, dir, R }) {
   return fromPath(pts, { seed: rng.fork('lead').seed, count: Math.max(2, n), noise: 0.3, exact: true, volume: false }).candles.slice(-n);
 }
 
-function followThrough(rng, { n, from, dir, R, beyond }) {
+function followThrough(rng, { n, from, dir, R, beyond, confirm }) {
   if (n <= 0) return [];
-  const first = from + dir * R * rng.float(0.45, 0.85);
+  let first = from + dir * R * rng.float(0.45, 0.85);
+  // A successful signal is confirmed the way its howToTrade text says: the first candle
+  // closes beyond the confirmation level (e.g. above a hammer's high).
+  if (confirm != null) {
+    const c = confirm + dir * R * rng.float(0.1, 0.35);
+    first = dir > 0 ? Math.max(first, c) : Math.min(first, c);
+  }
   let end = first + dir * R * (n - 1) * rng.float(0.35, 0.55);
   if (beyond != null) end = dir > 0 ? Math.max(end, beyond + R * rng.float(0.4, 1.0)) : Math.min(end, beyond - R * rng.float(0.4, 1.0));
   let cs;
@@ -448,14 +471,114 @@ function followThrough(rng, { n, from, dir, R, beyond }) {
   return cs;
 }
 
+const lastOf = (cs) => cs[cs.length - 1];
+const bodyTop = (k) => Math.max(k.o, k.c);
+const bodyBottom = (k) => Math.min(k.o, k.c);
+/**
+ * Confirmation level of each pattern (the price the next candle has to close beyond), taken
+ * from its howToTrade text. Neutral patterns confirm beyond the high or low in `dir`.
+ */
+const CONFIRM = {
+  doji: (cs, dir) => (dir > 0 ? lastOf(cs).h : lastOf(cs).l),
+  'spinning-top': (cs, dir) => (dir > 0 ? lastOf(cs).h : lastOf(cs).l),
+  'dragonfly-doji': (cs) => lastOf(cs).h,
+  'gravestone-doji': (cs) => lastOf(cs).l,
+  'bullish-marubozu': (cs) => lastOf(cs).c,
+  'bearish-marubozu': (cs) => lastOf(cs).c,
+  hammer: (cs) => lastOf(cs).h,
+  'hanging-man': (cs) => bodyBottom(lastOf(cs)),
+  'inverted-hammer': (cs) => bodyTop(lastOf(cs)),
+  'shooting-star': (cs) => bodyBottom(lastOf(cs)),
+  'bullish-engulfing': (cs) => lastOf(cs).h,
+  'bearish-engulfing': (cs) => lastOf(cs).l,
+  'bullish-harami': (cs) => cs[0].o,
+  'bearish-harami': (cs) => cs[0].o,
+  'piercing-line': (cs) => lastOf(cs).h,
+  'dark-cloud-cover': (cs) => lastOf(cs).l,
+  'tweezer-bottom': (cs) => lastOf(cs).h,
+  'tweezer-top': (cs) => lastOf(cs).l,
+  'morning-star': (cs) => lastOf(cs).h,
+  'evening-star': (cs) => lastOf(cs).l,
+  'three-white-soldiers': (cs) => lastOf(cs).c,
+  'three-black-crows': (cs) => lastOf(cs).c,
+};
+
+/**
+ * Accept or reject a lead-in + pattern pair (candleScenario retries with fresh forks):
+ *  - the last candles of the lead-in still move with the trend;
+ *  - a reversal pattern marks the extreme of the move (preceding wicks are trimmed when only a
+ *    wick is in the way);
+ *  - no competing signal: no other instance of the same pattern, no earlier reversal signal
+ *    with the same bias in the lead-in, and no other directional pattern overlapping the
+ *    pattern candles (so "which pattern is this?" has one answer).
+ * Returns the (possibly trimmed) lead-in and whether the pair is clean.
+ */
+function settleLeadIn(p, lead, pat, trend, R) {
+  const out = lead.map((k) => ({ ...k }));
+  let ok = true;
+  const n = out.length;
+  if (n >= 6 && trend !== 'range') {
+    const d = (out[n - 1].c - out[n - 6].c) * (trend === 'up' ? 1 : -1);
+    if (d < 0.4 * R) ok = false;
+    // findCandlePatterns (and the games built on it) must see the same context.
+    if (trendBefore(out, n, 8) !== trend) ok = false;
+  }
+  // Soldiers / crows start the new move from the lows (highs) rather than print them.
+  if (p.id.startsWith('three-') && n) {
+    const recent = out.slice(-12);
+    if (p.bias === 'bullish' && Math.min(...pat.map((k) => k.l)) > Math.min(...recent.map((k) => k.l)) + 0.5 * R) ok = false;
+    if (p.bias === 'bearish' && Math.max(...pat.map((k) => k.h)) < Math.max(...recent.map((k) => k.h)) - 0.5 * R) ok = false;
+  }
+  if (p.kind === 'reversal' && n && !p.id.startsWith('three-')) {
+    const bull = p.bias === 'bullish';
+    const ext = bull ? Math.min(...pat.map((k) => k.l)) : Math.max(...pat.map((k) => k.h));
+    const gap = 0.1 * R; // clearly beyond (more than a tweezer's tolerance)
+    for (let j = Math.max(0, n - 12); j < n; j++) {
+      const k = out[j];
+      if (bull && k.l <= ext + gap) {
+        if (bodyBottom(k) <= ext + 1.2 * gap) ok = false;
+        else k.l = ext + gap + (bodyBottom(k) - ext - gap) * 0.35;
+      } else if (!bull && k.h >= ext - gap) {
+        if (bodyTop(k) >= ext - 1.2 * gap) ok = false;
+        else k.h = ext - gap - (ext - gap - bodyTop(k)) * 0.35;
+      }
+    }
+  }
+  if (ok) {
+    const all = [...out, ...pat].map((k, i) => ({ ...k, t: i }));
+    const s = n;
+    const e = all.length - 1;
+    for (const m of findCandlePatterns(all, { context: true })) {
+      if (m.id === p.id) {
+        if (m.start !== s) ok = false;
+        continue;
+      }
+      const q = CANDLE_PATTERNS[m.id];
+      if (q.bias === 'neutral') continue;
+      // Straddles the lead-in and the pattern (e.g. hammer + prior candle = tweezer bottom), or
+      // ends on the pattern's last candle: a second valid answer for the same candles.
+      if (m.end >= s && (m.start < s || m.end === e)) ok = false;
+      // An earlier reversal signal in the same direction steals the pattern's thunder. (A
+      // pattern's own first candle may match a one-candle pattern, e.g. the long red candle of
+      // a piercing line is a bearish marubozu — that is part of the story, not a rival.)
+      else if (m.end < s && p.bias !== 'neutral' && q.kind === 'reversal' && q.bias === p.bias) ok = false;
+      if (!ok) break;
+    }
+  }
+  return { lead: out, ok };
+}
+
 /**
  * candleScenario(patternId, { seed, leadIn = 14, after = 0, start = 100, outcome = 'success' })
  * Lead-in trend matching the pattern's context (downtrend before bullish reversals, uptrend
  * before bearish ones, a trend in the pattern's direction for continuation patterns, any for
  * neutral ones), then the pattern, then `after` follow-through candles. outcome 'success'
- * moves in the pattern's bias direction; 'fail' moves against it (and beyond the pattern's
- * extreme when there is room). Neutral patterns move in a random direction.
- * → { candles, start, end, id, bias, context, trend, outcome, direction }
+ * moves in the pattern's bias direction and its first candle closes beyond the pattern's
+ * confirmation level (`confirm`, per its howToTrade text); 'fail' moves against it (and beyond
+ * the pattern's extreme when after >= 3). Neutral patterns move in a random direction.
+ * The lead-in is chosen so that reversal patterns mark the extreme of the move and no other
+ * directional pattern competes with the real one (see settleLeadIn).
+ * → { candles, start, end, id, bias, context, trend, outcome, direction, confirm }
  */
 export function candleScenario(patternId, { seed, leadIn: nLead = 14, after = 0, start = 100, outcome = 'success' } = {}) {
   const p = CANDLE_PATTERNS[patternId];
@@ -467,11 +590,21 @@ export function candleScenario(patternId, { seed, leadIn: nLead = 14, after = 0,
   else if (p.context === 'uptrend') trend = 'up';
   else trend = rng.pick(['up', 'down', 'range']);
 
-  const lead = leadIn(rng.fork('leadin'), { n: Math.max(0, Math.floor(nLead)), start, dir: trend, R: R0 });
-  const recent = lead.slice(-10);
-  const R = recent.length ? clamp(recent.reduce((s, c) => s + (c.h - c.l), 0) / recent.length, 0.7 * R0, 1.4 * R0) : R0;
-  const P = lead.length ? lead[lead.length - 1].c : start;
-  const pat = p.generate(rng.fork('pattern'), { price: P, range: R });
+  const nL = Math.max(0, Math.floor(nLead));
+  let lead;
+  let pat;
+  let R;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const tag = `${patternId}:${attempt}`;
+    const raw = leadIn(rng.fork(`leadin:${tag}`), { n: nL, start, dir: trend, R: R0 });
+    const recent = raw.slice(-10);
+    R = recent.length ? clamp(recent.reduce((s, c) => s + (c.h - c.l), 0) / recent.length, 0.7 * R0, 1.4 * R0) : R0;
+    const P = raw.length ? raw[raw.length - 1].c : start;
+    pat = p.generate(rng.fork(`pattern:${tag}`), { price: P, range: R });
+    const settled = settleLeadIn(p, raw, pat, trend, R);
+    lead = settled.lead;
+    if (settled.ok) break;
+  }
 
   let dir = p.bias === 'bullish' ? 1 : p.bias === 'bearish' ? -1 : rng.sign();
   const ok = outcome !== 'fail';
@@ -481,15 +614,24 @@ export function candleScenario(patternId, { seed, leadIn: nLead = 14, after = 0,
   const last = pat[pat.length - 1];
   const nAfter = Math.max(0, Math.floor(after));
   const beyond = !ok && p.bias !== 'neutral' && nAfter >= 3 ? (dir > 0 ? patHigh : patLow) : null;
-  const follow = followThrough(rng.fork('follow'), { n: nAfter, from: last.c, dir, R, beyond });
+  const confirm = CONFIRM[patternId](pat, dir);
+  const follow = followThrough(rng.fork('follow'), { n: nAfter, from: last.c, dir, R, beyond, confirm: ok ? confirm : null });
 
   let candles = [...lead, ...pat, ...follow].map((k, i) => ({ ...k, t: i }));
   candles = addVolume(candles, { seed: rng.fork('vol').seed });
   const s = lead.length;
   const e = s + pat.length - 1;
-  // Reversal candles on strong volume make the lesson; failed ones get a weaker print.
-  if (p.bias !== 'neutral') candles[e].v = Math.round(candles[e].v * (ok ? rng.float(1.3, 1.7) : rng.float(0.8, 1.05)));
-  return { candles, start: s, end: e, id: patternId, bias: p.bias, context: p.context, trend, outcome: ok ? 'success' : 'fail', direction: dir };
+  // Reversal candles on strong volume make the lesson; failed ones get a weaker print. (A
+  // harami's second candle is an inside day, so it stays quiet either way.)
+  if (p.bias !== 'neutral') {
+    const prev = candles.slice(Math.max(0, s - 8), s);
+    const avg = prev.length ? prev.reduce((a, c) => a + c.v, 0) / prev.length : candles[e].v;
+    const vr = rng.fork('pattern-volume');
+    if (patternId.endsWith('harami')) candles[e].v = Math.max(1, Math.round(Math.min(candles[e].v, avg * vr.float(0.6, 0.9))));
+    else if (ok) candles[e].v = Math.max(candles[e].v, Math.round(avg * vr.float(1.35, 1.9)));
+    else candles[e].v = Math.max(1, Math.round(Math.min(candles[e].v, avg * vr.float(0.75, 1.0))));
+  }
+  return { candles, start: s, end: e, id: patternId, bias: p.bias, context: p.context, trend, outcome: ok ? 'success' : 'fail', direction: dir, confirm };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -531,7 +673,7 @@ function priorTrend(rng, s, target) {
 function headAndShoulders(rng, inv) {
   const LS = 100;
   const T1 = LS * (1 - rng.float(0.045, 0.06));
-  const head = LS * (1 + rng.float(0.055, 0.1));
+  const head = LS * (1 + rng.float(0.05, 0.085));
   const T2 = T1 * (1 + rng.float(-0.01, 0.01));
   const RS = LS * (1 + rng.float(-0.012, 0.01));
   const s = T1 * (1 - rng.float(0.05, 0.075));
@@ -879,15 +1021,15 @@ export const CHART_PATTERN_IDS = Object.keys(CHART_PATTERNS);
  * Out-of-bounds opens/closes are reflected back inside (not flattened onto the line), so the
  * adjusted candles still look like ordinary candles. Extremes on the lines are untouched.
  */
-function tidyChart(candles, { rng, from, breakoutIdx, dir, level, upperL, lowerL, lvl, height, ok }) {
+function tidyChart(candles, { rng, from, rangeFrom = from, breakoutIdx, dir, level, upperL, lowerL, lvl, height, ok }) {
   const n = candles.length;
   const fix = (c) => {
     c.h = Math.max(c.h, c.o, c.c);
     c.l = Math.min(c.l, c.o, c.c);
   };
   let sr = 0;
-  for (let i = from; i <= breakoutIdx; i++) sr += candles[i].h - candles[i].l;
-  const avgR = sr / Math.max(1, breakoutIdx - from + 1) || height * 0.1;
+  for (let i = rangeFrom; i <= breakoutIdx; i++) sr += candles[i].h - candles[i].l;
+  const avgR = sr / Math.max(1, breakoutIdx - rangeFrom + 1) || height * 0.1;
   const m = 0.04 * avgR;
   const poke = Math.max(0.2 * avgR, 0.025 * height);
   const reflect = (v, lo, hi) => {
@@ -1034,9 +1176,28 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
   } else if (nAfter > 0) {
     afterPts.push([1, B + (ok ? dir : -dir) * heightX * 0.25 * nAfter / 4]);
   }
-  const all = [...pts, ...afterPts];
-  const { candles: raw, anchors } = fromPath(all, { seed: rng.fork('candles').seed, count: n, noise: 0.35, wick: 0.6, exact: true, volume: true });
-  const candles = raw;
+  // The setup (prior trend, formation and breakout) is generated on its own, so both outcomes
+  // of a seed share exactly the same candles up to the breakout candle; the follow-through is
+  // generated separately and continues from the breakout close.
+  const nForm = n - nAfter;
+  const form = fromPath(
+    pts.map(([x, p]) => [xb > 0 ? x / xb : 0, p]),
+    { seed: rng.fork('candles').seed, count: nForm, noise: 0.35, wick: 0.6, exact: true, volume: false },
+  );
+  let series = form.candles;
+  const anchors = form.anchors.slice();
+  if (nAfter > 0 && afterPts.length) {
+    const B0 = series[nForm - 1].c;
+    const local = [[0, B0], ...afterPts.map(([x, p]) => [(x - xb) / (1 - xb), p])];
+    const aft = fromPath(local, { seed: rng.fork('after').seed, count: nAfter + 1, noise: 0.35, wick: 0.6, exact: true, volume: false });
+    const tail = aft.candles.slice(1);
+    tail[0].o = B0;
+    tail[0].h = Math.max(tail[0].h, B0);
+    tail[0].l = Math.min(tail[0].l, B0);
+    series = series.concat(tail);
+    aft.anchors.slice(1).forEach((a) => anchors.push({ ...a, idx: a.idx + nForm - 1 }));
+  }
+  const candles = addVolume(series.map((c, i) => ({ ...c, t: i })), { seed: rng.fork('volume').seed });
   const A = (i) => anchors[i];
 
   // Real geometry from the generated candles.
@@ -1078,7 +1239,7 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
   const lvl = level(breakoutIdx);
   const target = lvl + dir * height;
 
-  tidyChart(candles, { rng: rng.fork('tidy'), from: keyStartIdx, breakoutIdx, dir, level, upperL, lowerL, lvl, height, ok });
+  tidyChart(candles, { rng: rng.fork('tidy'), from: keyStartIdx, rangeFrom: patternStart, breakoutIdx, dir, level, upperL, lowerL, lvl, height, ok });
 
   const seg = (fn, x1, x2) => ({ x1, y1: fn(x1), x2, y2: fn(x2) });
   const neckline = shape.neckline ? seg(level, keyStartIdx, breakoutIdx) : null;
@@ -1098,8 +1259,47 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
   keyPoints.sort((a, b) => a.idx - b.idx);
 
   // Volume: fades while the pattern forms, expands on a genuine breakout, stays weak on a trap.
+  // Rounded bases (cup, saucer) have the textbook U-shaped volume instead: it dries up towards
+  // the bottom of the base and picks up again as price climbs back to the rim; a handle is quiet.
   const span = Math.max(1, patternEnd - patternStart);
-  for (let i = patternStart; i <= patternEnd; i++) candles[i].v = Math.max(1, Math.round(candles[i].v * (1 - 0.5 * ((i - patternStart) / span))));
+  const rounded = patternId === 'cup-and-handle' || patternId === 'rounding-bottom';
+  const rim = rounded ? level(patternStart) : 0;
+  const bottomIdx = rounded ? A(shape.measure.extreme[0]).idx : 0;
+  const depth = rounded ? Math.max(1e-9, rim - A(shape.measure.extreme[0]).price) : 1;
+  const rightRim = Object.keys(shape.labels).find((k) => shape.labels[k] === 'Right rim');
+  const handleFrom = rightRim != null ? A(Number(rightRim)).idx : Infinity;
+  // A flag's volume is heavy on the pole and fades through the flag itself.
+  const poleTop = shape.measure.type === 'pole' ? A(shape.measure.to).idx : null;
+  // Each bar's volume is pulled most of the way (geometrically) towards the envelope V0 × f, so
+  // the profile is unmistakable while bigger candles still trade a little more.
+  const V0 = candles.slice(patternStart, patternEnd + 1).reduce((a, c) => a + c.v, 0) / (patternEnd - patternStart + 1);
+  for (let i = patternStart; i <= patternEnd; i++) {
+    let f;
+    if (poleTop != null) f = i <= poleTop ? 1 : 0.9 - 0.45 * ((i - poleTop) / Math.max(1, patternEnd - poleTop));
+    else if (!rounded) f = 1 - 0.5 * ((i - patternStart) / span);
+    else if (i > handleFrom) f = 0.55;
+    else {
+      const d = clamp((rim - candles[i].c) / depth, 0, 1);
+      f = (1 - 0.55 * d) * (i > bottomIdx ? 0.95 : 1);
+    }
+    candles[i].v = Math.max(1, Math.round(poleTop != null && i <= poleTop ? candles[i].v : candles[i].v ** 0.3 * (V0 * f) ** 0.7));
+  }
+  // Each later test of the same level (Top 2, Top 3, the right shoulder) comes on lighter
+  // volume than the first one — the classic warning that buyers (sellers) are tiring.
+  const firstTest = keyPoints.find((k) => ['Top 1', 'Bottom 1', 'Left shoulder'].includes(k.label));
+  if (firstTest) {
+    const around = (idx) => candles.slice(Math.max(0, idx - 2), idx + 3);
+    const mean = (cs) => cs.reduce((s2, c) => s2 + c.v, 0) / cs.length;
+    const v1 = mean(around(firstTest.idx));
+    let cap = 0.8;
+    for (const k of keyPoints) {
+      if (!['Top 2', 'Top 3', 'Bottom 2', 'Bottom 3', 'Right shoulder'].includes(k.label)) continue;
+      const win = around(k.idx);
+      const f = Math.min(1, (cap * v1) / mean(win));
+      for (const c of win) c.v = Math.max(1, Math.round(c.v * f));
+      cap *= 0.85;
+    }
+  }
   if (shape.measure.type === 'pole') {
     for (let i = A(shape.measure.from).idx + 1; i <= A(shape.measure.to).idx; i++) candles[i].v = Math.round(candles[i].v * 1.6);
   }

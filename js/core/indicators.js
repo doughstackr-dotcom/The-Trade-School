@@ -74,7 +74,10 @@ export function rma(values, period) {
   while (first < n && !isNum(values[first])) first++;
   if (first + p > n) return out;
   let sum = 0;
-  for (let i = first; i < first + p; i++) sum += values[i];
+  for (let i = first; i < first + p; i++) {
+    if (!isNum(values[i])) return out;
+    sum += values[i];
+  }
   let prev = sum / p;
   out[first + p - 1] = prev;
   for (let i = first + p; i < n; i++) {
@@ -408,12 +411,21 @@ export function divergence(candles, oscillator, { lookback = 40, left = 3, right
   return out.sort((x, y) => x.b.idx - y.b.idx);
 }
 
-/** Highest value over the last `period` values (aligned, null during warm-up). */
+/** Highest value over the last `period` values (aligned, null during warm-up; nulls ignored). */
 export function highest(values, period) {
-  return values.map((_, i) => (i < period - 1 ? null : Math.max(...values.slice(i - period + 1, i + 1))));
+  return rolling(values, period, Math.max);
 }
 
 /** Lowest value over the last `period` values. */
 export function lowest(values, period) {
-  return values.map((_, i) => (i < period - 1 ? null : Math.min(...values.slice(i - period + 1, i + 1))));
+  return rolling(values, period, Math.min);
+}
+
+function rolling(values, period, pick) {
+  const p = Math.max(1, Math.floor(period));
+  return values.map((_, i) => {
+    if (i < p - 1) return null;
+    const w = values.slice(i - p + 1, i + 1).filter(isNum);
+    return w.length ? pick(...w) : null;
+  });
 }

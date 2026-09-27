@@ -181,7 +181,7 @@ under `:root[data-theme="dark"]`, both with `color-scheme: dark`):
 | `--grid` | `#E6EBF2` | `#1B2640` | chart grid |
 | `--text` | `#0F1B2D` | `#E7EDF6` | primary text |
 | `--text-2` | `#46546B` | `#A5B1C6` | secondary |
-| `--text-3` | `#76839A` | `#6F7D96` | captions, axes |
+| `--text-3` | `#64718A` | `#7F8DA5` | captions, axes (≥ 4.5:1 on `--bg` and `--surface`) |
 | `--accent` | `#B7790F` | `#F2B53A` | Fibonacci gold: primary actions, highlights |
 | `--accent-ink` | `#FFFFFF` | `#1A1204` | text on accent |
 | `--accent-soft` | `#F6E7C8` | `#3A2C10` | accent tints |
@@ -521,8 +521,10 @@ chart.cancelDraw()
 chart.setDraggable(id, onChange)          // hline: vertical drag; segment/fib: endpoint handles;
                                           // zone: edge handles. onChange(spec, { phase:
                                           // 'move'|'end', handle }). Pass false to stop.
-                                          // Handles have ≥ 28px touch targets; ↑/↓ on the focused
-                                          // chart nudge the last draggable overlay.
+                                          // Handle hit circles are 28px (44px on coarse pointers);
+                                          // an hline can be grabbed anywhere on the line and its
+                                          // grip sits mid-line. ↑/↓ on the focused chart nudge
+                                          // the last draggable overlay.
 chart.setInteractive(enabled)
 chart.setAriaLabel(text)                  // (addition)
 
@@ -868,6 +870,19 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
   seed, el }` (`el` = the results' extra-content container).
 - Without `preview`, the intro shows the game's badge icon.
 - Hooks for tests: `[data-action="start" | "next" | "again"]`.
+- `correct()` / `wrong()` replace the previous banner only; notes added with `feedback()` stay
+  (the banner is always shown first), so `game.correct('Yes!'); game.feedback(why)` and
+  `game.feedback(why); game.correct('Yes!')` both work.
+- A per-round clock keeps running until `nextButton()` / `nextRound()`. If a round shows an
+  animation after the answer before calling `nextButton()`, call `game.timer.stop()` first so
+  the clock cannot expire into a second (wrong) verdict.
+- Finishing shows the results card **and** an "+N XP" toast (the XP pill in the top bar bumps).
+- `mount()` must return `() => game.destroy()`. As a safety net the shell also tears itself
+  down (listeners, clock) once its root has left the page.
+- Until the §12.1/§12.2 pickers exist, `game.style` is `'arcade'`, `game.source` is
+  `'textbook'`, `game.lives` is `null`, and `game.difficulty` (0–1) ramps across the run:
+  `(round − 1) / (rounds − 1)`, or over ~15 rounds when `rounds` is `null`. It is set before
+  each `onRound`, so round generators can depend on it today.
 
 ### 11.6 LessonShell (`js/core/lesson-kit.js`)
 
@@ -876,14 +891,20 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
 - Arrow keys are ignored inside `[data-keys="capture"]`, sliders, tab lists and radio
   groups — put `data-keys="capture"` on interactive widgets that use arrows.
 - Hooks for tests: `[data-action="next" | "back"]`.
+- `shell.destroy()` removes the key listener and runs the current step's cleanup; `mount()`
+  must return `() => shell.destroy()` (the shell also self-destructs if its root leaves the page).
+- On narrow screens (< 960px) the step rail becomes a sticky one-line progress bar under the
+  top bar; the shell scrolls steps into view below it.
 
 ### 11.7 Design tokens and classes
 
 - Extra tokens: `--accent-strong`, `--bull-strong`, `--bear-strong` (text-safe on light
   grounds and on the `*-soft` tints), `--btn-primary(-hover)`, `--bull-ink`, `--bear-ink`,
   `--topbar-bg`, `--overlay`, `--radius-lg`, `--shadow-lg`, `--ease-out`, `--ease-back`,
-  `--topbar-h`, `--tabbar-h` (height of the phone tab bar, 0 on desktop — use it for
-  bottom-sticky UI).
+  `--topbar-h`, `--tabbar-h` (height of the bottom tab bar, 0 when the top nav is shown — use
+  it for bottom-sticky UI). The primary nav moves to the bottom tab bar below **820px**
+  (phones and narrow/portrait tablets); page layouts themselves switch to phone layouts below
+  720px.
 - Extra classes: `.btn--lg`, `.btn--icon`, `.btn--block`, `.link-btn`, `.card--raised`,
   `.card--inset`, `.card--link`, `.card--flush`, `.chip--sm`, `.chip--outline`,
   `.chip--tier-{beginner|advanced|both}`, `.kbd-hint`, `.stars`, `.explainer(--good|--bad)`,
@@ -893,14 +914,20 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
   `.container--read` (680px) / `.container--wide` (960px), `.section`, `.section-head`,
   `.lead`, `.faint`, `.prose`, `.t-12 … .t-48`.
 - On touch (`pointer: coarse`) buttons and small links get ≥ 44px hit targets.
+- `ul`/`ol` elements that have a class lose bullets and padding through a zero-specificity
+  `:where()` reset, so a component class can set its own padding. `svg.icon` never shrinks
+  inside flex rows.
 
 ### 11.8 Smoke test
 
 `node tests/smoke.mjs [routes…] [--desktop] [--tablet] [--phone] [--light|--dark]
-[--no-shots] [--no-interact] [--fonts] [--concurrency=N]`. Viewports: desktop 1280×800,
+[--no-shots] [--no-interact] [--fonts] [--no-storage] [--concurrency=N]`. Viewports: desktop 1280×800,
 tablet 820×1180 (touch), phone 390×844 (touch). Google Fonts requests are blocked unless
 `--fonts` is given. After the first screenshot it clicks Start (and one answer option) on
 games and Next on lessons, then screenshots `<route>-<viewport>-<theme>-play.png`.
+
+`--no-storage` runs every check with `localStorage`/`sessionStorage` methods throwing (as in
+some private modes): the app must still render and play; progress just is not remembered.
 
 `npm test` runs `node --test "tests/unit/*.test.mjs"` — Node 22 no longer expands a bare
 directory argument, so the glob is spelled out.
@@ -940,7 +967,7 @@ import { findSetups, realRound } from '../core/scanner.js';
 
 const round = await realRound(rng, {
   kinds: ['hammer', 'bullish-engulfing'],   // setup kinds (see 12.4)
-  intervals: ['1h', '1d'],                   // candidate timeframes
+  intervals: ['1d', '1w'],                   // candidate timeframes (ask getCatalog())
   before: 60, after: 20,                     // candles shown before the decision + revealed after
 });
 // → { candles, decisionIdx, setup: { kind, start, end, direction, meta },
@@ -956,23 +983,36 @@ separately from the **outcome**.
 
 ### 12.3 Market data (`js/core/market.js` + Edge Function `market-data`)
 
+Providers (server-side, see `docs/MARKET_DATA.md`): **Alpha Vantage** with the owner's key
+(end-of-day `1d` and split-adjusted weekly `1w` candles for 12 markets; intraday only on a
+paid key), and **Kraken/Coinbase** live crypto adapters that stay OFF until the owner has
+written permission (`MARKET_EXCHANGE_FEEDS`). Nothing is fetched in the browser from a
+provider; the browser only talks to `market-data`.
+
 ```js
-export const SYMBOLS = [{ id: 'BTC-USD', name: 'Bitcoin', class: 'crypto', decimals: 2 }, …];
-export async function getCandles({ symbol, interval, limit = 300, end }) → { candles, source, attribution, delayed }
+export async function getCatalog() → { symbols: [{ id, name, class, decimals, intervals: ['1d','1w',…],
+                                         live: bool, delayed: bool }], status }   // cached per session
+export async function getCandles({ symbol, interval, limit = 300, end }) → { candles, source, attribution, delayed, stale }
 export async function getHistory({ symbol, interval, bars = 1000 }) → same, cached for the session
-export function subscribeLive({ symbol, interval }, onUpdate) → unsubscribe   // polling (and a
-   // browser-direct public WebSocket when the provider allows it) with a last-price tick
+export function subscribeLive({ symbol, interval }, onUpdate) → unsubscribe
+   // live when the catalog says live: true; otherwise REPLAY: a real historical stretch played
+   // forward in real time (onUpdate gets { candles, last, status: 'live'|'replay'|'offline' })
 export function marketStatus() → 'online' | 'offline' | 'unconfigured'
 ```
 
-- Intervals: `1m 5m 15m 1h 6h 1d`. Candles are `{ t (ms epoch UTC), o, h, l, c, v }`, oldest
-  first; `t` is converted to the chart's index-based `t` by the caller.
-- The browser calls the Supabase Edge Function `market-data` (public, no sign-in needed for
-  the data itself), which fetches from free providers server-side, stores candles in the
-  `market_candles` table and throttles upstream calls per `(symbol, interval)`, so traffic
-  scales with symbols, not with users.
+- Function request: POST `{ symbol, interval, limit, end }` → `{ symbol, interval, candles:
+  [{ t, o, h, l, c, v }], source, attribution, delayed, stale? }` (t = ms UTC, oldest first);
+  POST `{ catalog: true }` → the catalog above. 503 `{ unconfigured: true }` when no provider
+  is set up for that symbol/interval.
+- Intervals: `1m 5m 15m 1h 6h 1d 1w`. With only the free Alpha Vantage key, real charts are
+  **daily and weekly** — games must ask the catalog which intervals exist and pick from those
+  (weekly charts are fine for most pattern/level/trend games; label them "Weekly").
+- Every real chart shows the attribution string and "Delayed / end of day" when `delayed`.
+- Real data may be missing entirely (no key yet, quota used, offline): callers must fall back
+  to textbook/simulated charts without errors.
 - `localStorage['tts-market-mock'] = '1'` (localhost only) serves deterministic fixture
-  candles from `tests/fixtures/market/*.json` so games can be tested offline.
+  candles from `tests/fixtures/market/*.json` (including `1d` and `1w`) so games can be
+  tested offline; fixtures are labelled as test data and never shown outside mock mode.
 
 ### 12.4 Scanner setup kinds (`js/core/scanner.js`)
 

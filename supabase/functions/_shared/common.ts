@@ -35,10 +35,14 @@ function originOf(url: string): string {
   }
 }
 
-/** Absolute base URL ending in '/', without query or hash. '' if invalid. */
+/** Absolute http(s) base URL ending in '/', without credentials, query or hash. '' if invalid. */
 function normalizeBase(url: string): string {
   try {
     const u = new URL(url);
+    // blob:https://site/… reports the site's origin but is not a page Stripe can redirect to.
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+    u.username = '';
+    u.password = '';
     u.search = '';
     u.hash = '';
     if (!u.pathname.endsWith('/')) u.pathname = u.pathname.replace(/\/[^/]*\.html?$/, '/') || '/';

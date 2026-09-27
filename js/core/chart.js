@@ -1301,7 +1301,7 @@ export class CandleChart {
       if (!text) continue;
       const x = S.x(i);
       if (x - textW(text) / 2 < 2 || x + textW(text) / 2 > L.x1 - 2) continue;
-      s += `<text class="tc-axis-text" x="${f(x)}" y="${ty}" text-anchor="middle">${esc(text)}</text>`;
+      s += `<text class="tc-axis-text tc-time-text" x="${f(x)}" y="${ty}" text-anchor="middle" data-w="${f(textW(text))}">${esc(text)}</text>`;
     }
     return s;
   }
@@ -1503,8 +1503,19 @@ export class CandleChart {
       tx.setAttribute('y', f(L.H - L.timeH + 15));
       tx.textContent = text;
       g.crossX.style.display = text ? '' : 'none';
+      this._maskTimeLabels(text ? cx - w / 2 - 3 : null, cx + w / 2 + 3);
     } else g.crossX.style.display = 'none';
     g.cross.style.display = '';
+  }
+
+  /** Hide time-axis labels under the crosshair's time pill (so no characters peek out beside it). */
+  _maskTimeLabels(from, to) {
+    for (const t of this._g.axis.querySelectorAll('.tc-time-text')) {
+      const x = +t.getAttribute('x');
+      const hw = (+t.getAttribute('data-w') || 0) / 2;
+      const hide = from != null && x + hw > from && x - hw < to;
+      t.style.visibility = hide ? 'hidden' : '';
+    }
   }
 
   _showCross(idx, y) {
@@ -1518,6 +1529,7 @@ export class CandleChart {
     if (!this._cross) return;
     this._cross = null;
     this._g.cross.style.display = 'none';
+    this._maskTimeLabels(null);
     this._renderLegend(this.visibleCount - 1);
   }
 

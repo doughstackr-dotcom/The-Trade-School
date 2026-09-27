@@ -161,5 +161,19 @@ export default {
           })));
     };
     render();
+    // Stay current when progress changes elsewhere (another tab, a level-up toast, sync).
+    let queued = 0;
+    const onChange = () => {
+      if (queued) return;
+      queued = requestAnimationFrame(() => {
+        queued = 0;
+        if (root.isConnected && !root.contains(document.activeElement)) render();
+      });
+    };
+    store.on('change', onChange);
+    return () => {
+      store.off('change', onChange);
+      if (queued) cancelAnimationFrame(queued);
+    };
   },
 };

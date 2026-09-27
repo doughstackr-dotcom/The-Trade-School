@@ -8,6 +8,7 @@
 //   node tests/smoke.mjs g.fib-sniper    one route (args are exact routes or prefixes, e.g. "g.")
 //   options: --no-shots  --desktop / --tablet / --phone (combinable)  --light | --dark  --fonts (load Google Fonts;
 //            uses $HTTPS_PROXY if set)  --concurrency=N  --no-interact
+//            --no-storage (every localStorage/sessionStorage call throws, as in some private modes)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -50,6 +51,7 @@ const filters = args.filter((a) => !a.startsWith('--'));
 const noShots = flag('no-shots');
 const interact = !flag('no-interact');
 const withFonts = flag('fonts');
+const noStorage = flag('no-storage');
 const concurrency = Math.max(1, Number(opt('concurrency', 3)) || 3);
 
 const ALL_VIEWPORTS = [
@@ -172,6 +174,20 @@ async function main() {
         ignoreHTTPSErrors: !!proxy,
       });
       if (!withFonts) await context.route(IGNORE_HOSTS, (r) => r.abort());
+      if (noStorage) {
+        await context.addInitScript(() => {
+          const boom = () => {
+            throw new DOMException('Storage is disabled (smoke --no-storage)', 'SecurityError');
+          };
+          for (const m of ['getItem', 'setItem', 'removeItem', 'clear', 'key']) {
+            try {
+              Object.defineProperty(Storage.prototype, m, { value: boom, configurable: true });
+            } catch {
+              /* ignore */
+            }
+          }
+        });
+      }
       combos.push({ vp, theme, context });
     }
   }
@@ -209,7 +225,7 @@ async function main() {
       if (withFonts) await page.evaluate(() => document.fonts?.ready).catch(() => {});
       await page.waitForTimeout(800);
       if (await page.$('[data-route-error]')) errors.push('router showed its error card');
-      const shotBase = path.join(SHOTS, `${route}-${vp.name}-${theme}`);
+      const shotBase = path.join(SHOTS, `${route}-${vp.name}-${theme}${noStorage ? '-nostorage' : ''}`);
       if (!noShots) await page.screenshot({ path: `${shotBase}.png`, fullPage: true });
       const of = await overflowReport(page);
       if (of) errors.push(of);

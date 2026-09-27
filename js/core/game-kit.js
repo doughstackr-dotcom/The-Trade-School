@@ -145,6 +145,13 @@ export class GameShell {
     this.rng = null;
     this.seed = null;
     this.finished = false;
+    // Forward-compatible defaults for ARCHITECTURE §12.1/§12.2 (play styles, chart sources).
+    // The pickers are not built yet: every run is 'arcade' on 'textbook' charts, and
+    // `difficulty` ramps 0 → 1 across the run so round generators can already depend on it.
+    this.style = 'arcade';
+    this.source = 'textbook';
+    this.lives = null;
+    this.difficulty = 0;
     this._plays = 0;
     this._cleanups = [];
     this._roundCleanups = [];
@@ -249,6 +256,9 @@ export class GameShell {
       return;
     }
     this.round += 1;
+    this.difficulty = this.rounds != null && this.rounds > 1
+      ? Math.min(1, (this.round - 1) / (this.rounds - 1))
+      : Math.min(1, (this.round - 1) / 14);
     this.stage.replaceChildren();
     this._renderRound();
     const t = this.opts.timer;
@@ -330,6 +340,7 @@ export class GameShell {
     this.streak = 0;
     this.bestStreak = 0;
     this.round = 0;
+    this.difficulty = 0;
     this.corrects = 0;
     this.wrongs = 0;
     this.finished = false;

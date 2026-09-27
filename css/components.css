@@ -274,6 +274,24 @@
   }
 }
 
+/* 820–899px: tighten further so the wordmark never truncates, even with fallback fonts. */
+@media (min-width: 720px) and (max-width: 899.98px) {
+  .brand {
+    font-size: 16px;
+    margin-right: 2px;
+  }
+
+  .nav__link {
+    padding: 0 6px;
+    font-size: 14px;
+  }
+
+  .nav__link.is-active::after {
+    left: 6px;
+    right: 6px;
+  }
+}
+
 .footer {
   border-top: 1px solid var(--line);
   padding: 28px 0 32px;
@@ -318,7 +336,9 @@
   text-decoration: underline;
 }
 
-@media (max-width: 719.98px) {
+/* Phones and narrow tablets (≤ 819px, e.g. 768px portrait): the primary nav moves to a bottom
+   tab bar, because five links plus the wordmark and tools do not fit in one row. */
+@media (max-width: 819.98px) {
   :root {
     --topbar-h: 56px;
     --tabbar-h: 60px;
@@ -726,9 +746,14 @@
 
 .stars {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 1px;
   vertical-align: middle;
+}
+
+.stars .icon {
+  flex: 0 0 auto;
 }
 
 .star--on {
@@ -1346,7 +1371,7 @@ figcaption {
   height: 26px;
   border-radius: 50%;
   background: var(--info);
-  color: #fff;
+  color: var(--bg);
 }
 
 .toast--xp .toast__icon,
@@ -2121,6 +2146,7 @@ figcaption {
 
 .badge-list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 8px;
   margin-top: 8px;
 }
@@ -2482,6 +2508,18 @@ figcaption {
   margin-top: 14px;
 }
 
+.lesson-done__actions .btn {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.25;
+  padding-block: 10px;
+  text-align: left;
+}
+
+.lesson-done__game > .icon {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 959.98px) {
   .lesson__layout {
     grid-template-columns: minmax(0, 1fr);
@@ -2520,6 +2558,12 @@ figcaption {
   .rail {
     display: none;
   }
+
+  /* Keep scrolled-to steps and the completion card clear of the sticky compact rail. */
+  .lesson__main,
+  .lesson__done {
+    scroll-margin-top: 72px;
+  }
 }
 
 @media (min-width: 720px) and (max-width: 959.98px) {
@@ -2555,6 +2599,26 @@ figcaption {
 
   .lesson__nav .btn {
     flex: 0 0 auto;
+  }
+
+  /* Back shrinks to its arrow so the "answer to continue" note has room. */
+  .lesson__nav [data-action="back"] {
+    width: 44px;
+    padding: 0;
+  }
+
+  .lesson__back-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .lesson__nav-mid {
+    font-size: 12.5px;
+    line-height: 1.25;
   }
 }
 
