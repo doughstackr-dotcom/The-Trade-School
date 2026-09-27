@@ -524,6 +524,58 @@ function onVisibility(fn) {
   return { hidden: () => !!doc.hidden, off: () => doc.removeEventListener('visibilitychange', h) };
 }
 
+/** Default symbols shown on the Live Market Lab quote board. */
+export const LIVE_QUOTE_SYMBOLS = Object.freeze([
+  'SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'BTC-USD', 'EUR-USD',
+]);
+
+/**
+ * getQuotes({ symbols }?) → { quotes, stale, attribution, fetchedAt, source, error? }
+ * Near-real-time last/change via the market-data Edge Function's Yahoo path.
+ * Never throws; on failure returns empty quotes (caller should keep last good data).
+ */
+export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
+  const list = (symbols || LIVE_QUOTE_SYMBOLS).map((s) => String(s).toUpperCase());
+  if (isMockMode()) {
+    const now = Date.now();
+    return {
+      quotes: list.map((id, i) => {
+        const base = 100 + i * 17.3;
+        const change = ((i % 5) - 2) * 0.42;
+        const spark = Array.from({ length: 20 }, (_, k) => base + Math.sin(k / 3 + i) * 1.5 + change * (k / 20));
+        return {
+          symbol: id, yahooSymbol: id, name: id, price: base + change, prevClose: base,
+          change, changePct: (change / base) * 100, currency: 'USD', asOf: now, sparkline: spark, ok: true,
+        };
+      }),
+      stale: false,
+      attribution: 'Test quotes (mock mode)',
+      fetchedAt: now,
+      source: 'mock',
+    };
+  }
+  const res = await callFunction({ quotes: true, symbols: list }, { retries: 1 });
+  if (res.kind !== 'ok' || !res.data) {
+    return {
+      quotes: [],
+      stale: false,
+      attribution: '',
+      fetchedAt: Date.now(),
+      source: 'yahoo',
+      error: res.error || 'Quotes unavailable',
+    };
+  }
+  const d = res.data;
+  return {
+    quotes: Array.isArray(d.quotes) ? d.quotes : [],
+    stale: !!d.stale,
+    attribution: d.attribution || 'Quotes: Yahoo Finance (unofficial)',
+    fetchedAt: d.fetchedAt || Date.now(),
+    source: d.source || 'yahoo',
+    error: d.error || null,
+  };
+}
+
 /**
  * subscribeLive({ symbol, interval, bars = 120, stepMs = 3000, seed, form = true }, onUpdate) → unsubscribe
  * Live polling when the catalog marks the symbol live for that interval; otherwise REPLAY: a real

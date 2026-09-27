@@ -1,16 +1,61 @@
-// Live Market Lab (stub) — #live. The full page (ARCHITECTURE §12.6) streams a live (or replayed)
-// real chart via market.subscribeLive with indicator toggles and a plain-English read from the
-// scanner. This stub shows a simulated chart and connects to market data only on request (or
-// automatically in mock mode), so loading the page never fetches anything by itself.
-import { h, icon } from '../core/ui.js';
+// Live Market Lab — #live. Quote board (Yahoo via market-data edge function) + detail chart.
+// Polls every 45s; keeps last good data on failure and marks it stale. Educational only.
+import { h, icon, svg } from '../core/ui.js';
 
-const STATUS_TEXT = {
-  live: 'Live',
-  replay: 'Replay: a real historical stretch played in real time',
-  offline: 'Offline: showing a simulated market',
-  sim: 'Simulated market',
-  connecting: 'Connecting…',
-};
+const POLL_MS = 45_000;
+const BOARD = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'BTC-USD', 'EUR-USD'];
+
+function fmtPrice(n, decimals = 2) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function fmtPct(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function sparklineSvg(values, { up = true } = {}) {
+  const vals = (values || []).filter((v) => Number.isFinite(v));
+  if (vals.length < 2) {
+    return h('span', { class: 'live-spark live-spark--empty', 'aria-hidden': 'true' });
+  }
+  const w = 96;
+  const ht = 36;
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min || 1;
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * (w - 4) + 2;
+    const y = ht - 4 - ((v - min) / span) * (ht - 8);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return svg('svg', {
+    class: ['live-spark', up ? 'is-up' : 'is-down'],
+    width: w, height: ht, viewBox: `0 0 ${w} ${ht}`, 'aria-hidden': 'true', focusable: 'false',
+  }, svg('polyline', { points: pts, fill: 'none', 'stroke-width': 1.75 }));
+}
+
+function quoteCard(q, { selected, onSelect }) {
+  const up = (q.change ?? 0) >= 0;
+  const dec = q.symbol?.includes('EUR') ? 4 : 2;
+  return h('button', {
+    type: 'button',
+    class: ['live-quote card', selected && 'is-selected', q.ok === false && 'is-dead'],
+    'aria-pressed': selected ? 'true' : 'false',
+    'aria-label': `${q.name || q.symbol}, ${fmtPrice(q.price, dec)}, ${fmtPct(q.changePct)}`,
+    on: { click: () => onSelect(q.symbol) },
+  },
+    h('div', { class: 'live-quote__top' },
+      h('span', { class: 'live-quote__sym mono' }, q.symbol),
+      sparklineSvg(q.sparkline, { up })),
+    h('p', { class: 'live-quote__name faint' }, q.name || q.symbol),
+    h('p', { class: ['live-quote__px', 'mono', up ? 'is-up' : 'is-down'] }, fmtPrice(q.price, dec)),
+    h('p', { class: ['live-quote__chg', 'mono', up ? 'is-up' : 'is-down'] },
+      q.change == null ? '—' : `${up ? '+' : ''}${fmtPrice(q.change, dec)} (${fmtPct(q.changePct)})`),
+  );
+}
 
 export default {
   id: 'live',
@@ -20,72 +65,161 @@ export default {
       import('../core/data.js').catch(() => null),
       import('../core/market.js').catch(() => null),
     ]);
+
+    let selected = 'SPY';
+    let lastQuotes = [];
+    let lastFetchedAt = 0;
+    let stale = false;
+    let attribution = '';
+    let chart = null;
+    let pollTimer = null;
+    let destroyed = false;
+
     const statusEl = h('span', { class: 'live-status__text' });
     const dot = h('span', { class: 'live-dot live-dot--lg', 'aria-hidden': 'true' });
-    const status = h('p', { class: 'live-status', role: 'status' }, dot, statusEl);
-    const attrib = h('p', { class: 'faint live-attrib' });
+    const updatedEl = h('span', { class: 'live-updated mono faint' });
+    const board = h('div', { class: 'live-board', role: 'list', 'aria-label': 'Market quotes' });
     const chartHost = h('div', { class: 'chart-frame live__chart' });
-    const symbolSel = h('select', { class: 'input live__symbol', 'aria-label': 'Market' },
-      (marketMod?.SYMBOLS || [{ id: 'BTC-USD', name: 'Bitcoin' }]).map((s) => h('option', { value: s.id }, `${s.id} · ${s.name || s.id}`)));
-    const connectBtn = h('button', { type: 'button', class: 'btn btn--primary', 'data-action': 'connect' }, icon('bolt'), 'Connect to market data');
+    const attrib = h('p', { class: 'faint live-attrib' });
+    const note = h('p', { class: 'faint live-footnote' },
+      'Quotes arrive through our server (Yahoo Finance unofficial chart API) so the browser never talks to Yahoo directly. ',
+      'Poll every ~45s with a short server cache. If a refresh fails we keep the last good numbers and mark them stale. ',
+      'Yahoo may rate-limit; this page is educational — not for live trading decisions.');
+
+    const setStatus = (key, text) => {
+      statusEl.textContent = text || key;
+      dot.dataset.state = key;
+    };
+
+    const paintUpdated = () => {
+      if (!lastFetchedAt) {
+        updatedEl.textContent = 'Not updated yet';
+        return;
+      }
+      const t = new Date(lastFetchedAt);
+      const label = t.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      updatedEl.textContent = stale ? `Last updated ${label} · stale` : `Last updated ${label}`;
+    };
+
+    const paintBoard = () => {
+      const list = lastQuotes.length
+        ? lastQuotes
+        : BOARD.map((id) => ({ symbol: id, name: id, price: null, change: null, changePct: null, sparkline: [], ok: false }));
+      board.replaceChildren(...list.map((q) => quoteCard(q, {
+        selected: q.symbol === selected,
+        onSelect: (id) => {
+          selected = id;
+          paintBoard();
+          loadChart(id);
+        },
+      })));
+    };
+
+    const loadChart = async (symbol) => {
+      if (!chartMod) return;
+      let candles = null;
+      if (marketMod?.getCandles) {
+        try {
+          const res = await marketMod.getCandles({ symbol, interval: '1d', limit: 90 });
+          candles = res?.candles?.length ? res.candles : null;
+          if (res?.attribution) {
+            attrib.textContent = [
+              attribution,
+              res.attribution,
+              res.stale ? 'Chart cache stale' : null,
+            ].filter(Boolean).join(' · ');
+          }
+        } catch {
+          candles = null;
+        }
+      }
+      if (!candles?.length && dataMod) {
+        candles = dataMod.randomWalk({ seed: symbol.length * 99, count: 90, drift: 0.0003, vol: 0.012 });
+        attrib.textContent = [attribution, 'Chart: simulated (real daily history unavailable)'].filter(Boolean).join(' · ');
+      }
+      if (!candles?.length) return;
+      if (!chart) {
+        chart = new chartMod.CandleChart(chartHost, {
+          candles, height: 360, showVolume: true, ariaLabel: `${symbol} daily chart`,
+        });
+      } else {
+        chart.setCandles(candles);
+      }
+    };
+
+    const refreshQuotes = async () => {
+      if (destroyed || !marketMod?.getQuotes) {
+        setStatus('offline', 'Quotes module unavailable');
+        return;
+      }
+      setStatus(lastQuotes.length ? (stale ? 'stale' : 'live') : 'connecting',
+        lastQuotes.length ? (stale ? 'Refreshing… (showing last good)' : 'Refreshing…') : 'Connecting…');
+      try {
+        const res = await marketMod.getQuotes({ symbols: BOARD });
+        if (destroyed) return;
+        if (res.quotes?.some((q) => q.ok)) {
+          lastQuotes = res.quotes;
+          lastFetchedAt = res.fetchedAt || Date.now();
+          stale = !!res.stale;
+          attribution = res.attribution || '';
+          setStatus(stale ? 'stale' : 'live', stale ? 'Live board · stale data' : 'Live board');
+          attrib.textContent = attribution;
+        } else if (lastQuotes.length) {
+          stale = true;
+          setStatus('stale', 'Refresh failed — showing last good quotes');
+        } else {
+          setStatus('offline', res.error || 'Quotes unavailable');
+          attrib.textContent = res.error || '';
+        }
+      } catch (err) {
+        if (lastQuotes.length) {
+          stale = true;
+          setStatus('stale', 'Network error — showing last good quotes');
+        } else {
+          setStatus('offline', err?.message || 'Network error');
+        }
+      }
+      paintUpdated();
+      paintBoard();
+    };
 
     root.append(h('div', { class: 'container live' },
       h('header', { class: 'page-head' },
         h('p', { class: 'eyebrow eyebrow--accent' }, 'Live Market Lab'),
         h('h1', null, 'Read a market as it moves'),
-        h('p', { class: 'lead' }, 'A live chart with indicator toggles and a plain-English read of the trend, the nearest levels and recent candle patterns. Coming soon: the automatic read.')),
-      h('div', { class: 'live__bar row' }, status, h('span', { class: 'grow' }), symbolSel, connectBtn),
-      chartHost,
-      attrib,
-      h('p', { class: 'faint' }, 'Educational only — not financial advice. Real prices are delayed unless marked Live.')));
+        h('p', { class: 'lead' },
+          'Major ETFs, stocks, Bitcoin and EUR/USD with last price, daily change and a tiny sparkline. ',
+          'Tap a card to load a daily chart. Beginner-friendly — practice reading, not placing orders.')),
+      h('div', { class: 'live__bar row' },
+        h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
+        updatedEl,
+        h('span', { class: 'grow' }),
+        h('button', {
+          type: 'button', class: 'btn btn--ghost',
+          on: { click: () => refreshQuotes() },
+        }, icon('restart', { size: 14 }), 'Refresh')),
+      board,
+      h('section', { class: 'live-detail card', 'aria-label': 'Selected market chart' },
+        h('h2', { class: 't-18 live-detail__title' }, 'Daily chart'),
+        chartHost,
+        attrib),
+      note,
+      h('p', { class: 'faint' }, 'Educational only — not financial advice. Prices may be delayed.')));
 
-    let chart = null;
-    let unsub = null;
-    const setStatus = (key, text) => {
-      statusEl.textContent = text || STATUS_TEXT[key] || key;
-      dot.dataset.state = key;
-    };
-    const draw = (candles) => {
-      if (!chartMod || !candles?.length) return;
-      if (!chart) chart = new chartMod.CandleChart(chartHost, { candles, height: 380, showVolume: true, ariaLabel: 'Market chart' });
-      else chart.setCandles(candles);
-    };
-
-    if (dataMod) {
-      const sim = dataMod.randomWalk({ seed: 7, count: 120, drift: 0.0004, vol: 0.011 });
-      draw(sim);
-      setStatus('sim');
+    paintBoard();
+    await refreshQuotes();
+    if (!destroyed) await loadChart(selected);
+    if (!destroyed) {
+      pollTimer = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        refreshQuotes();
+      }, POLL_MS);
     }
 
-    const connect = () => {
-      if (!marketMod?.subscribeLive) {
-        setStatus('offline');
-        return;
-      }
-      unsub?.();
-      setStatus('connecting');
-      connectBtn.disabled = true;
-      unsub = marketMod.subscribeLive({ symbol: symbolSel.value, interval: '1d', bars: 120 }, (u) => {
-        if (!root.isConnected) return;
-        if (u.candles?.length) draw(u.candles);
-        setStatus(u.status, u.status === 'live' ? `Live · ${u.symbol}` : null);
-        attrib.textContent = u.attribution ? `${u.attribution}${u.delayed ? ' · Delayed / end of day' : ''}${u.mock ? ' · Test data' : ''}` : '';
-        connectBtn.disabled = false;
-      });
-    };
-    connectBtn.addEventListener('click', connect);
-    symbolSel.addEventListener('change', () => {
-      if (unsub) connect();
-    });
-    if (marketMod?.isMockMode?.()) connect();
-
     return () => {
-      unsub?.();
-      try {
-        chart?.destroy();
-      } catch (err) {
-        console.error(err);
-      }
+      destroyed = true;
+      if (pollTimer) clearInterval(pollTimer);
+      try { chart?.destroy(); } catch (err) { console.error(err); }
     };
   },
 };

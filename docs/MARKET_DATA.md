@@ -127,3 +127,26 @@ adapter.
   intervals are live: `status: "unconfigured"` means no key and no exchange feed is set.
 - On the site, the Live Market Lab's status bar says **Delayed (end of day)** with the
   Alpha Vantage credit, and games show a **Real market** option.
+
+## 6. Live Lab quotes (Yahoo Finance, unofficial)
+
+The Live Market Lab (`#live`) needs near-real-time last price / daily change. Alpha Vantage’s
+free key is end-of-day only, so quotes use **Yahoo Finance’s unofficial chart API**, fetched
+**server-side** inside the `market-data` Edge Function (`POST { quotes: true, symbols: [...] }`).
+
+Why server-side: browsers cannot call Yahoo reliably (CORS). The client (`js/core/market.js`
+`getQuotes`) only talks to Supabase with the publishable key — same pattern as candles.
+
+| detail | value |
+|---|---|
+| Upstream | `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}` |
+| Symbols | SPY, QQQ, AAPL, MSFT, NVDA, TSLA, BTC-USD, ETH-USD, EUR-USD (`EURUSD=X`), GLD |
+| Server cache | ~45 seconds per symbol (in-memory on the isolate) |
+| Client poll | ~45 seconds; pauses while the tab is hidden |
+| On failure | Last good quote is kept and marked `stale`; the page never blanks |
+| Rate limits | Unofficial — be polite; bursts are spaced (~80 ms between symbols). No Yahoo key. |
+| Attribution | Shown on the Live page footnote |
+
+Yahoo’s terms can change; this path is for **educational display** only. Prefer Alpha Vantage
+(or a licensed feed) for historical OHLC used in games. Redeploy `market-data` after pulling
+`yahoo.ts` changes: `supabase functions deploy market-data`.

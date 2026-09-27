@@ -220,12 +220,24 @@ export function requiredPlan(entryOrMode) {
   return 'free';
 }
 
-/** True when the current user may open this lesson/game/library entry. */
-export function canOpen(entry) {
+/** Pages anyone may open without a session (marketing + auth surfaces). */
+export const PUBLIC_PAGES = Object.freeze(['home', 'account', 'paywall']);
+
+/**
+ * True when the current user may open this route.
+ * When ACCESS_MODE enforces: unsigned users only get PUBLIC_PAGES; signed-in users still
+ * need the right plan for paid modules (FREE_IDS stay free once signed in).
+ */
+export function canOpen(entry, route = null) {
   if (!isEnforcing()) return true;
+  const page = route?.page || (entry?.type === 'page' ? entry.id : null);
+  if (page && PUBLIC_PAGES.includes(page)) return true;
+  // Course content (lessons, games, tracks, library, playbook, live, dashboard, progress, …)
+  // requires a signed-in session.
+  if (!session?.user) return false;
+  // Signed in: library and other pages are open; paid lesson/game modules still check plan.
   if (!entry) return true;
-  // Pattern library is free per §9.1 once signed in; unsigned users still browse (educational).
-  if (entry.type === 'page' || entry.id === 'library') return true;
+  if (entry.type === 'page' || entry.id === 'library' || page === 'library') return true;
   const need = requiredPlan(entry);
   if (need === 'free') return true;
   return can(need);
@@ -335,5 +347,5 @@ export { FREE_IDS, PLANS, ACCESS_MODE, PREMIUM_SOURCE };
 
 export default {
   ready, getAccess, onChange, can, canOpen, requiredPlan, lockLabel, accessInfo,
-  signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing,
+  signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing, PUBLIC_PAGES,
 };

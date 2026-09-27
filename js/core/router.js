@@ -202,8 +202,12 @@ async function render(hash, { initial = false, retry = false } = {}) {
   }
 
   // Blocked by the access gate → mount the paywall page instead (entry stays the requested one).
+  // Public marketing/auth pages (home, account, paywall) stay open; everything else is course content.
   let blocked = false;
-  if (gate && (route.kind === 'lesson' || route.kind === 'game' || route.page === 'library')) {
+  const publicPages = new Set(['home', 'account', 'paywall']);
+  const isCourseRoute = route.kind === 'lesson' || route.kind === 'game'
+    || (route.kind === 'page' && route.page && !publicPages.has(route.page));
+  if (gate && isCourseRoute) {
     try {
       blocked = !(await gate.canOpen(entry, route));
     } catch (err) {

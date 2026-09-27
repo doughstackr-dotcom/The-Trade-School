@@ -6,6 +6,8 @@
 //   `end` (ms or ISO) asks for the `limit` candles ending at that time; without it you get the
 //   latest candles.
 // POST { catalog: true } (or GET ?catalog=1)
+// POST { quotes: true, symbols?: string[] } (or GET ?quotes=1&symbols=SPY,QQQ)
+//   → Yahoo unofficial chart quotes for Live Lab (cached ~45s; stale on failure)
 //   → { symbols: [{ id, name, class, decimals, intervals, live, delayed, attribution }],
 //       status: 'ok' | 'unconfigured' }   (intervals: what the configured providers serve)
 // Errors: 400 bad input; 503 { unconfigured: true } no provider is set up for that
@@ -42,6 +44,7 @@ import {
   type SymbolMeta,
   SYMBOLS,
 } from './providers.ts';
+import { getYahooQuotes, YAHOO_SYMBOLS } from './yahoo.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -598,6 +601,23 @@ Deno.serve(async (req) => {
 
   const p = await readParams(req);
   if (wantsCatalog(p.catalog)) return respond(catalog(), 200, CATALOG_MAX_AGE_MS);
+
+  // Live Lab quotes via Yahoo (unofficial). Does not spend Alpha Vantage quota.
+  if (wantsCatalog(p.quotes)) {
+    let ids: string[] = [];
+    if (Array.isArray(p.symbols)) ids = p.symbols.map((s) => String(s).toUpperCase());
+    else if (typeof p.symbols === 'string' && p.symbols.trim()) {
+      ids = p.symbols.split(/[,\s]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+    }
+    ids = ids.filter((id) => Object.hasOwn(YAHOO_SYMBOLS, id));
+    try {
+      const payload = await getYahooQuotes(ids);
+      return respond({ ...payload, source: 'yahoo' }, 200, 30_000);
+    } catch (err) {
+      console.error(`market-data quotes failed: ${logText(err)}`);
+      return respond({ error: 'Quotes unavailable right now.', source: 'yahoo', quotes: [] }, 502);
+    }
+  }
 
   const symbol = String(p.symbol ?? '').toUpperCase();
   const interval = String(p.interval ?? '') as Interval;

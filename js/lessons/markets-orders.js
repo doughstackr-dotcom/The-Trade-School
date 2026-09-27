@@ -3,6 +3,9 @@ import { LessonShell, storyStep, figure, takeaway } from '../core/lesson-kit.js'
 import { h, icon } from '../core/ui.js';
 import { miniChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
+import {
+  orderBookVisual, spreadVisual, orderCompareVisual, marketMeetingVisual,
+} from './markets-orders-visuals.js';
 
 function tapeStory(rng) {
   const ts = trendSeries({ seed: rng.int(1, 1e9), count: 48, direction: 'up', swings: 3 });
@@ -40,30 +43,93 @@ function tapeStory(rng) {
   };
 }
 
+function withVisual(factory, build) {
+  return (el) => {
+    const cleanups = [];
+    const addVis = () => {
+      const vis = factory();
+      el.append(vis.el);
+      cleanups.push(() => vis.destroy?.());
+    };
+    build(el, addVis);
+    return () => {
+      while (cleanups.length) {
+        try { cleanups.pop()(); } catch (err) { console.error(err); }
+      }
+    };
+  };
+}
+
 export default {
   id: 'markets-orders',
   mount(root, ctx) {
     const shell = new LessonShell(root, ctx, {
-      intro: 'Every fill has two sides. Learn the bid, the ask, the spread, and when to use market, limit and stop orders.',
+      intro: 'Every fill has two sides. Learn what a market is, who is on the other side, how bids and asks form a spread, and when to use market, limit and stop orders — with visuals that play out as you read.',
       steps: [
         {
+          title: 'What a market is (and why it exists)',
+          render: withVisual(marketMeetingVisual, (el, addVis) => {
+            el.append(
+              h('p', null,
+                'A market is a meeting place. It exists so strangers can agree on a price without knowing each other. ',
+                'Stock exchanges, futures pits, and crypto venues all do the same job: match someone who wants to buy with someone who wants to sell.'),
+              h('p', null,
+                'Your ', h('strong', null, 'broker'), ' is the doorway (the app or desk that routes your order). The ',
+                h('strong', null, 'exchange'), ' (or liquidity venue) is where resting orders live in the book. You almost never trade “against the broker” — you trade against another participant.'),
+            );
+            addVis();
+            el.append(
+              takeaway([
+                'Markets concentrate buyers and sellers so prices can be discovered continuously.',
+                'Broker = access; exchange/venue = matching and the order book.',
+                'Without the other side, there is no trade — only a wish.',
+              ]),
+            );
+          }),
+        },
+        {
           title: 'Who is on the other side?',
-          render(el) {
+          render: withVisual(() => orderBookVisual({ bid: 100.0, ask: 100.12, levels: 5 }), (el, addVis) => {
             const ts = trendSeries({ seed: 42, count: 40, direction: 'range', swings: 2 });
             el.append(
-              h('p', null, 'A market is a meeting place. Buyers post ', h('strong', null, 'bids'), '; sellers post ', h('strong', null, 'asks'), '. Trades happen when someone crosses the gap.'),
+              h('p', null,
+                'Buyers post ', h('strong', null, 'bids'), ' (prices they are willing to pay). Sellers post ',
+                h('strong', null, 'asks'), ' or offers (prices they will accept). A trade happens when someone ',
+                h('em', null, 'crosses'), ' — a marketable buy lifts the ask, or a marketable sell hits the bid.'),
               figure(
                 miniChart(ts.candles, { width: 640, height: 200, yPad: 0.14, ariaLabel: 'Quiet range chart representing two-sided trading' }),
                 'Quiet tape: bids and asks keep updating even when the candle barely moves.',
                 { label: 'Figure 1' },
               ),
+            );
+            addVis();
+            el.append(
               takeaway([
-                'You always trade with someone on the other side — not "the market" as a monolith.',
+                'You always trade with someone on the other side — not “the market” as a monolith.',
                 'The <strong>spread</strong> (ask − bid) is a cost every time you cross it.',
                 'Liquidity = how much size sits near the best bid and ask.',
               ]),
             );
-          },
+          }),
+        },
+        {
+          title: 'The bid–ask spread',
+          render: withVisual(() => spreadVisual({ mid: 100, tight: 0.04, wide: 0.32 }), (el, addVis) => {
+            el.append(
+              h('p', null,
+                'The spread is the gap between the highest bid and the lowest ask. Cross it and you pay that gap as an immediate cost — before commissions.'),
+              h('p', null,
+                'Tight spreads (pennies on SPY) mean deep, competitive books. Wide spreads (thin small-caps, after-hours, news shocks) mean crossing is expensive and fills can jump.'),
+            );
+            addVis();
+            el.append(
+              takeaway([
+                'Spread cost ≈ (ask − bid) when you buy at the ask and later sell at the bid.',
+                'Spreads widen when liquidity leaves — respect that before you click Market.',
+                'Quoted “last price” sits inside or at the edges of the live book; the book is what fills you.',
+              ]),
+            );
+          }),
         },
         storyStep({
           title: 'Bid, ask and a market fill',
@@ -71,7 +137,28 @@ export default {
           story: tapeStory,
         }),
         {
-          title: 'Three order types',
+          title: 'Market orders vs limit orders',
+          render: withVisual(() => orderCompareVisual({ ask: 100.12, bid: 100.0, limitPx: 99.85 }), (el, addVis) => {
+            el.append(
+              h('p', null,
+                h('strong', null, 'Market'), ' means “fill me now at the best available price.” Speed is guaranteed; price is not. A buy takes the ask (and deeper asks if you are large).'),
+              h('p', null,
+                h('strong', null, 'Limit'), ' means “only fill at my price or better.” Price is capped; a fill is not. Your order rests on the book until someone trades with it — or you cancel.'),
+              h('p', null,
+                'Example: stock shows bid 100.00 / ask 100.12. A market buy for 10 shares fills near 100.12. A limit buy at 99.85 sits below and only fills if sellers trade down to your price.'),
+            );
+            addVis();
+            el.append(
+              takeaway([
+                'Market = certainty of fill, uncertainty of price (slippage possible).',
+                'Limit = certainty of price (or better), uncertainty of fill.',
+                'In quiet liquid names, the difference is small. In fast or thin names, it is the whole trade.',
+              ]),
+            );
+          }),
+        },
+        {
+          title: 'Stops, slippage, and honest caveats',
           render(el) {
             el.append(
               h('p', null, 'Pick the tool that matches your intent: speed, price, or a trigger.'),
@@ -80,13 +167,16 @@ export default {
                 h('li', null, h('strong', null, 'Limit'), ' — fill at your price or better, or not at all. Guarantees a price, not a fill.'),
                 h('li', null, h('strong', null, 'Stop'), ' — sleeps until price trades through your level, then becomes a market order. Used for breakouts and stop-losses.'),
               ),
+              h('p', null,
+                h('strong', null, 'Slippage'), ' is the difference between the price you hoped for and the price you got. Gaps, thin books, and large size relative to the book all create it. A stop that triggers in a gap can fill far past your stop price.'),
               takeaway([
                 'Buy stop sits above price; buy limit sits at or below.',
                 'Sell stop (stop-loss for longs) sits below; sell limit sits at or above.',
-                'A triggered stop can slip in a fast or gapping market.',
+                'Size positions so a full stop-out is a planned, affordable loss.',
+                'In thin names, prefer limits when you can wait; use markets when timing matters more than a few ticks.',
               ]),
               h('div', { class: 'callout callout--tip' }, icon('info'),
-                h('p', null, 'Educational only: real venues add time-in-force, partial fills and fees. Start by mastering these three.')),
+                h('p', null, 'Educational only: real venues add time-in-force, partial fills and fees. Practise order choice in Order Desk before you risk real money.')),
             );
           },
         },
@@ -119,16 +209,17 @@ export default {
           },
         },
         {
-          title: 'Honest caveats',
-          render(el) {
-            el.append(
-              h('p', null, 'Orders do not remove risk. Spreads widen, books thin out, and gaps skip your stop price.'),
-              takeaway([
-                'Size positions so a full stop-out is a planned, affordable loss.',
-                'In thin names, prefer limits when you can wait; use markets when timing matters more than a few ticks.',
-                'Practise order choice in Order Desk before you risk real money.',
-              ]),
-            );
+          title: 'Quick check: the spread',
+          quiz: {
+            question: 'Best bid is 50.00 and best ask is 50.06. You buy with a market order and immediately sell with a market order (no price move). What did the round-trip cost you in spread alone?',
+            options: [
+              { label: '$0.00 — last price was unchanged', value: 0 },
+              { label: '$0.03 per share', value: 1 },
+              { label: '$0.06 per share', value: 2 },
+              { label: '$0.12 per share', value: 3 },
+            ],
+            answer: 2,
+            explain: 'You buy at the ask (50.06) and sell at the bid (50.00). Round-trip spread cost = <strong>0.06</strong> per share, even if the “last” print never moved.',
           },
         },
       ],

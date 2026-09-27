@@ -1,9 +1,81 @@
-// Progress: level card + ladder, stats, badges (earned vs locked), per-game table,
-// lesson checklist, and an in-page two-step "Reset progress".
+// Progress: overall + per-unit bars, level card, stats, badges, games table, lesson checklist.
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
-import { TIERS, LESSONS, GAMES, BADGES, STYLES, unitsOf, stylesOf } from '../registry.js';
+import { TIERS, LESSONS, GAMES, BADGES, STYLES, UNITS, unitsOf, stylesOf, hashFor } from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
+
+/** One unit's completion from store: lesson done + games with ≥1 star (matches tierProgress). */
+function unitCompletion(store, unit) {
+  const parts = [];
+  if (unit.lesson) parts.push({ type: 'lesson', id: unit.lesson });
+  for (const id of unit.games || []) parts.push({ type: 'game', id });
+  let done = 0;
+  for (const p of parts) {
+    if (p.type === 'lesson') {
+      if (store.isLessonDone(p.id)) done += 1;
+    } else if ((store.state.games[p.id]?.stars || 0) >= 1) done += 1;
+  }
+  const total = parts.length || 1;
+  return { done, total, pct: done / total };
+}
+
+function courseCompletion(store) {
+  let done = 0;
+  let total = 0;
+  for (const u of UNITS) {
+    const c = unitCompletion(store, u);
+    done += c.done;
+    total += c.total;
+  }
+  return { done, total: total || 1, pct: total ? done / total : 0 };
+}
+
+function courseOverview(store) {
+  const overall = courseCompletion(store);
+  const beginner = store.tierProgress('beginner');
+  const advanced = store.tierProgress('advanced');
+  return h('section', { class: 'card card--raised progress-overview', 'aria-labelledby': 'course-h' },
+    h('p', { class: 'eyebrow' }, 'Course completion'),
+    h('h2', { id: 'course-h' }, 'How far you have come'),
+    h('div', { class: 'progress-overview__overall' },
+      h('div', { class: 'row row--between' },
+        h('span', { class: 'progress-overview__label' }, 'Overall'),
+        h('span', { class: 'mono' }, `${Math.round(overall.pct * 100)}%`,
+          h('span', { class: 'faint' }, ` · ${overall.done}/${overall.total} items`))),
+      meter(overall.pct, { size: 'lg', label: 'Overall course completion' })),
+    h('div', { class: 'progress-overview__tiers' },
+      [['Beginner', beginner], ['Advanced', advanced]].map(([label, tp]) =>
+        h('div', { class: 'progress-tier' },
+          h('div', { class: 'row row--between' },
+            h('span', null, label),
+            h('span', { class: 'mono faint' }, `${Math.round((tp.pct || 0) * 100)}%`)),
+          meter(tp.pct || 0, { size: 'sm', label: `${label} track completion` }),
+          h('p', { class: 'faint' }, `${tp.lessonsDone || 0}/${tp.lessonsTotal || 0} lessons · ${tp.done || 0}/${tp.total || 0} path items`)))),
+  );
+}
+
+function unitBars(store) {
+  return h('div', { class: 'unit-progress' },
+    TIERS.map((t) => {
+      const units = unitsOf(t.id);
+      return h('section', { class: 'card unit-progress__tier', 'aria-labelledby': `up-${t.id}` },
+        h('div', { class: 'row row--between checklist__head' },
+          h('h3', { id: `up-${t.id}`, class: 't-18' }, t.title, ' units'),
+          tierChip(t.id, { small: true })),
+        h('ul', { class: 'unit-progress__list' },
+          units.map((u) => {
+            const c = unitCompletion(store, u);
+            const href = u.lesson ? `#${hashFor(u.lesson)}` : (u.games?.[0] ? `#${hashFor(u.games[0])}` : `#${t.id}`);
+            return h('li', { class: ['unit-progress__item', c.pct >= 1 && 'is-done'] },
+              h('a', { class: 'unit-progress__link', href },
+                h('div', { class: 'row row--between' },
+                  h('span', { class: 'unit-progress__title' }, u.title),
+                  h('span', { class: 'mono faint' }, `${Math.round(c.pct * 100)}%`)),
+                meter(c.pct, { size: 'sm', tone: c.pct >= 1 ? 'bull' : '', label: `${u.title} completion` }),
+                h('span', { class: 'faint unit-progress__meta' }, `${c.done}/${c.total} complete`)));
+          })));
+    }));
+}
 
 function levelCard(store) {
   const lv = store.level();
@@ -65,7 +137,6 @@ function badgesGrid(store) {
     }));
 }
 
-/** Best for one (game, style): score, or rounds survived for Survival. '—' when never played. */
 function styleCell(store, g, style) {
   if (!stylesOf(g).includes(style)) return h('td', { class: 'num mono faint style-col' }, h('span', { 'aria-label': 'Not offered' }, '·'));
   const st = store.styleStats ? store.styleStats(g.id, style) : null;
@@ -160,7 +231,12 @@ export default {
           h('header', { class: 'page-head' },
             h('p', { class: 'eyebrow eyebrow--accent' }, 'Your progress'),
             h('h1', null, 'Progress & badges'),
-            h('p', { class: 'lead' }, 'Everything you have learned and earned so far. Progress is stored on this device only.')),
+            h('p', { class: 'lead' }, 'Overall course completion, per-unit bars, and everything you have earned. Progress is stored on this device.')),
+          courseOverview(store),
+          h('section', { class: 'section section--tight', 'aria-labelledby': 'units-h' },
+            h('div', { class: 'section-head' },
+              h('div', null, h('p', { class: 'eyebrow' }, 'By unit'), h('h2', { id: 'units-h' }, 'Unit progress'))),
+            unitBars(store)),
           levelCard(store),
           statsRow(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'badges-h' },
@@ -182,7 +258,6 @@ export default {
           })));
     };
     render();
-    // Stay current when progress changes elsewhere (another tab, a level-up toast, sync).
     let queued = 0;
     const onChange = () => {
       if (queued) return;

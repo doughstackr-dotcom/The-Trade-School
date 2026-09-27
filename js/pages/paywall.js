@@ -1,5 +1,5 @@
-// Paywall: shown by the router when setAccessGate blocks a lesson/game.
-// Explains Beginner vs Advanced plans; degrades gracefully when billing secrets are missing.
+// Paywall: shown by the router when setAccessGate blocks a lesson/game/course page.
+// Unsigned visitors are steered to sign-up/login; signed-in free users see plan cards.
 import { h, icon, toast } from '../core/ui.js';
 import { PLANS, FREE_IDS } from '../config.js';
 import * as access from '../core/access.js';
@@ -38,9 +38,7 @@ function planCard(planId, { highlight = false, current = null, onSubscribe } = {
         type: 'button',
         class: ['btn', highlight ? 'btn--primary' : 'btn--ghost', 'btn--block'],
         'aria-label': `Subscribe to ${p.name}`,
-        on: {
-          click: () => onSubscribe?.(planId),
-        },
+        on: { click: () => onSubscribe?.(planId) },
       }, lockedAdvanced ? 'Upgrade to Advanced' : `Get ${p.name}`),
   );
 }
@@ -50,30 +48,16 @@ export default {
     const entry = ctx.entry;
     const need = access.requiredPlan(entry);
     const planName = PLANS[need]?.name || 'Paid';
-    const title = entry?.title || 'This module';
+    const title = entry?.title || 'This page';
     const back = entry?.tier === 'advanced' ? 'advanced' : entry?.tier === 'beginner' ? 'beginner' : 'home';
+    const routeKey = ctx.route?.key || '';
 
     const status = h('p', { class: 'muted paywall__status', 'aria-live': 'polite' }, '');
+    const plansHost = h('section', { class: 'paywall__plans', 'aria-label': 'Subscription plans' });
     const freeList = FREE_IDS.map((id) => {
       const e = ctx.registry?.findEntry?.(id);
       return e ? h('li', null, h('a', { href: `#${e.type === 'game' ? 'g' : 'l'}.${e.id}` }, e.title)) : null;
     }).filter(Boolean);
-
-    async function refreshStatus() {
-      await access.ready;
-      const a = access.getAccess();
-      if (!a.user) {
-        status.textContent = 'Sign in to subscribe, or keep learning on the free unit.';
-      } else if (a.level === 'advanced') {
-        status.textContent = 'You already have Advanced access. If this page is stuck, refresh.';
-      } else if (a.level === 'beginner') {
-        status.textContent = need === 'advanced'
-          ? 'Your Beginner plan is active. Upgrade to Advanced to open this module.'
-          : 'Your Beginner plan should unlock this — try refreshing.';
-      } else {
-        status.textContent = 'Signed in on the free tier. Choose a plan below to unlock.';
-      }
-    }
 
     async function onSubscribe(planId) {
       await access.ready;
@@ -92,7 +76,40 @@ export default {
       }
       if (res.switched) {
         status.textContent = 'Plan updated. Reloading…';
-        ctx.navigate(ctx.route?.key || 'home');
+        ctx.navigate(routeKey || 'home');
+      }
+    }
+
+    function paint(a) {
+      const signedIn = !!a.user;
+      if (!signedIn) {
+        status.textContent = 'Create a free account or sign in to open lessons, games and the rest of the school.';
+        plansHost.replaceChildren(
+          h('div', { class: 'card paywall__signin' },
+            h('h2', null, 'Sign in to continue'),
+            h('p', { class: 'muted' },
+              title !== 'This page'
+                ? `${title} is part of the course. Accounts are free — paid plans unlock the full tracks later.`
+                : 'Course pages need a signed-in account. Sign-up takes about a minute.'),
+            h('div', { class: 'row' },
+              h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Sign in / create account'),
+              h('a', { class: 'btn btn--ghost', href: '#home' }, 'Back to home')),
+          ),
+        );
+      } else {
+        if (a.level === 'advanced') {
+          status.textContent = 'You already have Advanced access. If this page is stuck, refresh.';
+        } else if (a.level === 'beginner') {
+          status.textContent = need === 'advanced'
+            ? 'Your Beginner plan is active. Upgrade to Advanced to open this module.'
+            : 'Your Beginner plan should unlock this — try refreshing.';
+        } else {
+          status.textContent = 'Signed in on the free tier. Free unit modules stay open; choose a plan for the full tracks.';
+        }
+        plansHost.replaceChildren(
+          planCard('beginner', { current: a.level, onSubscribe }),
+          planCard('advanced', { highlight: true, current: a.level, onSubscribe }),
+        );
       }
     }
 
@@ -100,24 +117,21 @@ export default {
       h('div', { class: 'container paywall' },
         h('section', { class: 'paywall__hero card card--raised', 'aria-labelledby': 'paywall-h' },
           h('p', { class: 'eyebrow' }, 'Members only'),
-          h('h1', { id: 'paywall-h' }, title, ' is on the ', planName, ' plan'),
+          h('h1', { id: 'paywall-h' },
+            entry ? [title, ' needs a ', planName === 'Paid' ? 'member account' : `${planName} plan`] : 'Sign in to open course content'),
           h('p', { class: 'lead' },
-            'The Trade School keeps a free unit open so you can try the teaching style. Full Beginner and Advanced tracks are monthly subscriptions.'),
+            'The Trade School keeps the landing page public. Lessons, games, tracks and labs need a free account — subscriptions unlock the full Beginner and Advanced tracks.'),
           status,
           h('div', { class: 'row paywall__actions' },
             h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Account / sign in'),
             h('a', { class: 'btn btn--ghost', href: `#${back}` }, icon('arrow-left', { size: 16 }),
               back === 'home' ? 'Back home' : `Back to ${back === 'advanced' ? 'Advanced' : 'Beginner'}`),
-            h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
           ),
         ),
-        h('section', { class: 'paywall__plans', 'aria-label': 'Subscription plans' },
-          planCard('beginner', { current: null, onSubscribe }),
-          planCard('advanced', { highlight: true, current: null, onSubscribe }),
-        ),
+        plansHost,
         h('section', { class: 'card paywall__free' },
-          h('h2', null, 'Free while you decide'),
-          h('p', { class: 'muted' }, 'No card required for these:'),
+          h('h2', null, 'Free after you sign in'),
+          h('p', { class: 'muted' }, 'No card required for these modules once you have an account:'),
           h('ul', { class: 'lesson-list' }, freeList.length ? freeList : h('li', null, 'Candle anatomy, Candle Builder, Daily Challenge, Markets & Orders, Order Desk')),
           h('p', { class: 'faint' }, 'Educational simulations only — not financial advice. Cancel anytime in the billing portal.'),
         ),
@@ -125,20 +139,10 @@ export default {
     );
 
     let unsub = null;
-    refreshStatus().then(() => {
-      unsub = access.onChange(() => refreshStatus());
-    });
-    // Fill current plan highlight after ready
     access.ready.then(() => {
-      const a = access.getAccess();
-      const plans = root.querySelector('.paywall__plans');
-      if (!plans) return;
-      plans.replaceChildren(
-        planCard('beginner', { current: a.level, onSubscribe }),
-        planCard('advanced', { highlight: true, current: a.level, onSubscribe }),
-      );
+      paint(access.getAccess());
+      unsub = access.onChange(() => paint(access.getAccess()));
     });
-
     return () => { if (unsub) unsub(); };
   },
 };

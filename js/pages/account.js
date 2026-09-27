@@ -156,7 +156,7 @@ export default {
       body.replaceChildren(
         h('p', { class: 'eyebrow' }, 'Account'),
         h('h1', null, 'Your account'),
-        h('p', { class: 'lead' }, 'Plan status, billing and sign-in. Educational use only — not financial advice.'),
+        h('p', { class: 'lead' }, 'Sign in with email and password to open lessons, games and labs. Plan status and billing live here too. Educational use only — not financial advice.'),
       );
       msg.textContent = '';
       if (a.user) renderSignedIn(a);
