@@ -78,9 +78,15 @@ ES-module imports from `file://` URLs.
 ## Tests
 
 ```sh
+npm run lint             # ESLint over the site JS
 npm test                 # node --test "tests/unit/*.test.mjs" — core-module unit tests (no DOM)
 npm run smoke            # node tests/smoke.mjs     — every route in Chromium
+npm run test:all         # lint + unit + smoke — must pass before pushing (CI runs the same)
+npm run test:functions   # Deno tests for the Supabase edge functions (needs Deno installed)
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint + unit tests and the smoke suite on every push and
+pull request.
 
 The smoke test starts its own static server, opens every page, lesson and game at desktop
 (1280×800), tablet (820×1180) and phone (390×844) sizes in light and dark themes, clicks through the first
@@ -117,12 +123,20 @@ js/
 tests/
   unit/               node:test unit tests
   smoke.mjs           Playwright smoke test
-docs/ARCHITECTURE.md  the build contract: routes, module API, design system, core APIs
+  fixtures/           offline market fixtures (synthetic candles, labelled as such)
+supabase/
+  functions/          Deno edge functions: market-data proxy, billing (see docs/ACCOUNTS.md)
+  migrations/         accounts, subscriptions and billing schema
+docs/
+  ARCHITECTURE.md     the build contract: routes, module API, design system, core APIs
+  ACCOUNTS.md         owner guide: Supabase, Stripe and premium-module setup
+  MARKET_DATA.md      the market-data function: sources, budget, caching
 ```
 
 Every lesson and game is a lazy-loaded ES module that default-exports
 `{ id, mount(root, ctx) → cleanup }`, and builds on the shared `LessonShell` / `GameShell`
 so they all look and behave the same. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Design
 
@@ -131,3 +145,7 @@ accent, and green/red reserved for meaning (up/down, correct/wrong). Type is Bri
 Grotesque for headings, Figtree for text and JetBrains Mono for prices and scores. The site
 works at 360px wide with touch, is fully keyboard-driven (games take number keys and Enter,
 lessons take ← / →), and respects reduced-motion settings.
+
+## License
+
+[MIT](LICENSE). Educational content only — nothing here is financial advice.

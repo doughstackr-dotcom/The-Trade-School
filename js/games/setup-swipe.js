@@ -39,7 +39,7 @@ export default {
         deck = rng.shuffle(BANK.map((_, i) => i));
         used.clear();
       },
-      onRound(g, { rng, difficulty, retry }) {
+      onRound(g, { difficulty, retry }) {
         if (!retry) current = pickQuestion(deck, used, difficulty);
         const q = BANK[current];
         g.ask({

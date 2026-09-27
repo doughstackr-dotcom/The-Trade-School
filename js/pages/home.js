@@ -2,7 +2,7 @@
 // the two tracks, the three play styles, the arcade (filterable by kind) and your level.
 import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
 import {
-  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, unitsOf, hashFor, learningPath,
+  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, unitsOf, hashFor,
 } from '../registry.js';
 import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';

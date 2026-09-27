@@ -104,11 +104,19 @@ let state = load();
 const listeners = new Map();
 let collecting = null; // array while recordGame collects newly earned badges
 
+let warnedSaveFailed = false;
+
 function save() {
   try {
     globalThis.localStorage?.setItem(KEY, JSON.stringify(state));
   } catch {
-    /* storage full or blocked: progress stays in memory */
+    /* storage full or blocked: progress stays in memory — say so once, then stay quiet */
+    if (!warnedSaveFailed) {
+      warnedSaveFailed = true;
+      try {
+        toast('Progress could not be saved: browser storage is full or blocked. The session continues from memory.', { type: 'warn', duration: 6000 });
+      } catch { /* UI not mounted yet */ }
+    }
   }
 }
 

@@ -166,7 +166,7 @@ function detectCandles(ctx, kinds, from, to) {
 
 function detectTrends(ctx, want, from, to) {
   const out = [];
-  const { candles, cl } = ctx;
+  const { cl } = ctx;
   const W = 50;
   const e20 = ctx.ema20;
   const e50 = ctx.ema50;
@@ -399,7 +399,7 @@ function detectLevels(ctx, want, from, to) {
 
 function detectCrosses(ctx, want, from, to, opts) {
   const out = [];
-  const { candles, cl, n } = ctx;
+  const { cl, n } = ctx;
   // Fixed defaults (never chosen from the series length: that would depend on the future).
   const fastP = opts.maFast || 50;
   const slowP = opts.maSlow || 200;
