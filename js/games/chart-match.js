@@ -1,5 +1,4 @@
-// Stub game (chart-match) — proves the GameShell §12 contract (play styles, difficulty, hints);
-// replaced by the full game.
+// Chart Match — interactive GameShell module.
 import { GameShell } from '../core/game-kit.js';
 
 // [difficulty 0–2, question, options (the first is correct; shown shuffled), explanation, hint]

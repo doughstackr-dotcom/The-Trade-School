@@ -14,7 +14,7 @@ export const PLANS = {
 
 // Lessons and games open to any signed-in member, no subscription needed.
 // Owner's choice: unit 1 (candlestick anatomy) free; Daily Challenge free as a daily hook.
-export const FREE_IDS = ['candle-anatomy', 'candle-builder', 'daily-challenge'];
+export const FREE_IDS = ['candle-anatomy', 'candle-builder', 'daily-challenge', 'markets-orders', 'order-desk'];
 
 // 'auto' enforces plans on real hosts and leaves everything open on localhost so
 // development and tests see every module; 'open' | 'enforce' force one behaviour.
@@ -23,3 +23,5 @@ export const ACCESS_MODE = 'auto';
 // 'site' loads lesson/game code from the public site; 'storage' loads paid modules from
 // the private Supabase Storage bucket (see docs/ACCOUNTS.md §10).
 export const PREMIUM_SOURCE = 'site';
+// When set to 'storage', paid modules load from the private Supabase Storage bucket
+// paths beginner/<file> and advanced/<file> (see docs/ACCOUNTS.md §10 and docs/SECRETS.md).

@@ -1,6 +1,7 @@
 // Boot: render the app shell (top bar, phone tab bar, footer) and start the router.
 import { store } from './core/store.js';
-import { startRouter, navigate } from './core/router.js';
+import { startRouter, navigate, setAccessGate } from './core/router.js';
+import * as access from './core/access.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry, tiersOf } from './registry.js';
 
@@ -12,6 +13,7 @@ const NAV = [
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
+  { hash: 'dashboard', label: 'Dashboard', icon: 'grid', tab: false, wide: true },
   { hash: 'progress', label: 'Progress', icon: 'trophy' },
   { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
 ];
@@ -55,7 +57,7 @@ function navKeyFor(route, entry) {
   if (!route) return null;
   if (route.kind === 'page') {
     if (route.page === 'track') return route.tier;
-    if (['library', 'progress', 'glossary', 'playbook', 'live'].includes(route.page)) return route.page;
+    if (['library', 'progress', 'glossary', 'playbook', 'live', 'dashboard', 'account'].includes(route.page)) return route.page;
     return null;
   }
   if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
@@ -164,7 +166,9 @@ function buildShell(app) {
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
-        h('a', { href: '#progress' }, 'Progress'))));
+        h('a', { href: '#dashboard' }, 'Dashboard'),
+        h('a', { href: '#progress' }, 'Progress'),
+        h('a', { href: '#account' }, 'Account'))));
 
   app.replaceChildren(skip, header, main, footer, tabbar);
   app.classList.add('app');
@@ -202,6 +206,20 @@ function boot() {
     /* old browsers */
   }
   const shell = buildShell(app);
+  // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
+  setAccessGate({
+    canOpen: (entry, route) => access.canOpen(entry, route),
+    access: () => access.accessInfo(),
+    paywallPath: '../pages/paywall.js',
+  });
+  access.ready.then(() => {
+    /* re-render current route once session/level is known */
+    setAccessGate({
+      canOpen: (entry, route) => access.canOpen(entry, route),
+      access: () => access.accessInfo(),
+      paywallPath: '../pages/paywall.js',
+    });
+  }).catch(() => { /* offline / missing vendor */ });
   startRouter(shell.main, {
     store,
     onRoute: (route, entry) => {

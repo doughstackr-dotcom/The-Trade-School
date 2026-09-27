@@ -1,6 +1,6 @@
 // Home: the one bold moment (a live teaching chart), today's Daily Challenge and Live Market Lab,
 // the two tracks, the three play styles, the arcade (filterable by kind) and your level.
-import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
+import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion, modal } from '../core/ui.js';
 import {
   TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, unitsOf, hashFor,
 } from '../registry.js';
@@ -751,11 +751,46 @@ function levelStrip(store) {
 
 // ------------------------------------------------------------------ page
 
+function showWelcome(store) {
+  if (store.getSetting('welcomed')) return;
+  const body = h('div', { class: 'welcome-modal' },
+    h('p', null, 'Short visual lessons and games teach chart reading — then you can test your eye on textbook or real-market charts.'),
+    h('ol', { class: 'welcome-modal__steps' },
+      h('li', null, h('strong', null, 'Free unit:'), ' Markets & Orders + Candlestick anatomy (and Daily Challenge).'),
+      h('li', null, h('strong', null, 'Play styles:'), ' Practice, Arcade, or Survival on every game.'),
+      h('li', null, h('strong', null, 'Dashboard:'), ' See the full map anytime under Dashboard.')),
+    h('p', { class: 'faint' }, 'Educational only — not financial advice. You can skip this tour.'),
+  );
+  modal({
+    title: 'Welcome to The Trade School',
+    body,
+    dismissible: true,
+    actions: [
+      {
+        label: 'Start free unit',
+        primary: true,
+        onClick: () => {
+          store.setSetting('welcomed', true);
+          location.hash = '#l.markets-orders';
+        },
+      },
+      {
+        label: 'Skip for now',
+        onClick: () => store.setSetting('welcomed', true),
+      },
+    ],
+    onClose: () => store.setSetting('welcomed', true),
+  });
+}
+
+
 export default {
   id: 'home',
   mount(root, ctx) {
     const { store } = ctx;
     const cleanups = [];
+    // First-visit welcome (skippable, a11y modal).
+    try { showWelcome(store); } catch (err) { console.error(err); }
     const totalLessons = UNITS.filter((u) => u.lesson).length;
 
     const chartHost = h('figure', { class: 'hero__chart' });
@@ -772,7 +807,8 @@ export default {
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
           h('div', { class: 'hero__ctas' },
             h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
-            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced')),
+            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
+            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Dashboard')),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
             h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),

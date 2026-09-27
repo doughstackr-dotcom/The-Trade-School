@@ -1,5 +1,4 @@
-// Stub game (setup-swipe) — proves the GameShell §12 contract (play styles, difficulty, hints);
-// replaced by the full game.
+// Setup Swipe — interactive GameShell module.
 import { GameShell } from '../core/game-kit.js';
 
 // [difficulty 0–2, setup, options (fixed order: Skip = left, Take = right), explanation, hint]

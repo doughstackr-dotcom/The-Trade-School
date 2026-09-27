@@ -12,6 +12,9 @@ const PAGE_PATHS = {
   glossary: '../pages/glossary.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
+  dashboard: '../pages/dashboard.js',
+  account: '../pages/account.js',
+  paywall: '../pages/paywall.js',
   'dev-chart': '../pages/dev-chart.js',
 };
 
@@ -69,7 +72,7 @@ export function parseHash(hash) {
   if (token === 'playbook' || token.startsWith('playbook.')) {
     return { key: token, kind: 'page', page: 'playbook', param: token.slice('playbook.'.length) || null };
   }
-  if (token === 'progress' || token === 'glossary' || token === 'live' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'progress' || token === 'glossary' || token === 'live' || token === 'dashboard' || token === 'account' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -85,6 +88,9 @@ function titleFor(route, entry) {
     case 'glossary': return `Glossary · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
+    case 'dashboard': return `Dashboard · ${SITE}`;
+    case 'account': return `Account · ${SITE}`;
+    case 'paywall': return `Unlock · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
     default: return `Not found · ${SITE}`;
   }

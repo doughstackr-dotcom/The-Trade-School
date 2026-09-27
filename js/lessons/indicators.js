@@ -1,38 +1,74 @@
-// Stub lesson (indicators) — proves the LessonShell contract; replaced by the full lesson.
-import { LessonShell } from '../core/lesson-kit.js';
-import { h, icon } from '../core/ui.js';
+// indicators — full educational lesson (LessonShell + §12.5 helpers).
+import { LessonShell, storyStep, realExampleStep, takeaway } from '../core/lesson-kit.js';
+import { h } from '../core/ui.js';
+import { trendSeries } from '../core/data.js';
+
+
+function divStory(rng) {
+  const ts = trendSeries({ seed: rng.int(1, 1e9), count: 100, direction: 'up', swings: 4 });
+  const c = ts.candles;
+  const p1 = 40, p2 = 75;
+  return {
+    candles: c,
+    frames: [
+      { to: p1 + 1, caption: 'Price makes a swing high. Momentum (e.g. RSI) is strong.',
+        overlays: [{ type: 'marker', idx: p1, position: 'above', text: 'High A', color: 'accent' }] },
+      { to: p2 + 1, title: 'Higher high, weaker thrust.', caption: 'Price makes a higher high while momentum fails to confirm — classic bearish divergence setup.',
+        overlays: [
+          { type: 'marker', idx: p1, position: 'above', text: 'High A', color: 'accent' },
+          { type: 'marker', idx: p2, position: 'above', text: 'High B', color: 'bear' },
+        ] },
+      { to: c.length, caption: 'Divergence can persist in strong trends. Treat it as a warning, wait for structure to break.' },
+    ],
+  };
+}
+
+const steps = [
+  {
+    title: 'Indicators are math on price',
+    render(el) {
+      el.append(
+        h('p', null, 'RSI measures relative strength of recent closes. MACD tracks EMA distance and its signal line. Bollinger Bands wrap a moving average with volatility bands.'),
+        takeaway(['They cannot see the future — only transform the past.', 'Overbought can stay overbought in trends.', 'Use fewer indicators well rather than many poorly.']),
+      );
+    },
+  },
+  storyStep({ title: 'Divergence idea', story: divStory }),
+  realExampleStep({
+    title: 'Momentum contexts',
+    kinds: ['rsi-divergence-bear', 'rsi-divergence-bull', 'macd-cross-up', 'macd-cross-down'],
+    intervals: ['1d'],
+    caption: 'Scanner labels are a starting point. Confirm with your own eyes.',
+  }),
+  {
+    title: 'Quick check',
+    quiz: {
+      question: 'Strong downtrend, RSI at 25, no reversal pattern yet. Best action?',
+      options: [
+        { label: 'Wait — oversold is a condition, not a buy signal', value: 0 },
+        { label: 'Buy immediately, it must bounce', value: 1 },
+        { label: 'Short with no stop', value: 2 },
+        { label: 'Delete RSI forever', value: 3 },
+      ],
+      answer: 0,
+      explain: '<strong>Wait.</strong> Markets can stay oversold. Need structure or a confirmed trigger.',
+    },
+  },
+  {
+    title: 'Caveats',
+    render(el) {
+      el.append(takeaway(['Divergence fails often — grade the read, manage risk.', 'Practice in Divergence Detective.']));
+    },
+  },
+];
+
 
 export default {
   id: 'indicators',
   mount(root, ctx) {
     const shell = new LessonShell(root, ctx, {
-      intro: "Learn what RSI, MACD, Bollinger Bands and volume actually measure, and how divergence warns that a move is tiring.",
-      steps: [
-        {
-          title: 'The big idea',
-          render(el) {
-            el.append(
-              h('p', null, "Momentum indicators compare recent moves with earlier ones. When price keeps going but momentum does not, that gap is called divergence."),
-              h('div', { class: 'callout callout--tip' }, icon('info'),
-                h('p', null, 'The full interactive lesson, with animated diagrams and chart examples, is coming soon. Try the quick check, then practise in the game.')),
-            );
-          },
-        },
-        {
-          title: 'Quick check',
-          quiz: {
-            question: "Price makes a higher high, but RSI makes a lower high. What is this?",
-            options: [
-              { label: "Hidden bullish divergence", value: 0 },
-              { label: "An instant signal to go short", value: 1 },
-              { label: "Bearish divergence", value: 2 },
-              { label: "Bullish divergence", value: 3 },
-            ],
-            answer: 2,
-            explain: "<strong>Bearish divergence.</strong> Price pushed higher on weaker momentum. It is a warning, not a trigger — wait for price to confirm, for example with a break of the last higher low.",
-          },
-        },
-      ],
+      intro: 'RSI, MACD, Bollinger Bands and divergence: tools that summarise price — and how they fail in strong trends.',
+      steps,
     });
     return () => shell.destroy();
   },

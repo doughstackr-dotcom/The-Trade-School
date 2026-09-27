@@ -1,39 +1,64 @@
-// Stub game (trendline-challenge) — proves the GameShell contract; replaced by the full game.
+// Trendline Challenge — is the line intact, broken, or not yet valid?
 import { GameShell } from '../core/game-kit.js';
-import { choiceQuiz } from '../core/ui.js';
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { trendSeries } from '../core/data.js';
 
-// [question, options, index of the correct option, explanation]
-const QUESTIONS = [
-  ["How many touches does a trend line need?", ["Two to draw it, a third to confirm it", "Just one", "At least ten", "Touches do not matter"], 0, "Any two points make a line. A <strong>third touch that holds</strong> shows other traders respect it."],
-  ["Your uptrend line slices through several candle bodies. What should you do?", ["Redraw it along the swing lows so it does not cut bodies", "Keep it — close enough", "Delete all trend lines", "Draw it through the highs instead"], 0, "A valid trend line <strong>hugs the swing lows</strong>. Cutting through bodies means it is not where price actually turned."],
-  ["Price closes below a rising trend line. What is the best reading?", ["The uptrend is weakening — watch for a lower high", "A reversal is guaranteed", "Buy more, it is cheaper", "Ignore it"], 0, "A trend-line break is an <strong>early warning</strong>. Confirmation comes from market structure: a lower high and a lower low."],
-];
+function build(rng, difficulty) {
+  const direction = rng.pick(['up', 'down']);
+  const ts = trendSeries({ seed: rng.int(1, 1e9), count: Math.round(80 - 10 * difficulty), direction, swings: 4 });
+  const c = ts.candles;
+  const i1 = 10, i2 = 35;
+  const p1 = direction === 'up' ? c[i1].l : c[i1].h;
+  const p2 = direction === 'up' ? c[i2].l : c[i2].h;
+  const decisionIdx = Math.min(c.length - 8, 55 + rng.int(0, 10));
+  // Project line to decision
+  const slope = (p2 - p1) / (i2 - i1);
+  const lineAt = p1 + slope * (decisionIdx - i1);
+  const px = c[decisionIdx].c;
+  const broken = direction === 'up' ? px < lineAt * (1 - 0.002) : px > lineAt * (1 + 0.002);
+  const touches = 2; // candidate
+  const answer = broken ? 'broken' : touches < 3 && difficulty > 0.5 && rng.chance(0.35) ? 'candidate' : 'intact';
+  return { candles: c, i1, i2, p1, p2, decisionIdx, answer, direction };
+}
 
 export default {
   id: 'trendline-challenge',
   mount(root, ctx) {
-    let order = QUESTIONS;
     const game = new GameShell(root, ctx, {
-      rounds: QUESTIONS.length,
-      howTo: ["Read the scenario.", "Pick how a good trend line should be drawn or read.", "Clean lines touch swings without cutting candle bodies."],
-      onStart(g, { rng }) {
-        order = rng.shuffle(QUESTIONS);
-        g.nextRound();
-      },
-      onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[(round - 1) % order.length];
-        const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
-        stage.append(choiceQuiz({
-          question,
-          options,
-          answer: correct,
-          sfx: false,
-          onAnswer(ok) {
-            if (ok) g.correct(explain);
-            else g.wrong(explain);
-            g.nextButton();
-          },
-        }));
+      rounds: 7,
+      timer: { seconds: 26, perRound: true },
+      howTo: [
+        'A trend line is drawn through swing points.',
+        'Is it intact, broken on a closing basis, or still only a 2-point candidate?',
+        'Prefer closes beyond the line over single wicks.',
+      ],
+      onRound(g, { rng, stage, difficulty }) {
+        const r = build(rng, difficulty);
+        const host = h('div', { class: 'chart-frame' });
+        stage.append(h('p', { class: 'quiz__q' }, 'Status of the drawn trend line at the freeze?'), host);
+        const chart = new CandleChart(host, {
+          candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+          height: 300, yPad: 0.14, ariaLabel: 'Chart with trend line',
+        });
+        chart.addSegment({
+          a: { idx: r.i1, price: r.p1 },
+          b: { idx: r.decisionIdx, price: r.p1 + ((r.p2 - r.p1) / (r.i2 - r.i1)) * (r.decisionIdx - r.i1) },
+          color: 'accent',
+          label: 'Line',
+        });
+        g.setHint('Two points = candidate. Close beyond = break warning.');
+        g.ask({
+          options: [
+            { label: 'Intact / respected', value: 'intact' },
+            { label: 'Broken (close beyond)', value: 'broken' },
+            { label: 'Candidate only (needs 3rd touch)', value: 'candidate' },
+          ],
+          answer: r.answer,
+          explain: `<strong>${r.answer}</strong> on this ${r.direction}trend line. Re-validate after new swings.`,
+          onAnswer: () => chart.reveal({ to: r.candles.length, interval: 40 }),
+        });
+        return () => chart.destroy();
       },
     });
     return () => game.destroy();

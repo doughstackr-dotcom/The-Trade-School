@@ -359,6 +359,8 @@ export class GameShell {
     this.source = this.sourcePref === 'real' && this._canReal() ? 'real' : 'textbook';
     this.roundSource = this.source;
     this.real = null;
+    this.sawReal = false;
+    this.sawReal = false;
     this.fallbacks = 0;
 
     this.state = 'intro';
@@ -607,6 +609,7 @@ export class GameShell {
     if (clockWasRunning) this.timer.resume();
     if (res && Array.isArray(res.candles) && res.candles.length) {
       this.real = res;
+      this.sawReal = true;
       this.roundSource = 'real';
       this._roundFallback = false;
       this._realFails = 0;
@@ -747,6 +750,7 @@ export class GameShell {
       if (this.store?.recordGame) {
         rec = this.store.recordGame(this.id, {
           score: this.score, stars, mode: this.mode, maxScore: this.maxScore, xp, perfect, style: this.style, rounds: survived,
+          real: !!this.sawReal,
         });
       }
     } catch (err) {

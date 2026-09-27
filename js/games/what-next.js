@@ -1,43 +1,81 @@
-// Stub game (what-next) — proves the GameShell contract; replaced by the full game.
+// What Happens Next? — predict direction / trade decision from a frozen setup.
 import { GameShell } from '../core/game-kit.js';
-import { choiceQuiz } from '../core/ui.js';
-
-// [question, options, index of the correct option, explanation]
-const QUESTIONS = [
-  ["Uptrend, a pullback into support, then a bullish engulfing candle at the level. Most likely next?", ["Up", "Down", "Sideways"], 0, "Trend, level and trigger all agree: <strong>up</strong> is the higher-probability call — though not a certainty."],
-  ["Three lower highs press down on flat support at 100 (a descending triangle), with momentum fading. More likely next?", ["A break below 100", "A breakout above the highs", "Nothing ever happens"], 0, "Descending triangles <strong>break down more often than up</strong>: sellers keep getting more aggressive while buyers only defend one price."],
-  ["Strong downtrend. RSI reads 25 (oversold) but there is no reversal pattern yet. Best decision?", ["Wait — oversold is a condition, not a signal", "Buy now, it must bounce", "Short with no stop", "Double the position size"], 0, "Markets can stay oversold in a strong trend. <strong>Wait</strong> for structure or a confirmed pattern before acting."],
-];
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { simRound } from '../core/scanner.js';
+import { annotateSetup } from '../core/lesson-kit.js';
 
 export default {
   id: 'what-next',
   mount(root, ctx) {
-    let order = QUESTIONS;
     const game = new GameShell(root, ctx, {
-      rounds: QUESTIONS.length,
+      rounds: 8,
+      timer: { seconds: 30, perRound: true },
       modes: [
         { id: 'beginner', label: 'Beginner', description: 'Call the direction: up, down or sideways.' },
-        { id: 'advanced', label: 'Advanced', description: 'Make the trade decision: long, short or wait.' },
+        { id: 'advanced', label: 'Advanced', description: 'Trade decision: long, short or wait.', requires: 'advanced' },
       ],
-      howTo: ["The chart freezes at a decision point.", "Call what is most likely to happen next.", "Advanced mode asks for a trade decision: long, short or wait."],
-      onStart(g, { rng }) {
-        order = rng.shuffle(QUESTIONS);
-        g.nextRound();
-      },
-      onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[(round - 1) % order.length];
-        const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
-        stage.append(choiceQuiz({
-          question,
-          options,
-          answer: correct,
-          sfx: false,
-          onAnswer(ok) {
-            if (ok) g.correct(explain);
-            else g.wrong(explain);
-            g.nextButton();
-          },
-        }));
+      howTo: [
+        'The chart freezes at a decision point.',
+        'Beginner: most likely path. Advanced: long / short / wait with risk in mind.',
+        'We grade the setup read; the reveal is one sample path, not destiny.',
+      ],
+      async onRound(g, { rng, stage, difficulty, mode }) {
+        const kinds = difficulty < 0.4
+          ? ['bull-flag', 'bear-flag', 'hammer', 'shooting-star']
+          : ['bull-flag', 'bear-flag', 'double-top', 'double-bottom', 'breakout-up', 'breakout-down', 'fakeout-up', 'fakeout-down'];
+        const q = { kinds, before: Math.round(70 - 15 * difficulty), after: 18 };
+        const real = await g.realRound(q);
+        const r = real || simRound(rng, q);
+        const dir = r.setup?.direction === 'bearish' ? 'down' : r.setup?.direction === 'bullish' ? 'up' : 'sideways';
+        const host = h('div', { class: 'chart-frame' });
+        const advanced = mode === 'advanced';
+        stage.append(
+          h('p', { class: 'quiz__q' }, advanced
+            ? 'Trade decision at the freeze (plan a stop either way)?'
+            : 'Most likely path from here?'),
+          host,
+        );
+        const chart = new CandleChart(host, {
+          candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+          height: 300, decimals: r.decimals ?? 2, yPad: 0.14,
+          ariaLabel: 'Frozen decision chart',
+        });
+        g.setHint(advanced
+          ? 'If confluence is weak or fakeout risk is high, waiting is a valid trade.'
+          : 'Trend + level + trigger agree → lean that way; otherwise sideways/unclear.');
+        if (advanced) {
+          const ans = /^fakeout/.test(r.setup?.kind || '') ? 'wait'
+            : dir === 'up' ? 'long' : dir === 'down' ? 'short' : 'wait';
+          g.ask({
+            options: [
+              { label: 'Long', value: 'long' },
+              { label: 'Short', value: 'short' },
+              { label: 'Wait', value: 'wait' },
+            ],
+            answer: ans,
+            explain: `<strong>${ans}</strong> · ${r.setup?.meta?.name || r.setup?.kind || 'setup'}. Sample: ${r.outcome?.result || 'n/a'}.`,
+            onAnswer: () => {
+              chart.reveal({ to: r.candles.length, interval: 40 });
+              try { annotateSetup(r.setup, chart, r); } catch { /* */ }
+            },
+          });
+        } else {
+          g.ask({
+            options: [
+              { label: 'Up', value: 'up' },
+              { label: 'Down', value: 'down' },
+              { label: 'Sideways / unclear', value: 'sideways' },
+            ],
+            answer: dir,
+            explain: `Lean <strong>${dir}</strong> from ${r.setup?.meta?.name || r.setup?.kind || 'structure'}. Not a guarantee.`,
+            onAnswer: () => {
+              chart.reveal({ to: r.candles.length, interval: 40 });
+              try { annotateSetup(r.setup, chart, r); } catch { /* */ }
+            },
+          });
+        }
+        return () => chart.destroy();
       },
     });
     return () => game.destroy();

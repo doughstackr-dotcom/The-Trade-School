@@ -15,6 +15,13 @@ in your browser.
 > are past data, never a prediction. Nothing here says a pattern "always works"; the games
 > include failed setups on purpose.
 
+## Dashboard & access
+
+- **`#dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
+- **`#account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
+- Access gating: `js/core/access.js` + router `setAccessGate`. Free ids include candle anatomy, candle builder, daily challenge, markets & orders, and order desk. See `docs/SECRETS.md`.
+
+
 ## Curriculum
 
 Two tracks. Each unit pairs a lesson with a game that drills the same skill.

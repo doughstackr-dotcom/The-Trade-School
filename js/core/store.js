@@ -181,6 +181,7 @@ function checkMetaBadges(silent) {
     return !!st && ['practice', 'arcade', 'survival'].every((k) => st[k]?.plays > 0);
   });
   if (allStyles) store.award('play-your-way', opts);
+  if ((state.bestStreak || 0) >= 5) store.award('streak-keeper', opts);
 }
 
 export const store = {
@@ -249,7 +250,7 @@ export const store = {
    *     rounds, bestRounds, isBestRounds }
    * When opts.style is given, isBest/best refer to that style; without it they are overall (legacy).
    */
-  recordGame(id, { score = 0, stars = 0, mode = null, maxScore = null, xp = null, perfect = false, style = null, rounds = null } = {}) {
+  recordGame(id, { score = 0, stars = 0, mode = null, maxScore = null, xp = null, perfect = false, style = null, rounds = null, real = false } = {}) {
     const g = state.games[id] || (state.games[id] = { best: 0, stars: 0, plays: 0 });
     const styles = stylesOf(g);
     const st = style || 'arcade';
@@ -284,6 +285,7 @@ export const store = {
     try {
       if (stars >= 3 && findBadge(`${id}-ace`)) this.award(`${id}-ace`, { silent: true });
       if (perfect) this.award('perfect-score', { silent: true });
+      if (real) this.award('first-real-chart', { silent: true });
       if (st === 'survival' && (rounds || 0) >= 15) this.award('survivor', { silent: true });
       this.addXP(gained, '', { silent: true });
       checkMetaBadges(true);

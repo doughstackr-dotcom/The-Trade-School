@@ -374,6 +374,10 @@ export const BADGES = [
   { id: 'survivor', title: 'Survivor', description: 'Survive 15 rounds in a Survival run.', icon: 'shield' },
   { id: 'play-your-way', title: 'Play Your Way', description: 'Finish one game in Practice, Arcade and Survival.', icon: 'grid' },
   { id: 'daily-streak-7', title: 'Habit Former', description: 'Complete the Daily Challenge seven days in a row.', icon: 'flame' },
+  { id: 'dashboard-visit', title: 'Floor Manager', description: 'Open the Dashboard and survey the curriculum.', icon: 'grid' },
+  { id: 'first-real-chart', title: 'Tape Reader', description: 'Finish a round on a real-market chart.', icon: 'eye' },
+  { id: 'streak-keeper', title: 'Steady Hand', description: 'Keep a best run streak of 5 or more.', icon: 'flame' },
+
   ...GAMES.map((g) => ({
     id: `${g.id}-ace`,
     title: `${g.title} Ace`,

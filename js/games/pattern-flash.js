@@ -1,40 +1,55 @@
-// Stub game (pattern-flash) — proves the GameShell contract; replaced by the full game.
+// Pattern Flash — name the candlestick pattern on a mystery chart.
 import { GameShell } from '../core/game-kit.js';
-import { choiceQuiz } from '../core/ui.js';
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { simRound } from '../core/scanner.js';
+import { annotateSetup } from '../core/lesson-kit.js';
+import { CANDLE_PATTERNS } from '../core/patterns.js';
 
-// [question, options, index of the correct option, explanation]
-const QUESTIONS = [
-  ["After a decline: small body at the top, long lower wick.", ["Hammer", "Shooting star", "Doji", "Bearish engulfing"], 0, "A <strong>hammer</strong>: buyers rejected the lows. Wait for a bullish close to confirm."],
-  ["At the top of a rally, a big bearish body completely covers the previous bullish body.", ["Bearish engulfing", "Bullish harami", "Morning star", "Hammer"], 0, "<strong>Bearish engulfing</strong>: sellers overwhelmed the prior candle’s entire body."],
-  ["Open and close almost equal, with wicks on both sides.", ["Doji", "Marubozu", "Three white soldiers", "Hanging man"], 0, "A <strong>doji</strong> shows indecision — neither side won the period."],
-];
+const EASY = ['hammer', 'shooting-star', 'bullish-engulfing', 'bearish-engulfing', 'doji'];
+const HARD = ['morning-star', 'evening-star', 'hanging-man', 'inverted-hammer', 'dragonfly-doji'];
+
+function labelOf(kind) {
+  return CANDLE_PATTERNS[kind]?.name || kind.replace(/-/g, ' ');
+}
 
 export default {
   id: 'pattern-flash',
   mount(root, ctx) {
-    let order = QUESTIONS;
     const game = new GameShell(root, ctx, {
-      rounds: QUESTIONS.length,
-      timer: { seconds: 20, perRound: true },
-      howTo: ["A pattern description flashes up — name it before the clock runs out.", "Answer fast: streaks of 3+ multiply your points.", "Timeouts count as a miss."],
-      onStart(g, { rng }) {
-        order = rng.shuffle(QUESTIONS);
-        g.nextRound();
-      },
-      onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[(round - 1) % order.length];
-        const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
-        stage.append(choiceQuiz({
-          question,
-          options,
-          answer: correct,
-          sfx: false,
-          onAnswer(ok) {
-            if (ok) g.correct(explain);
-            else g.wrong(explain);
-            g.nextButton();
+      rounds: 8,
+      timer: { seconds: 22, perRound: true },
+      howTo: [
+        'A candlestick pattern sits at the decision point.',
+        'Name it. Context (prior trend) matters for hammers vs hanging men.',
+        'The reveal shows what happened next — not proof the pattern “works”.',
+      ],
+      async onRound(g, { rng, stage, difficulty }) {
+        const pool = difficulty < 0.4 ? EASY : difficulty < 0.7 ? [...EASY, ...HARD.slice(0, 2)] : [...EASY, ...HARD];
+        const q = { kinds: pool, before: Math.round(55 - 15 * difficulty), after: 12 };
+        const real = await g.realRound(q);
+        const r = real || simRound(rng, q);
+        const kind = r.setup?.kind || rng.pick(pool);
+        const host = h('div', { class: 'chart-frame' });
+        stage.append(h('p', { class: 'quiz__q' }, 'Name the candlestick pattern.'), host);
+        const chart = new CandleChart(host, {
+          candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+          height: 290, decimals: r.decimals ?? 2, yPad: 0.14,
+          ariaLabel: 'Candlestick chart with a pattern at the end; future hidden.',
+        });
+        const distractors = rng.shuffle(pool.filter((k) => k !== kind)).slice(0, 3);
+        const opts = rng.shuffle([kind, ...distractors].map((k) => ({ label: labelOf(k), value: k })));
+        g.setHint('Check the prior trend and whether the long wick is above or below the body.');
+        g.ask({
+          options: opts,
+          answer: kind,
+          explain: `<strong>${labelOf(kind)}</strong>. Next move in this sample: ${r.outcome?.result || 'n/a'}.`,
+          onAnswer: () => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            try { annotateSetup(r.setup, chart, r); } catch { /* */ }
           },
-        }));
+        });
+        return () => chart.destroy();
       },
     });
     return () => game.destroy();

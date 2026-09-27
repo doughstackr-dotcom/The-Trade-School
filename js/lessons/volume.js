@@ -1,40 +1,85 @@
-// Stub lesson (volume) — proves the LessonShell contract (with the §12.5 takeaway block);
-// replaced by the full lesson.
-import { LessonShell, takeaway } from '../core/lesson-kit.js';
-import { h, icon } from '../core/ui.js';
+// volume — full educational lesson (LessonShell + §12.5 helpers).
+import { LessonShell, storyStep, compareStep, takeaway } from '../core/lesson-kit.js';
+import { h } from '../core/ui.js';
+import { chartScenario } from '../core/patterns.js';
+
+
+function volStory(rng) {
+  const sc = chartScenario('ascending-triangle', { seed: rng.int(1, 1e9), count: 96, after: 16, outcome: 'success' });
+  return {
+    candles: sc.candles,
+    indicators: { volume: true },
+    frames: [
+      { to: sc.breakoutIdx - 5, caption: 'Coiling under resistance. Watch whether volume shrinks in the coil (interest resting).' },
+      { to: sc.breakoutIdx + 1, title: 'Break on volume.', caption: 'A real breakout usually expands participation. Thin breaks are suspects.',
+        overlays: [
+          { type: 'hline', price: sc.level, color: 'resistance', dashed: true, label: 'Level' },
+          { type: 'marker', idx: sc.breakoutIdx, position: 'above', text: 'Break', color: 'accent' },
+        ] },
+      { to: sc.candles.length, caption: 'Even strong volume can fail. Volume is evidence of participation — not a promise.' },
+    ],
+  };
+}
+
+const steps = [
+  {
+    title: 'Fuel behind the move',
+    render(el) {
+      el.append(
+        h('p', null, 'Volume estimates how much changed hands. Rising price on rising volume = healthier participation than rising price on dying volume.'),
+        takeaway(['Breakouts prefer above-average volume.', 'Dry-ups often appear in flags and coils.', 'FX volume is tick/proxy volume — interpret cautiously.']),
+      );
+    },
+  },
+  storyStep({ title: 'Volume on a breakout', story: volStory }),
+  compareStep({
+    title: 'Confirm vs trap',
+    left: {
+      title: 'Confirmed break', verdict: 'good', volume: true,
+      example: () => {
+        const sc = chartScenario('ascending-triangle', { seed: 11, count: 96, after: 16, outcome: 'success' });
+        return { candles: sc.candles, overlays: [{ type: 'hline', price: sc.level, color: 'resistance', dashed: true }, { type: 'marker', idx: sc.breakoutIdx, position: 'above', shape: 'dot', color: 'accent' }] };
+      },
+      points: ['Volume expands on the break', 'Close clears the level', 'Follow-through holds'],
+    },
+    right: {
+      title: 'Thin fakeout', verdict: 'bad', volume: true,
+      example: () => {
+        const sc = chartScenario('ascending-triangle', { seed: 11, count: 96, after: 16, outcome: 'fail' });
+        return { candles: sc.candles, overlays: [{ type: 'hline', price: sc.level, color: 'resistance', dashed: true }, { type: 'marker', idx: sc.breakoutIdx, position: 'above', shape: 'dot', color: 'accent' }] };
+      },
+      points: ['Break on weak volume', 'Close back inside', 'Trapped breakout buyers'],
+    },
+  }),
+  {
+    title: 'Quick check',
+    quiz: {
+      question: 'A breakout closes above resistance on the lowest volume of the month. Best read?',
+      options: [
+        { label: 'Treat with suspicion — wait for confirmation', value: 0 },
+        { label: 'Buy maximum size immediately', value: 1 },
+        { label: 'Volume never matters', value: 2 },
+        { label: 'Short automatically every thin break', value: 3 },
+      ],
+      answer: 0,
+      explain: '<strong>Suspicion.</strong> Thin participation means fewer buyers joined. Wait or fade only with a plan — do not blindly size up.',
+    },
+  },
+  {
+    title: 'Caveats',
+    render(el) {
+      el.append(takeaway(['Climax volume can mark exhaustion as well as breakouts.', 'Drill in Volume Verdict.', 'Always pair volume with price structure.']));
+    },
+  },
+];
+
 
 export default {
   id: 'volume',
   mount(root, ctx) {
     const shell = new LessonShell(root, ctx, {
-      intro: "Read the volume bars under the chart, tell a confirmed move from a weak one, and spot the climaxes that often mark the end of a move.",
-      steps: [
-        {
-          title: 'The big idea',
-          render(el) {
-            el.append(
-              h('p', { html: "<strong>Volume</strong> counts how much traded in each period. A move on rising volume has many participants behind it. A move on shrinking volume is running on fumes, and a breakout on thin volume is a warning sign." }),
-              takeaway(["Healthy trends: volume expands with the trend and contracts on pullbacks.", "A breakout on strong volume is more trustworthy than one on weak volume.", "A huge volume spike after a long move can mark exhaustion, not strength."]),
-              h('div', { class: 'callout callout--tip' }, icon('info'),
-                h('p', null, 'The full interactive lesson, with animated charts and real examples, is coming soon. Try the quick check, then practise in the game.')),
-            );
-          },
-        },
-        {
-          title: 'Quick check',
-          quiz: {
-            question: "Price breaks above resistance, but volume on the breakout candle is the lowest in two weeks. What does that suggest?",
-            options: [
-              { label: "A guaranteed rally", value: 0 },
-              { label: "Volume does not matter for breakouts", value: 1 },
-              { label: "Sellers are panicking", value: 2 },
-              { label: "Weak conviction: the break may fail", value: 3 },
-            ],
-            answer: 3,
-            explain: "<strong>Weak conviction.</strong> Few participants joined the breakout, so it has a higher chance of turning into a fakeout. Wait for confirmation.",
-          },
-        },
-      ],
+      intro: 'Volume as participation: confirming breakouts, spotting thin traps, and reading climax vs dry-up.',
+      steps,
     });
     return () => shell.destroy();
   },

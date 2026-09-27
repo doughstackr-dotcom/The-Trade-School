@@ -1,39 +1,65 @@
-// Stub game (timeframe-stack) — proves the GameShell contract; replaced by the full game.
+// Timeframe Stack — align higher-timeframe bias with a lower-timeframe decision.
 import { GameShell } from '../core/game-kit.js';
-import { choiceQuiz } from '../core/ui.js';
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { trendSeries } from '../core/data.js';
 
-// [question, options, index of the correct option, explanation]
-const QUESTIONS = [
-  ["Weekly up, daily up, hourly pulling back into support. Best plan?", ["Look for a long trigger on the hourly", "Go short", "No trade — timeframes disagree", "Buy the weekly high"], 0, "All three line up: the hourly pullback is a <strong>chance to join the bigger trend</strong>."],
-  ["Weekly down, daily up, hourly up. Best plan?", ["Stand aside, or trade small — the higher timeframe disagrees", "Go long with full size", "Short the hourly immediately", "Timeframes do not matter"], 0, "The daily rally may just be a pullback in a weekly downtrend. <strong>Conflict means caution.</strong>"],
-  ["A common ratio between the timeframes you stack is roughly…", ["4 to 6 times", "Exactly 2 times", "100 times", "It does not matter"], 0, "Daily → 4-hour → 1-hour steps by about <strong>4–6×</strong>: different enough to add information, close enough to connect."],
-];
+function build(rng, difficulty) {
+  const bias = rng.pick(['up', 'down']);
+  const htf = trendSeries({ seed: rng.int(1, 1e9), count: 60, direction: bias, swings: 3 });
+  // LTF is noisier path in same direction, sometimes a counter pullback at the end
+  const pullback = rng.chance(0.45 + 0.2 * difficulty);
+  const ltfDir = pullback ? (bias === 'up' ? 'down' : 'up') : bias;
+  const ltf = trendSeries({ seed: rng.int(1, 1e9), count: Math.round(70 - 10 * difficulty), direction: ltfDir, swings: 4 });
+  const best = pullback
+    ? (bias === 'up' ? 'long-pullback' : 'short-pullback')
+    : 'wait';
+  // If LTF agrees with bias and not a pullback setup, take with trend
+  const answer = pullback ? best : (bias === 'up' ? 'long-cont' : 'short-cont');
+  return { htf: htf.candles, ltf: ltf.candles, bias, answer, pullback };
+}
 
 export default {
   id: 'timeframe-stack',
   mount(root, ctx) {
-    let order = QUESTIONS;
     const game = new GameShell(root, ctx, {
-      rounds: QUESTIONS.length,
-      howTo: ["Read the weekly, daily and hourly picture.", "Decide whether the timeframes agree.", "Trade with the higher timeframe."],
-      onStart(g, { rng }) {
-        order = rng.shuffle(QUESTIONS);
-        g.nextRound();
-      },
-      onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[(round - 1) % order.length];
-        const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
-        stage.append(choiceQuiz({
-          question,
-          options,
-          answer: correct,
-          sfx: false,
-          onAnswer(ok) {
-            if (ok) g.correct(explain);
-            else g.wrong(explain);
-            g.nextButton();
-          },
-        }));
+      rounds: 6,
+      timer: { seconds: 35, perRound: true },
+      howTo: [
+        'Left: higher timeframe bias. Right: lower timeframe trigger zone.',
+        'Choose: with-trend continuation, buy/sell the pullback, or wait.',
+        'When HTF and LTF conflict without a clear pullback plan — wait.',
+      ],
+      onRound(g, { rng, stage, difficulty }) {
+        const r = build(rng, difficulty);
+        const row = h('div', { class: 'chart-compare' });
+        const left = h('div', { class: 'chart-frame' });
+        const right = h('div', { class: 'chart-frame' });
+        row.append(
+          h('div', null, h('p', { class: 'eyebrow' }, 'Higher TF'), left),
+          h('div', null, h('p', { class: 'eyebrow' }, 'Lower TF'), right),
+        );
+        stage.append(
+          h('p', { class: 'quiz__q' }, `HTF bias looks ${r.bias === 'up' ? 'bullish' : 'bearish'}. What is the disciplined plan?`),
+          row,
+        );
+        const c1 = new CandleChart(left, { candles: r.htf, height: 220, yPad: 0.12, ariaLabel: 'Higher timeframe chart' });
+        const c2 = new CandleChart(right, { candles: r.ltf, height: 220, yPad: 0.12, ariaLabel: 'Lower timeframe chart' });
+        g.setHint('Pullbacks against HTF bias are often buys/sells with the larger trend — if your plan defines them.');
+        g.ask({
+          options: rng.shuffle([
+            { label: 'Long pullback (HTF up)', value: 'long-pullback' },
+            { label: 'Short pullback (HTF down)', value: 'short-pullback' },
+            { label: 'With-trend continuation long', value: 'long-cont' },
+            { label: 'With-trend continuation short', value: 'short-cont' },
+            { label: 'Wait — conflict / no trigger', value: 'wait' },
+          ]),
+          answer: r.answer,
+          explain: r.pullback
+            ? `<strong>Trade the pullback with HTF bias (${r.bias})</strong>. Counter-trend LTF movement inside an HTF trend is often a location, not a new thesis.`
+            : `<strong>${r.answer}</strong>. LTF already agrees with HTF — continuation or wait for a fresh trigger rather than inventing a fade.`,
+        });
+        return () => { c1.destroy(); c2.destroy(); };
       },
     });
     return () => game.destroy();

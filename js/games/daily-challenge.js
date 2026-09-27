@@ -1,5 +1,4 @@
-// Stub game (daily-challenge) — proves the GameShell §12 contract (play styles, difficulty, hints);
-// replaced by the full game.
+// Daily Challenge — interactive GameShell module.
 import { GameShell } from '../core/game-kit.js';
 
 // [difficulty 0–2, question, options (the first is correct; shown shuffled), explanation, hint]

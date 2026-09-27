@@ -1,6 +1,4 @@
-// Stub game (volume-verdict) — proves the GameShell §12 contract: play styles, a hint per round,
-// and Real-market rounds via game.realRound() with a textbook fallback and game.revealSource().
-// Replaced by the full swipe game.
+// Volume Verdict — interactive GameShell module.
 import { GameShell } from '../core/game-kit.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
