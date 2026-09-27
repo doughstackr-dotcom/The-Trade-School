@@ -30,6 +30,15 @@ export const PARTNERS = [
     status: 'live',
   },
   {
+    id: 'public',
+    name: 'Public',
+    description: 'Affiliate partner — replace this placeholder with an accurate product blurb.',
+    logoText: null,
+    logoUrl: null,
+    affiliateUrl: 'https://public.com/user-referral?referrer=Rehne82057',
+    status: 'live',
+  },
+  {
     id: 'partner-tbd-2',
     name: 'Partner TBD',
     description: 'Coming soon — another trading platform or tool partnership will land here.',
