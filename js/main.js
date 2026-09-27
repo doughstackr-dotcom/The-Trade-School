@@ -15,6 +15,7 @@ const NAV = [
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
   { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
+  { hash: 'affiliate', label: 'Affiliate', icon: 'spark', tab: false, wide: true },
 ];
 
 /** Small pulsing dot marking the Live Market Lab link. */
@@ -57,7 +58,7 @@ function navKeyFor(route, entry) {
   if (route.kind === 'page') {
     if (route.page === 'track') return route.tier;
     if (route.page === 'progress') return 'dashboard';
-    if (['library', 'glossary', 'playbook', 'live', 'dashboard', 'account'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'dashboard', 'account', 'affiliate'].includes(route.page)) return route.page;
     return null;
   }
   if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
@@ -146,13 +147,38 @@ function buildShell(app) {
 
   const skip = h('button', { type: 'button', class: 'skip-link', on: { click: () => main.focus() } }, 'Skip to content');
 
+  // Sign in / Sign up (or Account when signed in) — always visible in the header.
+  const authBtn = h('a', {
+    class: 'btn btn--ghost btn--sm topbar__auth',
+    href: '#account',
+    'data-auth': 'out',
+  }, icon('lock', { size: 14 }), 'Sign in');
+
+  function renderAuth() {
+    const a = access.getAccess();
+    if (a.user) {
+      const label = (a.user.email && a.user.email.split('@')[0]) || 'Account';
+      authBtn.href = '#account';
+      authBtn.dataset.auth = 'in';
+      authBtn.replaceChildren(icon('lock', { size: 14 }), label);
+      authBtn.setAttribute('aria-label', `Account (${a.user.email || 'signed in'})`);
+      authBtn.title = a.user.email || 'Account';
+    } else {
+      authBtn.href = '#account';
+      authBtn.dataset.auth = 'out';
+      authBtn.replaceChildren(icon('lock', { size: 14 }), 'Sign in');
+      authBtn.setAttribute('aria-label', 'Sign in or sign up');
+      authBtn.title = 'Sign in / Sign up';
+    }
+  }
+
   const header = h('header', { class: 'topbar' },
     h('div', { class: 'container topbar__inner' },
       h('a', { class: 'brand', href: '#home', 'aria-label': 'The Trade School — home' },
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, soundBtn, themeBtn)));
+      h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn)));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },
@@ -167,6 +193,7 @@ function buildShell(app) {
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
+        h('a', { href: '#affiliate' }, 'Affiliate'),
         h('a', { href: '#account' }, 'Account'))));
 
   app.replaceChildren(skip, header, main, footer, tabbar);
@@ -175,11 +202,14 @@ function buildShell(app) {
   renderXP();
   renderSound();
   renderTheme();
+  renderAuth();
   store.on('xp', () => renderXP(true));
   store.on('change', () => {
     renderXP();
     renderSound();
   });
+  access.onChange(() => renderAuth());
+  access.ready.then(() => renderAuth()).catch(() => {});
 
   function setActive(route, entry) {
     const key = navKeyFor(route, entry);
@@ -206,18 +236,22 @@ function boot() {
   }
   const shell = buildShell(app);
   // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
-  setAccessGate({
-    canOpen: (entry, route) => access.canOpen(entry, route),
-    access: () => access.accessInfo(),
-    paywallPath: '../pages/paywall.js',
-  });
-  access.ready.then(() => {
-    /* re-render current route once session/level is known */
+  function wireGate() {
     setAccessGate({
       canOpen: (entry, route) => access.canOpen(entry, route),
       access: () => access.accessInfo(),
       paywallPath: '../pages/paywall.js',
+      onUnauthenticated: (route) => {
+        // Store intended hash, then send unsigned visitors to sign-up (not paywall).
+        access.rememberReturn(route?.key || '');
+        navigate('account.signup');
+      },
     });
+  }
+  wireGate();
+  access.ready.then(() => {
+    /* re-render current route once session/level is known */
+    wireGate();
   }).catch(() => { /* offline / missing vendor */ });
   startRouter(shell.main, {
     store,

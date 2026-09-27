@@ -6460,7 +6460,23 @@ figcaption {
   margin-top: var(--space-4);
 }
 .account-card .field { display: grid; gap: 0.35rem; margin-bottom: var(--space-3); }
+.account-card--focus {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.account__return { margin: var(--space-3) 0 0; }
+.account__gate-note { margin-top: var(--space-2); }
 .account__plan { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.topbar__auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 2px;
+  white-space: nowrap;
+}
+.topbar__auth svg { flex: 0 0 auto; }
+@media (max-width: 519.98px) {
+  .topbar__auth { padding-inline: 0.55rem; font-size: 0.8rem; }
+}
 .risk-hud { margin-bottom: var(--space-3); }
 .welcome-modal__steps {
   margin: var(--space-3) 0;

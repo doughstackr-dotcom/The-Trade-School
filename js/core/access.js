@@ -220,24 +220,79 @@ export function requiredPlan(entryOrMode) {
   return 'free';
 }
 
-/** Pages anyone may open without a session (marketing + auth surfaces). */
-export const PUBLIC_PAGES = Object.freeze(['home', 'account', 'paywall']);
+/** Pages anyone may open without a session (home, dashboard, tools, auth). */
+export const PUBLIC_PAGES = Object.freeze([
+  'home', 'account', 'paywall',
+  'dashboard', 'progress', // #progress aliases to dashboard
+  'library', 'glossary', 'playbook', 'live', 'affiliate',
+  'dev-chart',
+]);
+
+const RETURN_KEY = 'tts-return-hash';
+
+/** Remember where an unsigned visitor was headed before sign-up / sign-in. */
+export function rememberReturn(hash) {
+  const token = String(hash || '').replace(/^#/, '').trim();
+  if (!token) return;
+  // Never bounce back into auth / marketing surfaces.
+  if (token === 'home' || token === 'account' || token.startsWith('account.')
+      || token === 'paywall') return;
+  try { globalThis.sessionStorage?.setItem(RETURN_KEY, token); } catch { /* private mode */ }
+}
+
+/** Read and clear the stored return hash (or null). */
+export function consumeReturn() {
+  try {
+    const v = globalThis.sessionStorage?.getItem(RETURN_KEY);
+    globalThis.sessionStorage?.removeItem(RETURN_KEY);
+    return v || null;
+  } catch {
+    return null;
+  }
+}
+
+export function peekReturn() {
+  try { return globalThis.sessionStorage?.getItem(RETURN_KEY) || null; } catch { return null; }
+}
+
+/**
+ * True for Beginner / Advanced tracks and their lessons/games (tier beginner|advanced|both).
+ * Only these are auth-gated; Home, Dashboard, Library, Playbook, Live, Glossary, Affiliate stay public.
+ */
+export function isCurriculumGated(entry, route = null) {
+  if (route?.page === 'track') {
+    return route.tier === 'beginner' || route.tier === 'advanced';
+  }
+  const kind = route?.kind || entry?.type;
+  if (kind === 'lesson' || kind === 'game') {
+    const tier = entry?.tier;
+    if (tier === 'beginner' || tier === 'advanced' || tier === 'both') return true;
+    // Unknown lesson/game id — keep gated rather than leaking paid modules.
+    if (!entry) return true;
+  }
+  return false;
+}
 
 /**
  * True when the current user may open this route.
- * When ACCESS_MODE enforces: unsigned users only get PUBLIC_PAGES; signed-in users still
- * need the right plan for paid modules (FREE_IDS stay free once signed in).
+ * When ACCESS_MODE enforces: Home / Dashboard / Library / Playbook / Live / Glossary / Affiliate stay
+ * open; Beginner + Advanced tracks and their lessons/games need a signed-in session.
+ * Signed-in free members still need the right plan for paid modules (FREE_IDS stay free).
  */
 export function canOpen(entry, route = null) {
   if (!isEnforcing()) return true;
   const page = route?.page || (entry?.type === 'page' ? entry.id : null);
   if (page && PUBLIC_PAGES.includes(page)) return true;
-  // Course content (lessons, games, tracks, library, playbook, live, dashboard, progress, …)
-  // requires a signed-in session.
+
+  // Do not newly lock non-curriculum pages (Playbook, Live, Library, Glossary, …).
+  if (!isCurriculumGated(entry, route)) return true;
+
+  // Beginner / Advanced: need a session first.
   if (!session?.user) return false;
-  // Signed in: library and other pages are open; paid lesson/game modules still check plan.
-  if (!entry) return true;
-  if (entry.type === 'page' || entry.id === 'library' || page === 'library') return true;
+
+  // Track outline is visible to any signed-in member; individual modules still check plan.
+  if (route?.page === 'track') return true;
+
   const need = requiredPlan(entry);
   if (need === 'free') return true;
   return can(need);
@@ -348,4 +403,5 @@ export { FREE_IDS, PLANS, ACCESS_MODE, PREMIUM_SOURCE };
 export default {
   ready, getAccess, onChange, can, canOpen, requiredPlan, lockLabel, accessInfo,
   signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing, PUBLIC_PAGES,
+  rememberReturn, consumeReturn, peekReturn, isCurriculumGated,
 };

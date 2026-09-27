@@ -1,5 +1,5 @@
 // Hash router. Routes are plain tokens: #home, #beginner, #advanced, #library(.<id>),
-// #dashboard (#progress aliases here), #glossary, #playbook(.<setupId>), #live,
+// #dashboard (#progress aliases here), #glossary, #affiliate, #playbook(.<setupId>), #live,
 // #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
@@ -12,6 +12,7 @@ const PAGE_PATHS = {
   // progress aliases to the merged dashboard (Progress visual shell + curriculum map).
   progress: '../pages/progress.js',
   glossary: '../pages/glossary.js',
+  affiliate: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
   dashboard: '../pages/progress.js',
@@ -38,8 +39,11 @@ let gate = null;
 
 /**
  * Registers the access gate: { canOpen(entry, route) → boolean | Promise<boolean>,
- * access: { level, can(plan) } | () => that, paywallPath?: URL string of the page module to
- * mount instead of a blocked lesson/game/library (default '../pages/paywall.js') }.
+ * access: { level, can(plan), user? } | () => that,
+ * paywallPath?: URL string of the page module to mount for signed-in users who lack the plan
+ * (default '../pages/paywall.js'),
+ * onUnauthenticated?(route, entry)?: called when an unsigned visitor hits a gated route —
+ * typically store a return hash and navigate to account sign-up }.
  * Pass null to remove it. Re-renders the current route.
  */
 export function setAccessGate(next) {
@@ -76,7 +80,10 @@ export function parseHash(hash) {
   }
   // #progress is an alias of #dashboard (merged progress + curriculum page).
   if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
-  if (token === 'glossary' || token === 'live' || token === 'dashboard' || token === 'account' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'account' || token.startsWith('account.')) {
+    return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
+  }
+  if (token === 'glossary' || token === 'affiliate' || token === 'live' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -89,6 +96,7 @@ function titleFor(route, entry) {
     case 'track': return `${entry ? entry.title : 'Track'} · ${SITE}`;
     case 'library': return `Pattern Library · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
+    case 'affiliate': return `Affiliate · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
     case 'dashboard': return `Dashboard · ${SITE}`;
@@ -204,20 +212,26 @@ async function render(hash, { initial = false, retry = false } = {}) {
     return;
   }
 
-  // Blocked by the access gate → mount the paywall page instead (entry stays the requested one).
-  // Public marketing/auth pages (home, account, paywall) stay open; everything else is course content.
+  // Access gate: Beginner/Advanced curriculum is auth-gated; signed-in users who lack the
+  // plan see the paywall. Unsigned visitors are steered to account sign-up (with return URL)
+  // via gate.onUnauthenticated when provided — not the paywall.
   let blocked = false;
-  const publicPages = new Set(['home', 'account', 'paywall']);
-  const isCourseRoute = route.kind === 'lesson' || route.kind === 'game'
-    || (route.kind === 'page' && route.page && !publicPages.has(route.page));
-  if (gate && isCourseRoute) {
+  if (gate) {
     try {
       blocked = !(await gate.canOpen(entry, route));
     } catch (err) {
       console.error('[router] access check failed:', err);
     }
     if (my !== renderToken) return;
-    if (blocked) path = new URL(gate.paywallPath || '../pages/paywall.js', import.meta.url).href;
+    if (blocked) {
+      const a = accessInfo();
+      const signedIn = !!(a && a.user);
+      if (!signedIn && typeof gate.onUnauthenticated === 'function') {
+        try { gate.onUnauthenticated(route, entry); } catch (err) { console.error(err); }
+        return;
+      }
+      path = new URL(gate.paywallPath || '../pages/paywall.js', import.meta.url).href;
+    }
   }
 
   if (!blocked && entry && (route.kind === 'lesson' || route.kind === 'game')) {
