@@ -1,5 +1,5 @@
 // Hash router. Routes are plain tokens: #home, #beginner, #advanced, #library(.<id>),
-// #progress, #glossary, #l.<lessonId>, #g.<gameId>, #dev-chart.
+// #progress, #glossary, #playbook(.<setupId>), #live, #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
 import { h, icon } from './ui.js';
@@ -10,6 +10,8 @@ const PAGE_PATHS = {
   library: '../pages/library.js',
   progress: '../pages/progress.js',
   glossary: '../pages/glossary.js',
+  playbook: '../pages/playbook.js',
+  live: '../pages/live.js',
   'dev-chart': '../pages/dev-chart.js',
 };
 
@@ -64,7 +66,10 @@ export function parseHash(hash) {
   if (token === 'library' || token.startsWith('library.')) {
     return { key: token, kind: 'page', page: 'library', param: token.slice('library.'.length) || null };
   }
-  if (token === 'progress' || token === 'glossary' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'playbook' || token.startsWith('playbook.')) {
+    return { key: token, kind: 'page', page: 'playbook', param: token.slice('playbook.'.length) || null };
+  }
+  if (token === 'progress' || token === 'glossary' || token === 'live' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -78,6 +83,8 @@ function titleFor(route, entry) {
     case 'library': return `Pattern Library · ${SITE}`;
     case 'progress': return `Your progress · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
+    case 'playbook': return `Setup Playbook · ${SITE}`;
+    case 'live': return `Live Market Lab · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
     default: return `Not found · ${SITE}`;
   }

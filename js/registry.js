@@ -395,8 +395,8 @@ export const STYLES = [
     blurb: 'Three lives. Rounds keep coming and get harder until you run out.' },
 ];
 
-/** Practice difficulty picker → game.difficulty. */
-export const LEVELS = [
+/** Practice difficulty picker → game.difficulty. (Not the XP levels: those are store.LEVELS.) */
+export const DIFFICULTY_LEVELS = [
   { id: 'easy', label: 'Easy', value: 0.2 },
   { id: 'normal', label: 'Normal', value: 0.5 },
   { id: 'hard', label: 'Hard', value: 0.85 },

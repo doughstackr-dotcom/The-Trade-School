@@ -9,6 +9,13 @@
 //   options: --no-shots  --desktop / --tablet / --phone (combinable)  --light | --dark  --fonts (load Google Fonts;
 //            uses $HTTPS_PROXY if set)  --concurrency=N  --no-interact
 //            --no-storage (every localStorage/sessionStorage call throws, as in some private modes)
+//            --real-market (do NOT use the offline market fixtures: real-data routes then call the
+//            market-data Edge Function, which needs network access to supabase.co)
+//
+// Market data: by default every page is opened with `?market=mock` (localhost only), so
+// js/core/market.js serves tests/fixtures/market/*.json and the run needs no network. Routes: every
+// page, lesson and game in js/registry.js, the PAGES (playbook, live), one playbook detail and the
+// DEV_ENTRIES (#l._kit-demo).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,6 +59,7 @@ const noShots = flag('no-shots');
 const interact = !flag('no-interact');
 const withFonts = flag('fonts');
 const noStorage = flag('no-storage');
+const realMarket = flag('real-market');
 const concurrency = Math.max(1, Number(opt('concurrency', 3)) || 3);
 
 const ALL_VIEWPORTS = [
@@ -119,8 +127,11 @@ async function routes() {
   const reg = await import(pathToFileURL(path.join(ROOT, 'js', 'registry.js')).href);
   const all = [
     'home', 'beginner', 'advanced', 'library', 'progress', 'glossary', 'dev-chart',
+    ...(reg.PAGES || []).map((p) => p.hash),
+    ...((reg.PAGES || []).some((p) => p.id === 'playbook') ? ['playbook.hammer'] : []),
     ...reg.LESSONS.map((l) => `l.${l.id}`),
     ...reg.GAMES.map((g) => `g.${g.id}`),
+    ...(reg.DEV_ENTRIES || []).map((e) => `${e.type === 'game' ? 'g' : 'l'}.${e.id}`),
   ];
   if (!filters.length) return all;
   return all.filter((r) => filters.some((f) => r === f || r.startsWith(f)));
@@ -220,7 +231,7 @@ async function main() {
     });
 
     try {
-      await page.goto(`${base}/?smoke=${encodeURIComponent(route)}#${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.goto(`${base}/?smoke=${encodeURIComponent(route)}${realMarket ? '' : '&market=mock'}#${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
       await page.waitForSelector(`[data-mounted="${route}"]`, { timeout: 15000 });
       if (withFonts) await page.evaluate(() => document.fonts?.ready).catch(() => {});
       await page.waitForTimeout(800);

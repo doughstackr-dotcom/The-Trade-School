@@ -5,8 +5,13 @@
 //                     maybeSingle, insert/upsert with on_conflict + resolution=merge|ignore,
 //                     update with filters, return=representation, rpc prune_market_candles),
 //                     with the real primary keys, NOT NULLs and the candle CHECK constraint.
+//                     plus market_quota and rpc take_market_quota (the atomic daily budget).
 //   * FakeCoinbase  – GET /products/{id}/candles (≤ 300 rows, newest first, [t, l, h, o, c, v]).
 //   * FakeKraken    – GET /0/public/OHLC (≤ 720 most recent rows, oldest first, strings).
+//   * FakeAlphaVantage – GET /query for every function alphavantage.ts uses (daily/weekly/
+//                     intraday for equities, FX and crypto), with sessions, holidays, splits,
+//                     compact/full output, premium-only endpoints, the key's own daily limit
+//                     and the 1-call-per-second burst limit (HTTP 200 + "Note"/"Information").
 // Every fake records its calls so tests can count upstream traffic exactly.
 
 // deno-lint-ignore-file no-explicit-any
@@ -16,8 +21,7 @@ export const clock = { now: 0 };
 
 class FakeDate extends RealDate {
   constructor(...args: any[]) {
-    if (args.length === 0) super(clock.now);
-    else super(...(args as [any]));
+    super(...((args.length ? args : [clock.now]) as [any]));
   }
   static override now(): number {
     return clock.now;
@@ -54,7 +58,7 @@ const TABLES: Record<string, TableDef> = {
     defaults: { v: () => 0 },
     check: (r) => {
       const [o, h, l, c] = [r.o, r.h, r.l, r.c] as number[];
-      if (!['1m', '5m', '15m', '1h', '6h', '1d'].includes(r.interval as string)) return 'market_candles_interval_check';
+      if (!['1m', '5m', '15m', '1h', '6h', '1d', '1w'].includes(r.interval as string)) return 'market_candles_interval_check';
       if (!(l <= Math.min(o, c) && Math.max(o, c) <= h && l > 0)) return 'market_candles_check';
       return null;
     },
@@ -65,7 +69,16 @@ const TABLES: Record<string, TableDef> = {
     notNull: ['symbol', 'interval', 'fetched_at'],
     defaults: { fetched_at: () => Date.now(), oldest_complete: () => null, source: () => null },
   },
+  market_quota: {
+    cols: { provider: 'text', day: 'text', used: 'num' },
+    key: ['provider', 'day'],
+    notNull: ['provider', 'day', 'used'],
+    defaults: { day: () => utcDay(Date.now()), used: () => 0 },
+  },
 };
+
+/** The UTC calendar day of `ms`, as Postgres renders a date: YYYY-MM-DD. */
+export const utcDay = (ms: number) => new RealDate(ms).toISOString().slice(0, 10);
 
 /** PostgREST renders timestamptz like 2026-09-27T12:00:00+00:00 (fractional seconds only when non-zero). */
 export function pgTs(ms: number): string {
@@ -117,7 +130,7 @@ export class FakePostgrest {
   }
 
   reset() {
-    this.tables = { market_candles: new Map(), market_fetches: new Map() };
+    this.tables = { market_candles: new Map(), market_fetches: new Map(), market_quota: new Map() };
     this.calls = [];
     this.down = null;
     this.intercept = null;
@@ -158,6 +171,11 @@ export class FakePostgrest {
       | undefined;
   }
 
+  /** Budget units `provider` used on the UTC day of `at` (default: today on the fake clock). */
+  quotaUsed(provider: string, at = Date.now()): number {
+    return (this.tables.market_quota.get(`${provider}|${utcDay(at)}`)?.used as number | undefined) ?? 0;
+  }
+
   async handle(url: URL, init: RequestInit): Promise<Response> {
     const method = (init.method ?? 'GET').toUpperCase();
     const headers = new Headers(init.headers);
@@ -171,7 +189,7 @@ export class FakePostgrest {
     const hooked = this.intercept?.(call);
     if (hooked) return hooked;
     try {
-      if (path.startsWith('rpc/')) return this.rpc(path.slice(4));
+      if (path.startsWith('rpc/')) return this.rpc(path.slice(4), body);
       if (!(path in TABLES)) throw pgError(404, '42P01', `relation "public.${path}" does not exist`);
       if (method === 'GET') return this.select(path, url.searchParams, headers);
       if (method === 'POST') return this.insert(path, url.searchParams, prefer, body);
@@ -183,8 +201,9 @@ export class FakePostgrest {
     }
   }
 
-  private rpc(fn: string): Response {
+  private rpc(fn: string, body: unknown): Response {
     this.rpcCalls.push(fn);
+    if (fn === 'take_market_quota') return this.takeQuota(body as Row);
     if (fn !== 'prune_market_candles') throw pgError(404, 'PGRST202', `function ${fn} not found`);
     const now = Date.now();
     const keep: Record<string, number> = { '1m': 3 * DAY, '5m': 30 * DAY, '15m': 120 * DAY };
@@ -193,6 +212,31 @@ export class FakePostgrest {
       if (ttl && (r.t as number) < now - ttl) this.tables.market_candles.delete(k);
     }
     return new Response(null, { status: 204 });
+  }
+
+  /**
+   * public.take_market_quota(p_provider, p_daily_limit): insert (provider, today, 1) on conflict
+   * do update set used = used + 1 where used < limit returning used → true when a row came back.
+   * Atomic like the real statement (this fake handles one request at a time).
+   */
+  private takeQuota(args: Row): Response {
+    const provider = args?.p_provider;
+    const limit = args?.p_daily_limit;
+    if (typeof provider !== 'string' || typeof limit !== 'number' || !Number.isInteger(limit)) {
+      throw pgError(404, 'PGRST202', 'Could not find the function public.take_market_quota with the given arguments');
+    }
+    const day = utcDay(Date.now());
+    const k = `${provider}|${day}`;
+    const row = this.tables.market_quota.get(k);
+    if (!row) {
+      this.tables.market_quota.set(k, { provider, day, used: 1 });
+      return json(true, 200);
+    }
+    if ((row.used as number) < limit) {
+      this.tables.market_quota.set(k, { ...row, used: (row.used as number) + 1 });
+      return json(true, 200);
+    }
+    return json(false, 200);
   }
 
   private filters(table: string, params: URLSearchParams): ((r: Row) => boolean)[] {
@@ -399,7 +443,8 @@ export function trueCandle(m: Market, seed: number, t: number, step: number) {
 
 type Fault = number | 'hang' | 'empty' | { delay: number } | ((url: URL) => Response | undefined);
 
-export type UpstreamCall = { url: URL; at: number };
+/** `at`: fake clock; `real`: performance.now() when the call arrived. */
+export type UpstreamCall = { url: URL; at: number; real: number };
 
 abstract class FakeExchange {
   calls: UpstreamCall[] = [];
@@ -417,7 +462,7 @@ abstract class FakeExchange {
   }
 
   protected async prelude(url: URL, signal?: AbortSignal | null): Promise<Response | null> {
-    this.calls.push({ url, at: Date.now() });
+    this.calls.push({ url, at: Date.now(), real: performance.now() });
     const fault = this.faults.length ? this.faults.shift()! : this.always;
     const delay = typeof fault === 'object' && fault && 'delay' in fault ? fault.delay : this.delayMs;
     if (fault === 'hang') await waitAbortable(1e9, signal);
@@ -539,16 +584,295 @@ export class FakeKraken extends FakeExchange {
 }
 
 // ---------------------------------------------------------------------------------------
+// Alpha Vantage: GET https://www.alphavantage.co/query?function=…&apikey=…
+// ---------------------------------------------------------------------------------------
+
+export type AvMarket = {
+  kind: 'equity' | 'fx' | 'crypto';
+  listing: number; // first trading day, 00:00 UTC
+  base?: number;
+  /** Equities: extra days without a session (00:00 UTC). */
+  holidays?: number[];
+  /** Raw prices before `at` are `ratio` × the split-adjusted ones (e.g. a 4:1 split). */
+  splits?: { at: number; ratio: number }[];
+};
+type AvRow = { t: number; date: string; o: number; h: number; l: number; c: number; v: number; adj: number };
+
+const DOW = (ms: number) => new RealDate(ms).getUTCDay();
+const mondayOf = (ms: number) => ms - ((DOW(ms) + 6) % 7) * DAY;
+const fmt = (x: number) => x.toFixed(4);
+const AV_INTERVALS: Record<string, number> = { '1min': MIN, '5min': 5 * MIN, '15min': 15 * MIN, '30min': 30 * MIN, '60min': HOUR };
+
+export const AV_MESSAGES = {
+  daily:
+    'Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.',
+  burst:
+    'Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit.',
+  premium:
+    'Thank you for using Alpha Vantage! This is a premium endpoint. You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly unlock all premium endpoints',
+  badKey:
+    'the parameter apikey is invalid or missing. Please claim your free API key on (https://www.alphavantage.co/support/#api-key). It should take less than 20 seconds.',
+};
+
+export class FakeAlphaVantage extends FakeExchange {
+  apiKey = 'test-av-key';
+  /** Premium plan: intraday and outputsize=full. */
+  premium = false;
+  /** TIME_SERIES_WEEKLY_ADJUSTED answers the premium "Information" (the adapter falls back to WEEKLY). */
+  premiumWeeklyAdjusted = false;
+  /** The key's own daily limit on Alpha Vantage's side (counts every call with a valid key). */
+  keyDailyLimit = 25;
+  /** Reject a call less than a second (fake clock) after the previous one, like the free key. */
+  burstLimit = false;
+  /** Reject a call less than this many real milliseconds after the previous one (null: off). */
+  burstRealMs: number | null = null;
+  /** US equities publish the day's candle this many minutes after the 16:00 New York close (DST-aware). */
+  publishLagMin = 20;
+  /** Market key: SPY / EURUSD / BTC. */
+  avMarkets: Record<string, AvMarket> = {};
+  private usedByDay = new Map<string, number>();
+  private lastCallAt = -Infinity;
+  private lastRealAt = -Infinity;
+
+  override reset() {
+    super.reset();
+    this.premium = false;
+    this.premiumWeeklyAdjusted = false;
+    this.keyDailyLimit = 25;
+    this.burstLimit = false;
+    this.burstRealMs = null;
+    this.publishLagMin = 20;
+    this.usedByDay = new Map();
+    this.lastCallAt = -Infinity;
+    this.lastRealAt = -Infinity;
+  }
+
+  protected emptyBody() {
+    return {};
+  }
+
+  /** Calls per `function` parameter. */
+  count(fn?: string): number {
+    return fn ? this.calls.filter((c) => c.url.searchParams.get('function') === fn).length : this.calls.length;
+  }
+
+  private tradingDay(m: AvMarket, d: number): boolean {
+    if (d < m.listing) return false;
+    if (m.kind === 'crypto') return true;
+    const dow = DOW(d);
+    if (dow === 0 || dow === 6) return false;
+    return !(m.kind === 'equity' && m.holidays?.includes(d));
+  }
+
+  /** When the daily candle of `d` is published (UTC): after the session close. */
+  private publishedAt(m: AvMarket, d: number): number {
+    if (m.kind === 'equity') return d + 16 * HOUR - nyOffsetMs(d + 16 * HOUR) + this.publishLagMin * MIN;
+    if (m.kind === 'fx') return d + 22 * HOUR;
+    return d + DAY; // crypto: the UTC day is complete
+  }
+
+  private splitFactor(m: AvMarket, t: number): number {
+    return (m.splits ?? []).reduce((f, s) => (t < s.at ? f * s.ratio : f), 1);
+  }
+
+  /** Every published daily row up to `now`, oldest first: raw OHLCV plus the split-adjusted close. */
+  dailyRows(key: string, now = Date.now()): AvRow[] {
+    const m = this.avMarkets[key];
+    if (!m) return [];
+    const out: AvRow[] = [];
+    for (let d = m.listing; d <= now; d += DAY) {
+      if (d + 2 * DAY > now && this.publishedAt(m, d) > now) break; // older days are all published
+      if (!this.tradingDay(m, d)) continue;
+      const k = trueCandle({ listing: m.listing, base: m.base }, seedOf(key), d, DAY)!;
+      const f = this.splitFactor(m, d);
+      out.push({ t: d, date: utcDay(d), o: k.o * f, h: k.h * f, l: k.l * f, c: k.c * f, v: +(k.v * 1000).toFixed(0), adj: k.c });
+    }
+    return out;
+  }
+
+  /** Weekly rows (dated by the week's last published day; the candle key is its Monday). */
+  weeklyRows(key: string, now = Date.now()): AvRow[] {
+    const byWeek = new Map<number, AvRow[]>();
+    for (const r of this.dailyRows(key, now)) {
+      const w = mondayOf(r.t);
+      byWeek.set(w, [...(byWeek.get(w) ?? []), r]);
+    }
+    return [...byWeek.entries()].map(([w, rs]) => ({
+      t: w,
+      date: rs[rs.length - 1].date,
+      o: rs[0].o,
+      h: Math.max(...rs.map((r) => r.h)),
+      l: Math.min(...rs.map((r) => r.l)),
+      c: rs[rs.length - 1].c,
+      v: rs.reduce((a, r) => a + r.v, 0),
+      adj: rs[rs.length - 1].adj,
+    }));
+  }
+
+  /** The candles the function should store for a weekly series: split-adjusted OHLC. */
+  adjustedWeekly(key: string, now = Date.now()) {
+    return this.weeklyRows(key, now).map((r) => {
+      const k = r.adj / r.c;
+      return { t: r.t, o: r.o * k, h: r.h * k, l: r.l * k, c: r.adj, v: r.v };
+    });
+  }
+
+  /** Truly split-adjusted weekly candles (from the adjusted daily prices), for weeks with a split inside. */
+  idealWeekly(key: string, now = Date.now()) {
+    const byWeek = new Map<number, AvRow[]>();
+    for (const r of this.dailyRows(key, now)) {
+      const f = r.c / r.adj; // this day's split factor
+      const a = { ...r, o: r.o / f, h: r.h / f, l: r.l / f, c: r.adj };
+      byWeek.set(mondayOf(r.t), [...(byWeek.get(mondayOf(r.t)) ?? []), a]);
+    }
+    return [...byWeek.entries()].map(([t, rs]) => ({
+      t,
+      o: rs[0].o,
+      h: Math.max(...rs.map((r) => r.h)),
+      l: Math.min(...rs.map((r) => r.l)),
+      c: rs[rs.length - 1].c,
+    }));
+  }
+
+  async handle(url: URL, signal?: AbortSignal | null): Promise<Response> {
+    const early = await this.prelude(url, signal);
+    if (early) return early;
+    if (url.pathname !== '/query') return json({ message: 'Not found' }, 404);
+    const q = url.searchParams;
+    const info = (text: string) => json({ Information: text }, 200);
+    if (q.get('apikey') !== this.apiKey) return json({ 'Error Message': AV_MESSAGES.badKey }, 200);
+    const day = utcDay(Date.now());
+    const used = (this.usedByDay.get(day) ?? 0) + 1;
+    this.usedByDay.set(day, used);
+    if (used > this.keyDailyLimit) return info(AV_MESSAGES.daily);
+    const t = Date.now();
+    const tooSoon = t - this.lastCallAt < 1000;
+    this.lastCallAt = t;
+    if (this.burstLimit && tooSoon) return info(AV_MESSAGES.burst);
+    const real = performance.now();
+    const tooSoonReal = this.burstRealMs !== null && real - this.lastRealAt < this.burstRealMs;
+    this.lastRealAt = real;
+    if (tooSoonReal) return info(AV_MESSAGES.burst);
+
+    const fn = q.get('function') ?? '';
+    const invalid = () => json({ 'Error Message': `Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for ${fn}.` }, 200);
+    const kind = fn.startsWith('FX_') ? 'fx' : fn.startsWith('DIGITAL_CURRENCY') || fn.startsWith('CRYPTO') ? 'crypto' : 'equity';
+    const key = kind === 'fx' ? `${q.get('from_symbol')}${q.get('to_symbol')}` : q.get('symbol') ?? '';
+    const m = this.avMarkets[key];
+    if (!m || m.kind !== kind || (kind === 'crypto' && q.get('market') !== 'USD')) return invalid();
+    const full = q.get('outputsize') === 'full';
+    const tz = kind === 'equity' ? 'US/Eastern' : 'UTC';
+    const meta = { '1. Information': fn, '2. Symbol': key, '3. Last Refreshed': '', '4. Time Zone': tz };
+    const series = (rows: AvRow[], row: (r: AvRow) => Record<string, string>) => {
+      const out: Record<string, Record<string, string>> = {};
+      for (const r of [...rows].reverse()) out[r.date] = row(r); // newest first, like Alpha Vantage
+      meta['3. Last Refreshed'] = rows.length ? rows[rows.length - 1].date : '';
+      return out;
+    };
+    const ohlc = (r: AvRow) => ({ '1. open': fmt(r.o), '2. high': fmt(r.h), '3. low': fmt(r.l), '4. close': fmt(r.c) });
+    const ohlcv = (r: AvRow) => ({ ...ohlc(r), '5. volume': String(r.v) });
+
+    switch (fn) {
+      case 'TIME_SERIES_DAILY':
+      case 'FX_DAILY': {
+        if (full && !this.premium) return info(AV_MESSAGES.premium);
+        const rows = this.dailyRows(key);
+        const pick = full ? rows : rows.slice(-100);
+        return fn === 'FX_DAILY'
+          ? json({ 'Meta Data': meta, 'Time Series FX (Daily)': series(pick, ohlc) }, 200)
+          : json({ 'Meta Data': meta, 'Time Series (Daily)': series(pick, ohlcv) }, 200);
+      }
+      case 'DIGITAL_CURRENCY_DAILY':
+        return json({ 'Meta Data': meta, 'Time Series (Digital Currency Daily)': series(this.dailyRows(key), ohlcv) }, 200);
+      case 'TIME_SERIES_WEEKLY_ADJUSTED':
+        if (this.premiumWeeklyAdjusted && !this.premium) return info(AV_MESSAGES.premium);
+        return json({
+          'Meta Data': meta,
+          'Weekly Adjusted Time Series': series(this.weeklyRows(key), (r) => ({
+            ...ohlc(r),
+            '5. adjusted close': fmt(r.adj),
+            '6. volume': String(r.v),
+            '7. dividend amount': '0.0000',
+          })),
+        }, 200);
+      case 'TIME_SERIES_WEEKLY':
+        return json({ 'Meta Data': meta, 'Weekly Time Series': series(this.weeklyRows(key), ohlcv) }, 200);
+      case 'FX_WEEKLY':
+        return json({ 'Meta Data': meta, 'Time Series FX (Weekly)': series(this.weeklyRows(key), ohlc) }, 200);
+      case 'DIGITAL_CURRENCY_WEEKLY':
+        return json({ 'Meta Data': meta, 'Time Series (Digital Currency Weekly)': series(this.weeklyRows(key), ohlcv) }, 200);
+      case 'TIME_SERIES_INTRADAY':
+      case 'FX_INTRADAY':
+      case 'CRYPTO_INTRADAY': {
+        if (!this.premium) return info(AV_MESSAGES.premium);
+        const label = q.get('interval') ?? '';
+        const step = AV_INTERVALS[label];
+        if (!step) return invalid();
+        const now = Date.now();
+        const rows: Record<string, Record<string, string>> = {};
+        for (let t = Math.floor(now / step) * step - step; t >= now - 30 * DAY; t -= step) {
+          if (!this.tradingDay(m, Math.floor(t / DAY) * DAY)) continue;
+          if (kind === 'equity' && (t % DAY < 13 * HOUR + 30 * MIN || t % DAY >= 20 * HOUR)) continue;
+          const k = trueCandle({ listing: m.listing, base: m.base }, seedOf(key), t, step)!;
+          rows[localStamp(t, tz)] = { ...ohlc({ ...k, t, date: '', adj: k.c }), '5. volume': String(k.v) };
+        }
+        const name = kind === 'fx' ? `Time Series FX (${label})` : kind === 'crypto' ? `Time Series Crypto (${label})` : `Time Series (${label})`;
+        return json({ 'Meta Data': meta, [name]: rows }, 200);
+      }
+    }
+    return invalid();
+  }
+}
+
+/** UTC offset of New York at `ms` (-4 h in summer, -5 h in winter). */
+function nyOffsetMs(ms: number): number {
+  const [d, t] = localStamp(ms, 'America/New_York').split(' ');
+  const [y, m, day] = d.split('-').map(Number);
+  const [hh, mm, ss] = t.split(':').map(Number);
+  return RealDate.UTC(y, m - 1, day, hh, mm, ss) - ms;
+}
+
+/** 'YYYY-MM-DD HH:MM:SS' of `ms` in `timeZone` (Alpha Vantage intraday stamps). */
+const stampFormats = new Map<string, Intl.DateTimeFormat>();
+function localStamp(ms: number, timeZone: string): string {
+  const zone = timeZone === 'US/Eastern' ? 'America/New_York' : timeZone;
+  let fmt = stampFormats.get(zone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    stampFormats.set(zone, fmt);
+  }
+  const parts = fmt.formatToParts(new RealDate(ms));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+}
+
+// ---------------------------------------------------------------------------------------
 // fetch router: every network call made by the function lands in one of the fakes.
 // ---------------------------------------------------------------------------------------
 
-export function installFetch(db: FakePostgrest, coinbase: FakeCoinbase, kraken: FakeKraken, supabaseUrl: string) {
+export function installFetch(
+  db: FakePostgrest,
+  coinbase: FakeCoinbase,
+  kraken: FakeKraken,
+  supabaseUrl: string,
+  alphavantage: FakeAlphaVantage = new FakeAlphaVantage(),
+) {
   const supa = new URL(supabaseUrl).host;
-  globalThis.fetch = (async (input: string | URL | Request, init: RequestInit = {}) => {
+  globalThis.fetch = ((input: string | URL | Request, init: RequestInit = {}) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.host === supa) return db.handle(url, init);
     if (url.host === 'api.exchange.coinbase.com') return coinbase.handle(url, init.signal);
     if (url.host === 'api.kraken.com') return kraken.handle(url, init.signal);
-    throw new TypeError(`network access to ${url.host} is not allowed in tests`);
+    if (url.host === 'www.alphavantage.co') return alphavantage.handle(url, init.signal);
+    return Promise.reject(new TypeError(`network access to ${url.host} is not allowed in tests`));
   }) as typeof fetch;
 }

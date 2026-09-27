@@ -47,17 +47,23 @@ js/core/chart.js           CandleChart (interactive SVG chart) + miniChart()
 js/core/anim.js            tween / sequence helpers, reduced-motion aware
 js/core/ui.js              DOM helper h(), toast, modal, confetti, sfx, quiz widgets, icons
 js/core/game-kit.js        GameShell: intro → rounds → results, scoring, timer, XP
-js/core/lesson-kit.js      LessonShell: step-by-step lesson with nav, quick checks, completion
+js/core/lesson-kit.js      LessonShell: step-by-step lesson with nav, quick checks, completion (+ §12.5 step helpers)
+js/core/scanner.js         setup scanner: findSetups, realRound, simRound, outcomeOf, describeChart (§12.4)
+js/core/market.js          real market candles via the market-data Edge Function; mock fixtures (§12.3)
+js/core/story.js           ChartStory: animated, captioned chart walk-throughs (§12.5)
 js/pages/home.js           landing: animated hero chart, tier tracks, continue-where-you-left
 js/pages/track.js          tier overview (beginner / advanced)
 js/pages/library.js        pattern library (candlestick + chart patterns) with diagrams
 js/pages/progress.js       XP, level, badges, per-module best scores
 js/pages/glossary.js       searchable glossary of terms
 js/pages/dev-chart.js      hidden kitchen-sink page exercising every CandleChart feature
+js/pages/playbook.js       #playbook Setup Playbook · js/pages/live.js  #live Live Market Lab (§12.6)
 js/lessons/<id>.js         one file per lesson (see registry)
 js/games/<id>.js           one file per game (see registry)
 tests/unit/*.test.mjs      node:test unit tests for js/core (no DOM)
 tests/smoke.mjs            Playwright: every route, console errors, screenshots
+tests/fixtures/market/     market-data test fixtures (mock mode) + build-fixtures.mjs
+tests/visual/              contact sheets: patterns.html (generators), setups.html (scanner)
 package.json               scripts only; no dependencies required at runtime
 ```
 
@@ -129,7 +135,9 @@ export const BADGES  = [ { id, title, description, icon } ];
 export function findEntry(id) { /* lesson or game by id, with .type = 'lesson'|'game' */ }
 ```
 
-Curriculum (ids are fixed — other contributors rely on them):
+Curriculum (ids are fixed — other contributors rely on them). **v2 added units** (markets & orders,
+chart types, volume, breakouts, psychology and new capstone games): §12.8 has the current, complete
+unit list; the tables below are the original units, still valid.
 
 **Beginner — "Read the chart"**
 
@@ -916,10 +924,8 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
 - Finishing shows the results card **and** an "+N XP" toast (the XP pill in the top bar bumps).
 - `mount()` must return `() => game.destroy()`. As a safety net the shell also tears itself
   down (listeners, clock) once its root has left the page.
-- Until the §12.1/§12.2 pickers exist, `game.style` is `'arcade'`, `game.source` is
-  `'textbook'`, `game.lives` is `null`, and `game.difficulty` (0–1) ramps across the run:
-  `(round − 1) / (rounds − 1)`, or over ~15 rounds when `rounds` is `null`. It is set before
-  each `onRound`, so round generators can depend on it today.
+- Play styles, lives, difficulty and chart sources are built: see §12.1 / §12.2 (they supersede
+  the v1 placeholders `style = 'arcade'`, `source = 'textbook'`, `lives = null`).
 
 ### 11.6 LessonShell (`js/core/lesson-kit.js`)
 
@@ -958,7 +964,9 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
 ### 11.8 Smoke test
 
 `node tests/smoke.mjs [routes…] [--desktop] [--tablet] [--phone] [--light|--dark]
-[--no-shots] [--no-interact] [--fonts] [--no-storage] [--concurrency=N]`. Viewports: desktop 1280×800,
+[--no-shots] [--no-interact] [--fonts] [--no-storage] [--real-market] [--concurrency=N]`. Routes: every
+page, lesson and game in the registry plus `PAGES`, `#playbook.hammer` and `DEV_ENTRIES`. Pages open
+with `?market=mock` (§12.3) unless `--real-market`. Viewports: desktop 1280×800,
 tablet 820×1180 (touch), phone 390×844 (touch). Google Fonts requests are blocked unless
 `--fonts` is given. After the first screenshot it clicks Start (and one answer option) on
 games and Next on lessons, then screenshots `<route>-<viewport>-<theme>-play.png`.
@@ -973,20 +981,93 @@ directory argument, so the glob is spelled out.
 
 Everything in this section is additive. Owners: see the build plan in each workflow brief.
 
-### 12.1 Play styles (every game, player's choice)
+### 12.1 Play styles (every game, player's choice) — built in `js/core/game-kit.js`
 
-GameShell options gain `styles` (default `['practice', 'arcade', 'survival']`) and the intro
-shows a Style picker (segmented control, remembered per game in the store):
+Supersedes the placeholder note at the end of §11.5. Every option below is optional; games
+written against §6.8/§11.5 keep working unchanged (they play as Arcade).
 
-| style | rules |
-|---|---|
-| `practice` | no clock, **Hint** button (`game.hint(text, { cost })` shows a clue, the round then earns at most 50%), full explanations, retry a round, no stars/XP penalty but XP ×0.5 |
-| `arcade` (default) | the game's own clock/speed bonus/streak multiplier as in §6.8 |
-| `survival` | 3 lives (`game.lives`), no fixed round count: rounds continue until lives run out, difficulty ramps via `game.difficulty` (0→1 over ~15 rounds); score = survived rounds × points; own best score per style |
+```js
+new GameShell(root, ctx, {
+  // …all §6.8 / §11.5 options…
+  styles: ['practice', 'arcade', 'survival'], // default: entry.styles from the registry, else all three
+  defaultStyle: 'arcade',                     // first visit only; then the player's last pick for this game
+  lives: 3,                                   // Survival lives
+  survival: { ramp: 15, stars: [5, 10, 15], clockMin: 0.6 },
+  practice: { xp: 0.5 },                      // Practice XP multiplier
+  hints: 'practice',                          // Hint button: 'practice' (default) | 'always' | false
+  retry: true,                                // Practice "Try again" after a miss
+  onRetry(game, ctx) {},                      // optional; default: onRound runs again with the same round rng
+  daily: false,                               // default entry.daily (see §12.8)
+  sources: ['textbook'],                      // §12.2
+});
+```
 
-`game.style` is readable in every hook. `game.wrong()` costs a life in survival and ends the
-game at 0. Games must make round generation depend on `game.difficulty` (0–1) so survival
-ramps. Best scores are stored per `(gameId, style)`.
+The intro shows a **Style** picker (segmented radios with icon + one-line description, remembered
+per game in the store), a **Difficulty** picker (Easy / Normal / Hard, only while Practice is
+selected, remembered) and the §12.2 **Charts** picker. With one style (e.g. the Daily Challenge)
+there is no Style picker. The facts box and "Your best" line follow the selected style.
+
+| | Practice | Arcade (default) | Survival |
+|---|---|---|---|
+| rounds | `opts.rounds` | `opts.rounds` | open: `game.rounds === null` until the lives run out |
+| clock | none: the shell starts no clock, `game.timer.start()` is a no-op returning `false`, `game.timed === false` | `opts.timer` | `opts.timer`; the shell-managed per-round clock is scaled by `game.clockScale` (1 → 0.6 as difficulty rises) |
+| `game.difficulty` | fixed: Easy / Normal / Hard → 0.2 / 0.5 / 0.85 | `(round − 1) / (rounds − 1)` (open-ended: over 15 rounds) | `min(1, (round − 1) / 14)` (`survival.ramp`) |
+| hints | Hint button whenever the round called `setHint()`; a hinted round scores at most 50% | — (unless `hints: 'always'`) | — |
+| a miss (`wrong()`) | "Try again" appears next to Next: the round replays (same round rng), the miss is forgiven (`wrongs − 1`) and the round scores at most 50% | streak resets | costs a life; at 0 `game.over = true`, Next reads "See results" and `nextRound()` calls `finish()` |
+| stars | base points vs `maxScore` (90 / 65 / 35%) | same | rounds survived ≥ 5 / 10 / 15 (`survival.stars`) |
+| XP | §6.8 formula × 0.5 | §6.8 formula | `round(min(1, survived / 15) × 60) + 10 × stars` |
+| perfect | no misses, hints or retries | as §6.8 | never |
+
+"Rounds survived" = rounds played, minus the round that cost the last life (a game that calls
+`finish()` itself counts the current round). Stored as the style's `rounds` (best) — see §12.8.
+
+Game API (additions):
+
+```js
+game.style                 // 'practice' | 'arcade' | 'survival' (readable in every hook)
+game.styles                // styles offered on the intro
+game.level                 // Practice difficulty: 'easy' | 'normal' | 'hard'
+game.difficulty            // 0–1, set before onStart and before each onRound (see table)
+game.timed                 // false in Practice
+game.clockScale            // Survival: 1 → survival.clockMin as difficulty rises (else 1); apply it
+                           // yourself if the game runs its own clock
+game.lives / game.maxLives // null outside Survival
+game.over                  // true once Survival ran out of lives
+game.loseLife(n = 1, { silent = false }) → lives left      // Survival only; wrong() calls it
+game.setHint(textOrFn)     // this round's hint: HTML string | Node | (game) => either; reset every round
+game.hint(text?, { cost = 0.5 }) → Element | null          // shows the hint right under the meta row (the
+                           // Hint button), above the stage, and caps the round at 1 − cost; the Practice
+                           // Hint button calls game.hint()
+game.roundCap              // 1, or 0.5 after a hint / on a retry: multiplies correct() points and
+                           // positive non-bonus award() points
+game.hintsUsed / game.retries / game.isRetry
+game.retryRound()          // what "Try again" calls
+game.roundRng              // = the `rng` passed to onRound: game.rng.fork(`round-${round}`). Use it
+                           // for round content so Try again (and a replay of the seed) is identical
+game.ask({ question, options, answer, explain, hint, points = 100, columns, next = true,
+           reveal = true, onAnswer(ok, value) }) → quiz element
+   // Standard multiple-choice round: choiceQuiz into the stage, correct()/wrong() with `explain`
+   // as the banner, revealSource() for real rounds, then nextButton(). Practice retry, hints,
+   // lives and caps all work through it.
+```
+
+- `onRound(game, { round, rng, stage, mode, style, difficulty, source, retry })`; it may be
+  `async` / return a Promise (a resolved function is the round cleanup; a rejection shows the
+  "round failed to load — skip" card). `onStart(game, { mode, seed, rng, style, source, difficulty })`.
+- In Survival `game.rounds` is `null`: build rounds on demand from `round` and `difficulty`; never
+  index a fixed list by `round` without wrapping (the legacy stubs wrap: `order[(round − 1) %
+  order.length]`). Call `wrong()` once per failed round (each call costs a life).
+- `summary` (onEnd) also has `style, level, source, survived, bestRounds, isBestRounds, lives,
+  hintsUsed, retries, fallbacks, daily ({ first, streak, best, key } | null), overallBest`;
+  `best` / `isBest` are for the played style.
+- Results: Survival shows **Survived** (hearts) and **Best run**; games with several styles show
+  "Your best per style" (`.style-bests`) and a **Change style** button (`data-action="change-style"`).
+- DOM hooks: pickers `[data-picker="mode|style|level|source"]` with radio buttons `[data-mode]`,
+  `[data-style]`, `[data-level]`, `[data-source]` (←/→ move); `[data-action="hint"]`,
+  `[data-action="retry"]`; HUD lives cell `.hud__lives` (heart icons); a meta row `.game__meta`
+  under the HUD holds the style / difficulty / mode chips, the source chip and the Hint button.
+- Exports: `heartIcon({ size, filled = true, label })` (the Survival heart, drawn in SVG) and
+  `styleIcon(styleId, { size, label })` (book / bolt / heart).
 
 ### 12.2 Chart sources
 
@@ -1018,6 +1099,52 @@ explanation says what the textbook read was and what actually happened, and game
 grade predictions on real data grade the **read** (was the setup identified correctly?)
 separately from the **outcome**.
 
+GameShell side — built in `js/core/game-kit.js`:
+
+- `sources` defaults to `entry.sources` (registry), else `['textbook']`. With both, the intro shows
+  the **Charts** picker (Textbook / Real market), remembered per game. Without a free account
+  (`ctx.access.can('free')` is false once an access gate is registered) Real market is locked with
+  a sign-in note. `sources: ['real']` (Live Predict) shows no picker, only a "Real market" note.
+- `game.sourcePref` is the picked source; `game.source` is the effective one for this run. Starting
+  a Real run preflights `market.getCatalog()` + `scanner.js` (7 s); if that fails (offline,
+  unconfigured, no module) the run uses textbook charts with a toast.
+- `game.realRound(query) → Promise<round | null>`: `scanner.realRound(game.roundRng, query)` (a
+  `rng` option overrides it) with a 9 s `timeout`. Resolves `null` straight away on textbook runs,
+  and `null` when nothing real is available — render your textbook scenario then; the HUD chip
+  reads **Textbook chart**. After 3 failures in a row the rest of the run switches to textbook
+  (toast). The clock is paused while it loads and a "Finding a real chart…" indicator shows after
+  180 ms (`loadingText`). If the round ends first (Next, Quit, leaving the page) the promise never
+  settles, so code after `await` simply does not run. The last real round is `game.real`;
+  `game.roundSource` is `'real' | 'textbook'`.
+- `game.revealSource(info = game.real, { into, title })` → the standard mystery-chart reveal
+  (`.source-reveal`): "Mystery chart revealed · **SPY** S&P 500 ETF · Weekly · 11 Jul 2022", the
+  attribution line ("Data: …"), and "Delayed · end of day" / "Test data" flags; the HUD chip then
+  shows "SPY · Weekly". `game.ask()` calls it after the answer. Returns `null` on textbook rounds.
+- The HUD source chip is honest: a Real run whose rounds never produced a real chart shows
+  "Textbook chart" when the round ends.
+- Keep real rounds mysterious until the reveal: no dates on the x-axis (`marketTimeLabel`) and no
+  symbol in the UI before `revealSource()`. Scanner fakeouts are *decided* on the candle that
+  closes back inside; to ask "trap or not" stop the chart at `setup.meta.breakoutIdx`.
+- Fallback pattern (verified end to end in mock mode and offline): a real round, else a generated
+  one of the same shape from `scanner.simRound()` (§12.4) or your own textbook scenario:
+
+  ```js
+  import { simRound } from '../core/scanner.js';
+  async onRound(g, { rng, stage, difficulty }) {
+    const q = { kinds: ['bull-flag', 'bear-flag'], before: 60, after: 20 };
+    const real = await g.realRound(q);          // null on textbook runs / no data (chip: Textbook chart)
+    const r = real || simRound(rng, q);          // same shape: candles, decisionIdx, setup, outcome, lead
+    // … draw r.candles up to r.decisionIdx + 1, ask, then reveal the rest …
+    g.ask({ …, reveal: true });                  // reveals the market only when g.real is set
+  }
+  ```
+  Never pass a `simRound` result to `revealSource()` — it has no market (`symbol: null`, `sim: true`).
+- Helpers exported for games, lessons and pages: `loadScanner()`, `loadMarket()` (cached dynamic
+  imports), `withTimeout(promise, ms)` (→ value or `null`), `intervalLabel('1w') → 'Weekly'`,
+  `formatMarketDate(t, interval) → '11 Jul 2022'` (intraday adds ', 14:05 UTC'),
+  `marketTimeLabel(interval)` (a CandleChart `timeLabel` for real candles), `sourceText(info)`
+  ("SPY (S&P 500 ETF) · Weekly · 11 Jul 2022 — Data: …") and `sourceReveal(info, { title, compact })`.
+
 ### 12.3 Market data (`js/core/market.js` + Edge Function `market-data`)
 
 Providers (server-side, see `docs/MARKET_DATA.md`): **Alpha Vantage** with the owner's key
@@ -1027,29 +1154,89 @@ written permission (`MARKET_EXCHANGE_FEEDS`). Nothing is fetched in the browser 
 provider; the browser only talks to `market-data`.
 
 ```js
-export async function getCatalog() → { symbols: [{ id, name, class, decimals, intervals: ['1d','1w',…],
-                                         live: bool, delayed: bool }], status }   // cached per session
-export async function getCandles({ symbol, interval, limit = 300, end }) → { candles, source, attribution, delayed, stale }
-export async function getHistory({ symbol, interval, bars = 1000 }) → same, cached for the session
-export function subscribeLive({ symbol, interval }, onUpdate) → unsubscribe
-   // live when the catalog says live: true; otherwise REPLAY: a real historical stretch played
-   // forward in real time (onUpdate gets { candles, last, status: 'live'|'replay'|'offline' })
-export function marketStatus() → 'online' | 'offline' | 'unconfigured'
+import { getCatalog, getCandles, getHistory, subscribeLive, marketStatus } from '../core/market.js';
+
+getCatalog({ refresh = false }) → Promise<{ symbols: [{ id, name, class: 'stock'|'etf'|'fx'|'crypto'|'metal',
+    decimals, intervals: ['1d', '1w', …], live: bool, delayed: bool }], status, fallback?, mock? }>
+  // Cached for the session (sessionStorage, 30 min). On failure: the 12 default markets (SYMBOLS)
+  // with ['1d', '1w'], live: false, status 'offline' (or 'unconfigured') and fallback: true;
+  // a failed catalog is re-asked after 60 s.
+getCandles({ symbol, interval, limit = 300, end }) → Promise<{ symbol, interval, candles: [{ t, o, h, l, c, v }],
+    source, attribution, delayed, stale, status: 'online'|'offline'|'unconfigured', error, mock? }>
+  // t = candle open time (ms UTC), oldest first, cleaned (valid OHLC, sorted, one per t). limit ≤ 1000.
+  // NEVER throws: on failure candles = [] and status / error say why.
+getHistory({ symbol, interval, bars = 1000 }) → same shape; cached for the session, concurrent calls
+  // share one request, > 1000 bars are paged backwards; failures are not cached (retry after 20 s).
+subscribeLive({ symbol, interval = '1d', bars = 120, stepMs = 3000, seed, form = true }, onUpdate) → unsubscribe()
+  // LIVE polling (1m: 10 s … 1d: 5 min) when the catalog marks the symbol live for that interval;
+  // otherwise REPLAY of a real stretch of history (the requested interval if the symbol has it, else
+  // its finest one): one candle every stepMs, each forming over 4 ticks when form, a new random
+  // stretch at the end of the data. onUpdate({ candles, last, status: 'live'|'replay'|'offline',
+  // symbol, interval, attribution, delayed, forming, replay?: { index, total, from, at, stepMs,
+  // requested, restarted }, mock?, error? }). Pauses while the tab is hidden; offline → retries.
+marketStatus() → 'online' | 'offline' | 'unconfigured'   // outcome of the latest request ('online'
+  // before any request unless navigator.onLine is false; mock mode counts as online)
+marketInfo() → { status, mock, lastError, lastOkAt, cached }      onMarketStatus(fn) → unsubscribe
+isMockMode() / setMockMode(on)                                     // localhost + localStorage flag
+SYMBOLS                        // the 12 default markets: SPY QQQ GLD AAPL MSFT NVDA TSLA EUR-USD
+                               // GBP-USD USD-JPY BTC-USD ETH-USD (decimals: FX 5, USD-JPY 3, else 2)
+INTERVALS, INTERVAL_MS, normalizeCandles(list)
+intervalLabel('1w') → 'Weekly' ('1d' Daily, '1h' Hourly, '5m' 5 minutes)
+formatCandleTime(t, interval) → '12 Mar 2026' (intraday: '12 Mar 2026 14:05 UTC')
+axisLabel(t, interval) → '12 Mar' (1d) | 'Mar 26' (1w) | '14:05' (intraday)     // for timeLabel
+revealLabel({ symbol, interval, t }) → 'BTC-USD · Weekly · 12 Mar 2026'
+configureMarket({ fetch, url, key, mock, fixturesBase, mockStepMs, pollMs, timeoutMs, retryMs, now,
+                  document, storage }) / resetMarketCache()        // tests and the dev page only
 ```
 
-- Function request: POST `{ symbol, interval, limit, end }` → `{ symbol, interval, candles:
-  [{ t, o, h, l, c, v }], source, attribution, delayed, stale? }` (t = ms UTC, oldest first);
-  POST `{ catalog: true }` → the catalog above. 503 `{ unconfigured: true }` when no provider
-  is set up for that symbol/interval.
+- Transport: `POST ${SUPABASE_URL}/functions/v1/market-data` with JSON and headers `apikey` +
+  `Authorization: Bearer <publishable key>`; `SUPABASE_URL` / `SUPABASE_KEY` come from
+  `js/config.js` (imported lazily on the first request; built-in project defaults if it is
+  missing). 8 s timeout, 2 retries with backoff on network errors / 5xx / 429; no retry on 503
+  `{ unconfigured }` or other 4xx.
+- Mock mode fixtures (`tests/fixtures/market/`, built by `build-fixtures.mjs` there with
+  `realisticMarket`; each file has `_note: 'TEST FIXTURE …'`, `fixture: true` and attribution
+  "Test fixture: synthetic candles, not real prices"): `catalog.json` (BTC-USD [1m 5m 1d 1w,
+  live], ETH-USD, SPY, EUR-USD [1d 1w]), `<SYMBOL>_1d.json` (500 candles, 00:00 UTC, weekdays only
+  for SPY / EUR-USD, ending Fri 25 Sep 2026), `<SYMBOL>_1w.json` (600 candles keyed by Monday; the
+  last ~70 weeks aggregate the daily file) for BTC-USD, ETH-USD, SPY, EUR-USD (EUR-USD has v = 0
+  like the real FX feed), and `BTC-USD_1m.json` / `BTC-USD_5m.json` (300 candles ending 25 Sep
+  2026 20:00 UTC). Intraday fixtures play forward on a mock clock (one candle per `mockStepMs`,
+  default 5 s, from 80% of the file) so the live-polling path can be tested. Markets / intervals
+  the fixture catalog does not list return `status: 'unconfigured'` without any request.
+
+- Function request (server contract, `supabase/functions/market-data`): POST (or GET with
+  query params) `{ symbol, interval, limit ≤ 1000 (default 300), end? }` → `{ symbol, interval,
+  candles: [{ t, o, h, l, c, v }], source, attribution, delayed, stale? }` (t = candle open time,
+  ms UTC, oldest first; daily candles open at 00:00 UTC, weekly ones on Monday 00:00 UTC).
+  POST `{ catalog: true }` (or GET `?catalog=1`) → `{ symbols: [{ id, name, class, decimals,
+  intervals, live, delayed, attribution }], status: 'ok' | 'unconfigured' }` (`max-age=300`;
+  every known symbol is listed, with `intervals: []` and `attribution: null` when nothing serves
+  it; `live` only when a real-time exchange feed serves intraday candles; server decimals: FX 4,
+  USD-JPY 2, stocks/ETFs 2). Errors: 400 bad input; 503 `{ unconfigured: true }` when no
+  provider is set up for that symbol/interval; 503 `{ quota: true }` when the day's Alpha
+  Vantage budget is used up and nothing is cached yet (it resets at 00:00 UTC, so retrying
+  sooner is pointless); 502 provider failure with nothing cached. With a cache, failures
+  answer 200 `{ stale: true, source: 'cache' }` with `Cache-Control: no-store`.
+- Alpha Vantage series are refreshed at most once per candle close (daily: US stocks/ETFs after
+  21:30 UTC, FX after 22:30 UTC, crypto after 00:30 UTC; weekly: after Friday's close, crypto
+  after Monday 00:30 UTC), whatever the request asks for; everything is served from the cache.
+  On the free key, daily history starts ~100 trading days back and grows as the cache keeps
+  every day; older daily windows return what the cache has (possibly `[]`) without a provider
+  call. Weekly history is complete (20+ years; split-adjusted for stocks). Daily candles are
+  not split-adjusted.
 - Intervals: `1m 5m 15m 1h 6h 1d 1w`. With only the free Alpha Vantage key, real charts are
   **daily and weekly** — games must ask the catalog which intervals exist and pick from those
   (weekly charts are fine for most pattern/level/trend games; label them "Weekly").
 - Every real chart shows the attribution string and "Delayed / end of day" when `delayed`.
 - Real data may be missing entirely (no key yet, quota used, offline): callers must fall back
   to textbook/simulated charts without errors.
-- `localStorage['tts-market-mock'] = '1'` (localhost only) serves deterministic fixture
-  candles from `tests/fixtures/market/*.json` (including `1d` and `1w`) so games can be
-  tested offline; fixtures are labelled as test data and never shown outside mock mode.
+- `localStorage['tts-market-mock'] = '1'` **or `?market=mock` in the page URL** (both localhost
+  only; the URL switch works even when storage throws, and the smoke test uses it) serves
+  deterministic fixture candles from `tests/fixtures/market/*.json` (including `1d` and `1w`) so
+  games can be tested offline; fixtures are labelled as test data and never shown outside mock mode.
+  With neither, a real request goes to the Edge Function (`js/config.js` is imported first; until
+  it exists the import 404s and the built-in project defaults are used).
 
 ### 12.4 Scanner setup kinds (`js/core/scanner.js`)
 
@@ -1065,6 +1252,118 @@ with trend context from the preceding candles); `trend-up`, `trend-down`, `range
 `bull-flag`, `bear-flag`. `outcomeOf(candles, idx, { bars = 20, atr })` → `{ move, r,
 direction }` (direction flat when |move| < 1 ATR). Detectors are unit-tested on textbook
 scenarios (must find what the generator made) and on noise (few false positives).
+
+Built — exact API:
+
+```js
+import { findSetups, outcomeOf, realRound, simRound, describeChart, shiftSetup, SETUP_KINDS, SETUP_KIND_IDS } from '../core/scanner.js';
+
+SETUP_KINDS[kind] → { id, name, direction: 'bullish'|'bearish'|'neutral', group: 'candle'|'trend'|
+                      'level'|'ma'|'momentum'|'fib'|'chart', rule }   // rule: the exact criteria in
+                                                                     // plain English (for the Playbook)
+findSetups(candles, { kinds = SETUP_KIND_IDS, atr, from = 0, to = n − 1, maFast = 50, maSlow = 200,
+                      maType = 'sma'|'ema' })
+  → [{ kind, start, end, decisionIdx, direction, meta }]   sorted by decisionIdx
+  // end === decisionIdx: the setup is DECIDED on that candle's close using candles 0..decisionIdx
+  // only (causal — unit-tested by cutting the future off), so everything after it is a fair outcome.
+  // from / to only filter which decisions are returned. atr: a precomputed atr(candles, 14) array.
+  // ~30 ms for 1500 candles and every kind.
+outcomeOf(candles, idx, { bars = 20, atr, direction })
+  → { move, r, pct, direction: 'up'|'down'|'flat', bars, maxUp, maxDown, atr, result? } | null
+  // move = close[idx + bars] − close[idx] (or the last candle), r / maxUp / maxDown in ATRs,
+  // 'flat' when |move| < 1 ATR; with direction ('bullish'|'bearish'|1|−1): result =
+  // 'followed'|'failed'|'flat'.
+realRound(rng, { kinds = SETUP_KIND_IDS, intervals = ['1d', '1w'], symbols, before = 60, after = 20,
+                 bars = 1000, tries = 6 })
+  → Promise<{ candles, decisionIdx, setup: { kind, start, end, decisionIdx, direction, meta },
+      outcome, symbol, name, interval, decimals, from, to, decisionTime, title, attribution,
+      delayed, source, mock, lead } | null>
+  // A random catalog market × interval (rng), its history scanned, one setup sampled (kinds
+  // weighted evenly) whose whole setup fits in the `before` candles and with `after` candles after
+  // it. candles = the window (before + after), decisionIdx = before − 1, setup indexes are
+  // window-relative (shiftSetup), lead = up to 250 candles before the window (indicator warm-up:
+  // compute MAs over [...lead, ...candles]), title = 'SPY · Weekly · 11 Jul 2022' (decision
+  // candle). null when offline / unconfigured / nothing fits — rare kinds (three white soldiers,
+  // morning stars) often return null on real data: fall back to textbook rounds.
+simRound(rng, { kinds = SETUP_KIND_IDS, before = 60, after = 20, count = 400, tries = 24,
+                regime = 'mixed', start = 100, vol = 0.012, outcome, maFast, maSlow, maType })
+  → { …realRound's shape…, symbol: null, name: 'Simulated market', interval: null, decimals: 2,
+      from: null, to: null, decisionTime: null, title: 'Simulated market', attribution: '',
+      delayed: false, source: 'simulated', mock: false, sim: true } | null
+  // The OFFLINE TWIN of realRound (synchronous, deterministic for a given rng, 1–10 ms): the same
+  // window (decisionIdx = before − 1, window-relative setup, `lead` for warm-up, `outcome`) over a
+  // generated market (data.realisticMarket) in which findSetups ITSELF found the setup — genuine by
+  // the same rules as a real one. Candle-pattern kinds come from patterns.candleScenario (a lead-in of
+  // `before` candles; outcome 'success' | 'fail', default random) and are then confirmed by the
+  // scanner. A kind is picked evenly; if no market in `tries` has it, the other kinds are tried.
+  // Every kind is found (unit-tested). Use it as the fallback of a real round:
+  //   const r = (await game.realRound(q)) || simRound(game.roundRng, q);
+  // Never pass it to game.revealSource() / sourceReveal() (there is no market to reveal).
+describeChart(candles, { decimals }) → { trend: 'up'|'down'|'range', levels: [{ price, type:
+    'support'|'resistance', touches }], recentPatterns: [{ kind, idx, name, direction }],
+    ma: { ema20, ema20Slope, priceVsEma20: 'above'|'below', sma50, priceVsSma50 }, rsi, atr, summary }
+  // ≤ 2 supports below and ≤ 2 resistances above the last close; recentPatterns = setups decided in
+  // the last 10 candles (newest first, trends / ranges excluded); ema20Slope = % change over 5
+  // candles; summary = 2–4 plain sentences ("Price is in an uptrend (higher highs and higher lows)
+  // and trades above its rising 20-EMA. Nearest support is … RSI 14 is 64, showing upward momentum.").
+  // < 20 candles → summary 'Not enough candles yet to read this chart.'
+shiftSetup(setup, offset)   // move start / end / decisionIdx and idx, x1, x2, from, to, *Idx in meta
+```
+
+`meta` per kind (prices absolute, indexes in the scanned series): always `name`; candle patterns
+`{ trend, confirm, stop, high, low, volumeRatio }` (confirm = patterns.js confirmation level);
+trends `{ slope, r2, moveAtr, swings }`; range `{ top, bottom, height, heightAtr, touchesTop,
+touchesBottom, tops, bottoms }`; support-bounce / resistance-reject `{ level, zone: [lo, hi],
+touches, touchIdx, pivots, stop, volumeRatio }`; breakouts `{ level, zone, touches, pivots, stop,
+volumeRatio }`; fakeouts `{ level, zone, touches, pivots, breakoutIdx, extremeIdx, stop }` (to
+ask "trap or real?" stop the chart at `breakoutIdx`); crosses `{ fast: 'SMA 50', slow: 'SMA 200',
+fastPeriod, slowPeriod, type, fastValue, slowValue }`; divergences `{ oscillator: 'RSI 14', a:
+{ idx, price, rsi }, b: {…}, stop }`; fib-pullback `{ ratio, nearest, a, b, c ({ idx, price }),
+levels: { 0.382, 0.5, 0.618, 0.786 }, impulseAtr, stop, target }`; double top/bottom `{ points:
+[P1, trough, P2], neckline (price), height, target, stop, volumeRatio }`; head-and-shoulders
+`{ points (5), labels, neckline: { x1, y1, x2, y2 }, height, target, stop, volumeRatio }`; flags
+`{ poleStart, poleTop, flag: { from, to }, upper / lower: { x1, y1, x2, y2 }, height, target,
+stop, retrace, volumeRatio }`. `volumeRatio` = decision volume ÷ 20-candle average (null when the
+market has no volume, e.g. FX).
+
+Rules (conservative; `SETUP_KINDS[kind].rule` has the full text): candle patterns = CANDLE_RULES
+(below); trend = 50-candle regression ≥ 5 ATR with R² ≥ 0.5 + two higher highs and higher lows +
+EMA 20 > rising EMA 50, reported once per trend; range = 40 candles, 3–8 ATR tall, drift ≤ 1.5 ATR,
+≥ 2 swings at the top and at the bottom; levels = clusters of ≥ 2 zigzag (2 ATR) swings within
+0.5 ATR that have held (tolerances around a level use the smaller of the current ATR and the ATR
+at its last touch, so a volatility spike cannot stretch "near the level"); bounce = tag from ≥ 1 ATR
+away + a green close ≥ 0.4 ATR above; breakout
+= first close ≥ 0.2 ATR beyond with a ≥ 0.4 ATR body; fakeout = back ≥ 0.25 ATR inside within 15
+candles (≤ 5 ATR excursion); crosses = SMA 50 / 200 with no opposite cross in 20 candles, not in
+the warm-up; divergence = new swing low vs the lowest swing 5–40 candles earlier, ≥ 1.5 ATR bounce
+between, price ≥ 0.25 ATR lower, RSI ≥ 4 higher and < 35 at the first low; fib-pullback = clean
+impulse (efficiency ≥ 0.55) ≥ 3 ATR, pullback ≥ 2 candles to 0.382–0.786, turn candle ≥ 0.3 ATR;
+double top = peaks 8–80 candles apart within max(0.6 ATR, 25% height), height ≥ 2.5 ATR, break of
+the trough within 25 candles; H&S = head ≥ 0.8 ATR above both shoulders, shoulders within 35% of
+the head height, neckline troughs within 50% of the head height of each other, and within 25
+candles a close beyond BOTH the neckline and every close of the trough before the right shoulder
+(a sloping neckline alone can be crossed while price is still inside the pattern); flags = pole
+≥ 5 ATR in ≤ 20 candles, flag 4–35 candles retracing ≤ 50%, quieter than the pole, drifting against
+the pole at ≤ 0.5 × its pace and retracing more slowly than it advanced (≤ 0.8×: a V-shaped
+reversal is not a flag), first close ≥ 0.1 ATR through the flag line (fitted to the flag's own
+highs, never rising — the pole top is not part of the fit — and touching the highest; `upper` /
+`lower` start at `flag.from`). Measured-move targets (double top, H&S, flags) are the pattern
+height from the break; a downward target that would land under 10% of price (a big pole on a
+cheap chart) becomes the same percentage move instead, so targets are always positive.
+Measured (tests/unit/scanner.test.mjs): textbook chart patterns found at the breakout in 93–100%
+of seeds (H&S 96% over 100 seeds), every candleScenario found; on random-walk / simulated noise
+≈ 1.5–7 setups per 1000 candles per kind (candle doji / spinning tops are common, as in real
+markets).
+
+**Visual review:** `tests/visual/setups.html` (serve the repo root) draws every setup the scanner
+finds in the market fixtures, in its realRound window with `annotateSetup()` and the outcome
+(`?kind=<id>[,<id>]`, `?group=candle|trend|level|ma|momentum|fib|chart`, `?symbol=`, `?interval=`,
+`?per=6`, `?sim=1` for simRound examples, `?theme=dark`). The v2 QA pass used it to tighten the H&S,
+flag and level rules above (junk it removed: an inverse H&S "breakout" still below the right peak, a
+46% V-shaped counter-rally called a bear flag, a flat pause "breaking" a flag line tilted by the pole
+top, a "support touch" 170 points above the level after a spike inflated the ATR, bear-flag targets
+below zero); `tests/unit/v2-integration.test.mjs` pins those rules on the fixtures. Detections in
+the 8 fixture series after the pass: flags 59 → 40, H&S 20 → 18, support bounces 24 → 19.
 
 ### 12.5 Lesson media
 
@@ -1089,12 +1388,111 @@ new ChartStory(container, {
 story.goTo(i) / play() / pause() / destroy()
 ```
 
-LessonShell step helpers (in lesson-kit.js): `storyStep({ title, story, text })`,
-`realExampleStep({ title, kinds, intervals, annotate(setup, chart) })` (fetches a real
-instance via scanner, falls back to a textbook scenario, shows symbol/date/attribution),
-`checklistStep({ title, items, example })` (an interactive "is this a valid setup?"
-checklist that ticks items as their overlays appear), `compareStep({ left, right })`
-(side-by-side good vs bad example).
+Built — exact API (`import { ChartStory } from '../core/story.js'`, styles `.cs*` in css/chart.css):
+
+```js
+new ChartStory(container, {
+  candles, height = 340, frames, indicators = { ema20, ema50, sma20, sma50, sma200, bb, volume, rsi, macd },
+  autoplay = false, loop = false, interval = 3600,   // ms per frame (min 1.6 s + 40 ms per caption char)
+  zoom = false,                  // default for frames with a focus (frame.zoom overrides)
+  decimals = 2, timeLabel, chartType = 'candles', slots = candles.length,
+  yPad = 0.14,                   // headroom so frame markers with text ('Entry', 'Hammer') are not clipped
+  ariaLabel = 'Chart story',
+  interactive = true,            // hover crosshair on the chart
+  onFrame(index, frame),
+})
+frame = { to,                    // candles shown (exclusive count); forward steps animate the new ones
+          caption, title?,       // title is a bold lead-in; the caption bar is aria-live="polite"
+          overlays?: [{ type: 'hline'|'segment'|'series'|'band'|'zone'|'box'|'marker'|'path'|'fib'|'text', …add* options }],
+          focus?: [from, to],    // candles (and volume) outside are dimmed
+          zoom?: bool,           // smoothly zoom the viewport to the focus (+35% padding)
+          clear?: bool,          // drop earlier frames' overlays (frames are cumulative otherwise)
+          indicators?: {…},      // per-frame overrides, e.g. { rsi: true } from this frame on
+          duration?, revealInterval? }
+story.goTo(i, { animate = true }) / next() / prev() / play() / pause() / toggle() / destroy()
+story.index / story.frame / story.frames / story.playing / story.chart (the CandleChart) / story.root
+story.on('frame' | 'play' | 'pause', fn) / off(event, fn)       // frame: fn({ index, frame })
+```
+
+- The newest frame's overlays pulse once as they appear (CSS, via overlay `pulse`), earlier ones stay.
+- Transport: prev · play/pause (replay at the end) · next, and a scrubber (`role="slider"`) with
+  numbered frame dots — click or drag along it. Keys when the story (not its chart) is focused:
+  ←/→ (↑/↓), Home/End, Space / k play-pause. The root has `data-keys="capture"` (LessonShell
+  ignores its arrows). User navigation pauses autoplay.
+- Autoplay only runs while ≥ 35% of the story is on screen and the tab is visible; with reduced
+  motion frames change instantly and autoplay does not start by itself (Play still works).
+
+LessonShell step helpers — built in `js/core/lesson-kit.js`. Each returns a plain step object for
+`steps: [...]`; extra fields (`quiz`, `locked`, …) are kept, so a helper step can also carry a
+quick check. Charts are destroyed when the step changes.
+
+```js
+import { LessonShell, storyStep, realExampleStep, checklistStep, compareStep, figure, takeaway,
+         addOverlay, lessonRng, textbookExample, annotateSetup } from '../core/lesson-kit.js';
+
+storyStep({ title, story, text, after, height = 340, ...stepFields })
+  // story: ChartStory options ({ candles, frames, indicators, autoplay, loop }) or (rng) => options
+  // (rng = lessonRng(lesson, 'story:' + title): the same example every visit). text / after:
+  // paragraphs before / after (HTML string | Node | array). If story.js cannot load, a static
+  // chart with every frame's overlays and the captions as a numbered list is shown instead.
+realExampleStep({ title, kinds, intervals = ['1d', '1w'], before = 60, after = 20, text, caption,
+                  height = 320, volume = false, annotate(setup, chart, example), fallback(rng),
+                  ...stepFields })
+  // scanner.realRound(rng, { kinds, intervals, before, after }); skipped when marketStatus() is
+  // 'offline' / 'unconfigured'. Shows a "Real market · Weekly" chip, the chart (dates on the axis),
+  // the reveal line (symbol · interval · date · attribution · flags) and a "Show another real
+  // example" button (data-action="another-example"). No data → fallback(rng) → { candles,
+  // decisionIdx, setup, lead? }, default textbookExample(kinds, rng, { scanner, before, after })
+  // (every scanner kind has one), labelled "Textbook example". annotate defaults to annotateSetup
+  // (below). Candle-pattern examples are zoomed (viewport: 30 candles before the pattern, 12 after)
+  // so the one to three pattern candles are readable on phones.
+checklistStep({ title, text, example, items, verdict, height = 300, locked = true, ...stepFields })
+  // example: { candles, visible?, decimals?, volume?, yPad = 0.14 } | (rng) => that (extra fields
+  // are passed to item overlays). items: [{ label, detail?, overlay?: spec | spec[] |
+  // (chart, example) => void, to?: idx (reveal candles through idx), pass = true }]. "Check next" /
+  // "Check all" (data-action="check-next" | "check-all") or clicking an item ticks it (✓, or ✗ when
+  // pass: false) and draws its overlay; when all are checked the verdict shows (default "Valid
+  // setup…" / "Not a valid setup: n of m rules met…"; string | Node | (passed, items) => either)
+  // and the step unlocks (Next is gated while locked: true).
+compareStep({ title, text, left, right, height = 220, after, ...stepFields })
+  // left / right: { title, verdict: 'good'|'bad'|'neutral', tag (default Valid / Trap / Example),
+  // candles | example: (rng) => { candles, overlays?, visible? }, overlays: [specs], visible,
+  // points: [HTML strings], caption, axis = false, volume = false, yPad = 0.12 }.
+  // Two cards side by side (stacked below 720px), green / red top rule.
+
+figure(media, caption?, { label: 'Figure 1', credit, wide, className }) → <figure class="lesson-figure">
+  // media: an SVG (miniChart, candleSVG, diagrams — stretched to the column width) or any Node;
+  // caption: HTML string | Node.
+takeaway(content, { title = 'Key takeaway' }) → <aside class="takeaway">
+  // content: HTML string | Node | string[] (a bullet list). A gold "Key takeaway" callout.
+addOverlay(chart, spec)          // { type: 'hline'|'segment'|'series'|'band'|'zone'|'box'|'marker'|
+                                 //   'path'|'fib'|'text', …add* options } or (chart) => void
+lessonRng(shellOrId, label)      // deterministic rng per lesson + label
+textbookExample(kinds, rng, { scanner = null, before = 60, after = 20 })
+                                 // → { candles, decisionIdx, setup, lead?, sim? } (setup in scanner shape,
+                                 // meta.name set). Clean generators for candle / chart-pattern ids,
+                                 // trend-up/down, range, support-bounce, resistance-reject, breakout-* /
+                                 // fakeout-* (triangle scenarios); every other kind (crosses, divergences,
+                                 // fib-pullback) via scanner.simRound — pass { scanner } (the module from
+                                 // loadScanner() or a static import); without it those kinds return a
+                                 // random walk with setup: null.
+annotateSetup(setup, chart, example)   // example: { candles, decisionIdx, lead }. Draws what the rule
+                                 // looked at, per family: candle patterns → box + dashed "Confirm" line;
+                                 // trends → swing path labelled H/L/HH/HL/LH/LL; range → zone + rings on
+                                 // the touches; levels → Support/Resistance line from the first touch,
+                                 // rings on earlier touches, "Bounce" / "Rejected" / "Breakout" / "Break" +
+                                 // "Back inside" markers; crosses → both MAs (warmed up on `lead`) + ring;
+                                 // divergences → price segment + an RSI 14 pane with the RSI segment;
+                                 // fib-pullback → fib tool (0.5–0.618 zone) + ring with the retracement %;
+                                 // flags → pole arrow + flag lines; double tops / H&S → labelled point path
+                                 // + neckline (a scanner double top's neckline is a PRICE → hline; H&S /
+                                 // textbook necklines are { x1, y1, x2, y2 } → segment). Decision markers
+                                 // sit on the side price broke towards. Only finite coordinates are drawn
+                                 // (unit-tested for every kind, real and textbook).
+```
+
+Use `yPad ≥ 0.14` on charts that carry text markers (the helpers do). A developer demo of every
+helper lives at `#l._kit-demo` (localhost only; `DEV_ENTRIES` in the registry).
 
 ### 12.6 Pages added
 
@@ -1104,8 +1502,336 @@ often the setup worked in the real-data sample, and common mistakes. `#live`: Li
 Lab — live chart with indicator toggles and an automatic plain-English read (trend, nearest
 levels, recent candle patterns, MA state, RSI) from the scanner.
 
+Built so far (stubs, owned by their page builders from here on):
+
+- Router: `parseHash('playbook' | 'playbook.<id>')` → `{ kind: 'page', page: 'playbook', param }`,
+  `parseHash('live')` → `{ page: 'live' }`; titles "Setup Playbook · …" / "Live Market Lab · …".
+  Neither page is behind the access gate (only lessons, games and the library are).
+- `js/pages/playbook.js`: a card grid of setups (id = the scanner setup kind where one exists, so
+  real examples can be looked up by id), and a detail view with a textbook diagram (`figure`),
+  the checklist, an Entry / Stop / Target box and a takeaway. Unknown ids show a "Setup not found"
+  card.
+- `js/pages/live.js`: a simulated chart until **Connect to market data** is pressed (it never
+  fetches on load, except in mock mode where it connects automatically), then
+  `market.subscribeLive({ symbol, interval: '1d' })` with a status dot (`live` / `replay` /
+  `offline`), a symbol picker and the attribution line.
+- Primary nav (`js/main.js`): Beginner · Advanced · **Playbook** · **Live** (with a pulsing
+  `.live-dot`) · Library · Progress · Glossary. The phone tab bar (below 820px) shows six items
+  (Glossary lives in the footer there); the top nav drops Glossary below 1180px and tightens
+  spacing so the wordmark never truncates. The footer links both new pages and reads "Textbook
+  charts use generated prices; real-market charts name their data source." A `tier: 'both'` lesson
+  or game highlights the track whose units contain it (`tiersOf`), e.g. Live Predict → Advanced;
+  only a game in both tracks' units follows the last track visited.
+
 ### 12.7 Real data and content rules
 
 §7's "no real tickers" rule applies to **textbook** charts only. Real-market charts show the
 real symbol after the reveal plus the provider attribution. Never present a real outcome as
 a prediction of the future; stats are "in this sample of N setups".
+
+### 12.8 Curriculum, registry, store and pages (kits v2)
+
+Curriculum (registry `UNITS`, recommended order; ids fixed):
+
+| Beginner unit | lesson | game(s) |
+|---|---|---|
+| `u-markets-orders` Markets, orders & the spread | `markets-orders` | `order-desk` (simulation) |
+| `u-candle-anatomy` | `candle-anatomy` | `candle-builder` |
+| `u-chart-basics` Chart types, scales & timeframes | `chart-basics` | `chart-match` (memory) |
+| `u-candle-patterns` · `u-trends` · `u-support-resistance` · `u-trendlines` · `u-moving-averages` | as §4 | as §4 |
+| `u-volume` Volume | `volume` | `volume-verdict` (swipe) |
+| `u-beginner-capstone` Put it together | — | `what-next`, `setup-swipe` (swipe, tier both), `daily-challenge` (quiz, tier both, daily) |
+
+| Advanced unit | lesson | game(s) |
+|---|---|---|
+| `u-chart-patterns` · `u-fibonacci` · `u-indicators` · `u-multi-timeframe` | as §4 | as §4 |
+| `u-breakouts` Breakouts, fakeouts & liquidity | `breakouts` | `trap-or-trade` (predict) |
+| `u-confluence-risk` | `confluence-risk` | `risk-manager` |
+| `u-psychology` Trading psychology & your plan | `psychology` | `tilt-control` (story) |
+| `u-advanced-capstone` Capstone | — | `what-next`, `trade-simulator`, `live-predict` (live, tier both, sources `['real']`) |
+
+Every new lesson and game has a working stub built on the kits (lessons use `takeaway()`; game
+stubs use `game.ask()`, `setHint()`, difficulty-aware question picking that works in Survival, and
+Volume Verdict / Live Predict show the `realRound()` → textbook fallback → `revealSource()` flow).
+
+Registry (`js/registry.js`, still pure data):
+
+- Every game entry has `kind` (`quiz | draw | predict | simulation | calc | memory | swipe | story |
+  live`), `styles` (subset of `['practice', 'arcade', 'survival']`) and `sources` (subset of
+  `['textbook', 'real']`); `daily: true` on `daily-challenge`. Styles: all three except
+  `trade-simulator` and `tilt-control` (Practice, Arcade) and `daily-challenge` (Arcade). Sources:
+  `['textbook', 'real']` for chart-reading games; `['textbook']` for `candle-builder`,
+  `order-desk`, `chart-match`, `daily-challenge`, `tilt-control`; `['real']` for `live-predict`.
+- New exports: `STYLES` (`{ id, label, short, blurb, icon }`, icon 'heart' is drawn by
+  `styleIcon()`), `DIFFICULTY_LEVELS` (`{ id, label, value }`), `SOURCES`, `GAME_KINDS`
+  (`{ id, label, icon }`), `ARCADE_FILTERS` (home chips; `calc` sits under Simulation), `PAGES`
+  (`{ id, title, hash, param, path, blurb }` for playbook and live), `DEV_ENTRIES` (routable by
+  `findEntry`, never listed in `LESSONS`/`GAMES`/units).
+- New helpers: `findStyle(id)`, `findKind(id)`, `findPage(id)`, `stylesOf(idOrEntry)`,
+  `sourcesOf(idOrEntry)`, `tiersOf(id)` (tiers whose units contain it). `nextItem()` now follows
+  a `'both'` game inside the tier whose units contain it (Live Predict continues in Advanced).
+- New badges: `survivor` (15 rounds in a Survival run), `play-your-way` (one game finished in all
+  three styles), `daily-streak-7`, plus the `<id>-ace` badge of every new game.
+
+Store (`js/core/store.js`, additive):
+
+```js
+store.recordGame(id, { score, stars, mode, maxScore, xp, perfect, style, rounds })
+  → { isBest, xp, newBadges, best, style, styleBest, isStyleBest, overallBest, isOverallBest,
+      rounds, bestRounds, isBestRounds }
+  // Keeps g.best / g.stars / g.plays overall (unchanged) and g.styles[style] = { best, stars, plays,
+  // at, rounds?, lastRounds? }. With `style`, isBest / best are that style's; without it they stay
+  // overall (legacy) and the run is recorded as 'arcade'. Legacy records count as Arcade.
+store.styleStats(id, style = 'arcade') → { best, stars, plays, at, rounds? } | null
+store.getGamePref(id, key, fallback = null) / store.setGamePref(id, key, value)
+  // remembered intro choices: 'style', 'source', 'level'
+store.dailyKey(date?) → 'YYYY-MM-DD'        // LOCAL calendar date (also exported as dailyKey())
+store.dailyStatus(date?) → { key, done, score, streak, best, last, alive }
+  // streak counts only while the last completion was today or yesterday (else 0)
+store.recordDaily({ score, key }) → { first, streak, best, key, newBadges }
+  // first completion of a date extends the streak (+1 after yesterday, else 1); replays keep the
+  // best score but never change the streak; awards daily-streak-7
+```
+
+`state` gains `gamePrefs` and `daily: { last, streak, best, history: { key: score } }` (90 days).
+
+Pages:
+
+- Home: a **Today** row (Daily Challenge card with date, streak and done/not-played status →
+  `#g.daily-challenge`; **Live now** card → `#live` with the market status from `market.js` —
+  it never fetches, it only reflects `marketStatus()` / mock mode and follows `onMarketStatus`),
+  a **Play your way** section (the three styles and their rules), and the arcade with **filter
+  chips** (All, Quiz, Draw, Predict, Memory, Swipe, Story, Simulation, Live; `aria-pressed`,
+  `data-filter`). Tiles show the kind, the style icons (`.style-icons`) and a "Real charts" /
+  "Live data" chip; the wide Trade Simulator tile is always last.
+- Track pages list the new units automatically; game items show style icons and the real/live tag.
+- Progress: a **Daily streak** stat (links to the challenge) and a games table with the best per
+  style (Practice / Arcade score, Survival rounds; "·" when a style is not offered).
+
+Testing notes: `tests/unit/kits-v2.test.mjs` covers registry integrity, per-style bests and the
+daily streak. Starting a Real-market run (and therefore `g.live-predict`, which is real-only)
+calls the `market-data` function unless mock mode is on; the smoke test therefore opens every page
+with `?market=mock` (fixtures, no network; `--real-market` turns that off) and also visits the
+PAGES (`#playbook`, `#playbook.hammer`, `#live`) and DEV_ENTRIES (`#l._kit-demo`).
+
+
+### 12.9 Engine v2: chart types, viewport, candle rules, market simulator
+
+All additive — §6 APIs are unchanged, and existing charts behave exactly as before (every new
+option defaults off).
+
+**`js/core/chart.js` — CandleChart additions**
+
+```js
+new CandleChart(el, {
+  …§6.5 options,
+  chartType: 'candles',   // 'candles' | 'ohlc' (bars: left tick = open, right tick = close) |
+                          // 'line' (close line + subtle area) | 'heikin-ashi' (computed HA candles;
+                          // the legend reads "HA O/H/L/C" and notes "averaged, not traded prices")
+  logScale: false,        // log price axis (1-2-5 / 1-1.5-2-3-5-7 ticks per decade; ranges under 8×
+                          // use nice linear ticks); falls back to linear while a price is ≤ 0
+  pannable: false,        // wheel zoom (anchored at the pointer), trackpad pinch (ctrl + wheel),
+                          // shift / horizontal wheel pan, mouse drag pan, one-finger horizontal
+                          // drag and two-finger pinch / pan on touch (vertical swipes still scroll
+                          // the page; a touch held 300 ms scrubs the crosshair), keys + / − / 0
+  wheelZoom: true,        // true: plain wheel zooms (at the zoom limits the page scrolls instead);
+                          // 'ctrl': only ctrl / ⌘ + wheel; false: never
+  viewport: null,         // [from, to] initial slot range (candle i spans slot [i, i + 1])
+  minBars: 10,            // narrowest viewport
+  focus: null, focusDim: 0.3,   // [from, to]: dim candles + volume outside (ChartStory)
+});
+chart.setChartType(type) / chart.chartType
+chart.setLogScale(on) / chart.logScale
+chart.setViewport(from, to, { animate = false, duration = 450 })  // clamped: ≥ minBars wide, ≤ 5%
+                          // empty on the left / 15% on the right; emits 'viewport'
+chart.getViewport() → { from, to, first, last, count, total }     // first / last visible candle idx
+chart.resetViewport({ animate })        // show everything again (the default)
+chart.panBy(slots) / chart.zoomBy(factor > 1 = in, anchorSlot?)
+chart.on('viewport', fn)                // fn(getViewport()) after any change (API, wheel, drag, pinch)
+chart.setFocus(from, to, { dim }) / chart.setFocus(null) / chart.focus
+chart.setVolume(on)                     // toggle the volume bars
+chart.drawnCandles                      // the candles as drawn (Heikin-Ashi in that mode)
+// Overlay specs also accept: pulse: true (a one-off ~1.3 s attention pulse as it appears; none with
+// reduced motion) and className (wraps the overlay in <g class="tc-ov …">).
+```
+
+- Only the visible range is drawn (candles, volume, series, bands, pane histograms): a
+  150-candle viewport of 1500 candles renders in ≈ 0.5 ms, all 1500 in ≈ 3 ms (desktop Chromium).
+- Coordinates (`idxToX`, `xToIdx`, `priceToY`, `yToPrice`, event payloads, drawing tools,
+  draggable handles) follow the viewport and the log scale. Autoscale 'visible' uses the candles
+  in the viewport. The keyboard crosshair pans the viewport to stay on screen. `append()` keeps
+  a viewport that showed the latest candle following new ones (live / replay charts).
+- `miniChart(…, { chartType })` supports the same four types. Also exported: `CHART_TYPES`,
+  `logTicks(min, max, maxTicks)`, `heikinAshiCandles(candles)`.
+
+**`js/core/patterns.js` — rules for real candles**
+
+```js
+CANDLE_THRESHOLDS        // frozen: dojiBody 0.08, shadowTiny 0.08, shadowLong 0.6, spinBodyMin/Max 0.1/0.3,
+                         // marubozuBody 0.9, longBody 0.6, hammerBodyMin 0.1, hammerWickRatio 2,
+                         // hammerShortWick 0.1, starBody 0.35, soldierWick 0.15, tweezerPct 0.001,
+                         // tweezerRange 0.04; rules only: sizeLookback 10, contextLookback 10,
+                         // trendMove 1.2, trendNet 0.8, extremeLookback 8, extremeTol 0.1.
+                         // The generators, check() and the rules all read these (they cannot drift).
+CANDLE_RULES[id](candles, i, ctx?) → boolean   // pattern id COMPLETES on candle i (its last candle),
+  // judged from candles 0..i only: the textbook geometry (an engulfing candle may open exactly at
+  // the prior close, as 24/7 markets do), a pattern big enough next to the typical range of the 10
+  // candles before it (e.g. hammer range ≥ 1×, marubozu body ≥ 1×, doji range ≥ 0.6×), the trend
+  // context before it (reversals: the opposite trend; marubozu: its own direction; doji /
+  // spinning top: any), and reversals printing the extreme of the prior 8 candles (soldiers /
+  // crows: within 0.5 ranges of the prior 10). Needs ≥ 3 candles of history. Volume is never
+  // required. ctx: { trend (of the candles BEFORE the pattern's first candle), avgRange }.
+contextTrend(candles, i, lookback = 10) → 'up'|'down'|'range'   // candles [i − lookback, i): regression
+  // move ≥ 1.2 typical ranges AND net open→close move ≥ 0.8 ranges in the same direction
+typicalRange(candles, idx, n = 10)      // mean high − low of the n candles before idx
+candleConfirm(id, patternCandles, dir)  // the confirmation level (as candleScenario's `confirm`)
+```
+
+Measured: every candleScenario (211,200 in an offline sweep: 300 seeds × 4 price scales × 4
+lead-ins × 2 outcomes) is detected at its pattern by its own rule; on random-walk noise each
+directional rule fires on ≤ 0.5% of candles (doji ≈ 4%, spinning top ≈ 8% — they are common),
+and the hammer / hanging-man (and other same-shape) twins never fire on each other's scenarios
+(`tests/unit/candle-rules.test.mjs` prints the rates).
+
+**`js/core/data.js` — `realisticMarket`** (fallback when real data is missing; the simulator)
+
+```js
+realisticMarket({ seed, count = 300, start = 100, regime = 'mixed'|'trend'|'range'|'volatile',
+                  vol = 0.012, drift = 0, volume = true, gaps = true, decimals = null, info = false })
+  → candles  (or { candles, regimes: [{ kind: 'up'|'down'|'range'|'volatile', from, to }] } with info)
+```
+
+Markov regime switches (spells of ~20–90 candles; `regime` biases the mix), GARCH(1,1)
+volatility clustering around `vol` × the regime's multiplier, Student-t (ν = 5) returns plus rare
+jump candles, trends drifting 0.15–0.3 σ per candle, ranges mean-reverting to where they began,
+opens at the previous close except occasional gaps (likelier on regime changes), wicks scaled by
+current volatility, and volume that rises with volatility, candle size and gaps (higher with
+the trend). `drift` adds a per-candle log return (long bull markets for log-scale demos).
+Deterministic; valid OHLC for any seed / scale (tests/unit/market-sim.test.mjs).
+
+**`js/core/indicators.js`**
+
+```js
+heikinAshi(candles) → candles           // HA values (averaged, not traded prices); v and t kept
+zigzag(candles, { atrMult = 2, period = 14, pct = 0, last = false })
+  → [{ idx, price, type: 'high'|'low', confirmedIdx }]   // alternating swings that reversed by
+  // ≥ max(atrMult × ATR, pct × price); confirmedIdx = the candle that confirmed it (causal);
+  // last: true appends the unconfirmed extreme of the current leg (confirmedIdx null)
+```
+
+**`#dev-chart`** also exercises: chart types / log scale / pan-zoom on 1500 candles
+(`[data-test="viewport-chart"]`, readout `[data-test="vp-readout"]`), a ChartStory, the scanner
+on a fixture with every setup marked plus describeChart, and market.js status (mock mode toggle,
+live / replay demo — no market-data request is made unless mock mode is on).
+
+### 12.10 Builder notes (read this first)
+
+Practical rules for lesson and game builders, from the v2 integration QA. Everything here is
+verified in mock mode, offline and on phone / tablet / desktop.
+
+1. **Start from your stub and keep its shape**: `export default { id, mount(root, ctx) { const game =
+   new GameShell(root, ctx, {…}); return () => game.destroy(); } }` (lessons: `new LessonShell` +
+   `() => shell.destroy()`). Registry `styles` / `sources` drive the intro pickers; you do not pass them.
+2. **Build every round on demand** from `round`, `difficulty` and the round `rng`. Survival has
+   `game.rounds === null`, so a fixed question list must wrap or be generated. Use only the `rng`
+   passed to `onRound` (= `game.roundRng`) for round content: Practice "Try again" and seed replays
+   then show the identical round. Keep non-rng per-round state (a "used questions" set) behind
+   `if (!retry)` — see `js/games/trap-or-trade.js`.
+3. **Make difficulty real, not cosmetic.** `difficulty` is 0–1 (Practice: fixed 0.2 / 0.5 / 0.85;
+   Arcade: ramps across the run; Survival: ramps over 15 rounds). Map it to generator knobs:
+   ```js
+   const leadIn  = Math.round(30 - 18 * difficulty);                 // less context to read
+   const noise   = 0.25 + 0.55 * difficulty;                          // fromPath({ noise }) / realisticMarket({ vol })
+   const pool    = difficulty < 0.35 ? EASY : difficulty < 0.7 ? [...EASY, ...MID] : ALL;
+   const options = difficulty > 0.6 ? lookalikeOptions : obviousOptions;   // hammer vs hanging man …
+   ```
+4. **Use `game.ask()` for multiple choice** (it handles correct / wrong, Practice retry and hint caps,
+   Survival lives, the real-chart reveal and Next). For custom interactions call `game.correct()` or
+   `game.wrong()` **once** per round (each `wrong()` costs a Survival life), then `game.nextButton()`.
+5. **Clock**: prefer `timer: { seconds, perRound: true }` — the shell pauses it while real data loads,
+   scales it in Survival (`clockScale` 1 → 0.6) and has none in Practice. A game-run clock must check
+   `game.timed` and multiply by `game.clockScale`. `timer.stop()` before post-answer animations.
+6. **Hints** (`setHint()` every round, or `ask({ hint })`): point at the evidence ("compare the
+   breakout volume bar with the ten before it"), never at the answer. A hinted round scores ≤ 50%.
+7. **Real rounds with a fallback** — the pattern every chart game should use:
+   ```js
+   import { simRound } from '../core/scanner.js';
+   import { annotateSetup } from '../core/lesson-kit.js';
+   import { CandleChart } from '../core/chart.js';
+   import { h } from '../core/ui.js';
+
+   async onRound(g, { rng, stage, difficulty }) {
+     const q = { kinds: difficulty < 0.5 ? ['bull-flag', 'bear-flag'] : SIX_PATTERNS, before: Math.round(70 - 20 * difficulty), after: 20 };
+     const real = await g.realRound(q);           // null on textbook runs or with no data
+     const r = real || simRound(rng, q);          // same shape: candles, decisionIdx, setup, outcome, lead
+     const host = h('div', { class: 'chart-frame' });
+     stage.append(h('p', { class: 'quiz__q' }, 'Which way does this setup point?'), host);
+     const chart = new CandleChart(host, { candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+       height: 300, decimals: r.decimals, yPad: 0.14, ariaLabel: 'Price chart; the next candles are hidden.' });
+     g.ask({
+       options: [{ label: 'Up', value: 'bullish' }, { label: 'Down', value: 'bearish' }],
+       answer: r.setup.direction,
+       explain: `<strong>${r.setup.meta.name}</strong>. Next ${r.outcome.bars} candles: ${r.outcome.direction} (${r.outcome.r} ATR).`,
+       onAnswer: () => { chart.reveal({ to: r.candles.length, interval: 40 }); annotateSetup(r.setup, chart, r); },
+     });
+     return () => chart.destroy();
+   }
+   ```
+   `ask()` reveals the market (symbol, date, attribution) only when `g.real` is set; the HUD chip
+   says "Textbook chart" on fallback rounds by itself. Never call `revealSource()` for a sim round.
+8. **Keep mystery charts honest**: stop at `decisionIdx` (fakeouts: `setup.meta.breakoutIdx`), pass
+   `slots: candles.length` so the hidden future keeps its space, no `timeLabel` before the reveal
+   (dates give it away), `decimals: r.decimals` (FX has 5). Autoscale is `'visible'` by default, so
+   hidden candles never leak into the y-range.
+9. **Grade the read, report the outcome.** Real outcomes are noisy: grade whether the setup was read
+   correctly; show `r.outcome` (`direction`, `r` in ATRs, `result: 'followed' | 'failed' | 'flat'`) as
+   "what happened this time", never as proof. Stats are "in this sample of N setups".
+10. **Generator leaks to avoid**: `chartScenario` volume from the breakout candle on — and the
+    `candleScenario` pattern candle's volume — hints the outcome (hide volume in predict rounds or
+    teach it on purpose); both outcomes of a scenario share candles up to the breakout, so show
+    `0..breakoutIdx`, ask, then reveal; hammer vs hanging man differ only by context (thumbnails need the
+    lead-in); dragonfly / gravestone are also doji.
+11. **Rare kinds**: inverted hammer, morning / evening star and three soldiers / crows are rare in
+    real data — `realRound` will often return `null`; weight kinds or rely on the fallback.
+    Golden / death crosses need ~220 candles (SMA 50/200): use `r.lead` to warm indicators up —
+    `sma(closes([...r.lead, ...r.candles]), 50).slice(r.lead.length)` — or pass `maFast / maSlow /
+    maType` to `findSetups` on short textbook charts.
+12. **ChartStory from a setup's meta** (live reference: `flagStory` in `js/lessons/_kit-demo.js`):
+    ```js
+    storyStep({ title: 'A bull flag, step by step', story: (rng) => {
+      const ex = textbookExample(['bull-flag'], rng);      // meta: poleStart, poleTop, upper, lower, target
+      const m = ex.setup.meta, d = ex.decisionIdx;         // d = the breakout candle
+      const line = (l) => ({ type: 'segment', a: { idx: l.x1, price: l.y1 }, b: { idx: l.x2, price: l.y2 }, color: 'accent', dashed: true });
+      return { candles: ex.candles, indicators: { volume: true }, frames: [
+        { to: m.poleStart.idx + 1, caption: 'A quiet market. Nothing to do yet.' },
+        { to: m.poleTop.idx + 1, title: 'The pole.', caption: 'A fast, one-way rally on rising volume.',
+          overlays: [{ type: 'segment', a: m.poleStart, b: m.poleTop, color: 'bull', arrow: true, label: 'Pole' }],
+          focus: [m.poleStart.idx, m.poleTop.idx] },
+        { to: d, title: 'The flag.', caption: 'A gentle drift on shrinking volume.', overlays: [line(m.upper), line(m.lower)],
+          focus: [m.poleTop.idx, d - 1], zoom: true },
+        { to: d + 1, title: 'Breakout.', caption: 'The first close above the upper line is the entry.',
+          overlays: [{ type: 'marker', idx: d, position: 'above', text: 'Entry' }] },
+        { to: ex.candles.length, caption: 'Measured move: the pole height from the breakout.',
+          overlays: [{ type: 'hline', price: m.target, color: 'bull', label: 'Target' }] },
+      ] };
+    } })
+    ```
+    Frames are cumulative (`clear: true` resets), `to` is an exclusive candle count, 4–7 frames with
+    one idea each and captions under ~140 characters read best on phones. Leave `autoplay` off in
+    lessons (the learner drives); `yPad` defaults to 0.14 so text markers fit.
+13. **Lesson helpers do the plumbing**: `realExampleStep({ kinds })` falls back to a labelled
+    textbook example for every scanner kind and zooms onto candle patterns; `checklistStep` for "is
+    this valid?" (items reveal overlays; a failing rule uses `pass: false`); `compareStep` for good vs
+    trap; `figure()` / `takeaway()` for static media. Pass `volume: true` for volume setups.
+14. **Charts inside reading pages**: `pannable` charts zoom on a plain wheel — use `wheelZoom: 'ctrl'`
+    in lessons; widgets that use arrow keys need `data-keys="capture"`; use `yPad ≥ 0.14` whenever a
+    marker or box has text; phones give a chart ~330 px, so show ≤ 80 candles at 260–320 px height.
+15. **Clean up**: return `() => chart.destroy()` (and `story.destroy()`, `unsubscribe()`) from `onRound`
+    / step `render`. Code after `await game.realRound()` never runs once the round has ended, but
+    other awaits are not protected — check `game.state === 'play'` after them.
+16. **Labels are honest**: textbook / simulated charts never show a ticker or a date; real charts
+    show the symbol, date and attribution only after the answer, plus "Delayed" / "Test data" flags.
+17. **Test what you build**: `node tests/smoke.mjs g.<id>` (all viewports × themes, market fixtures
+    via `?market=mock`, add `--no-storage`); open `/?market=mock#g.<id>` on a local server to play real
+    rounds offline; `tests/visual/setups.html?kind=<id>` shows exactly what the scanner calls a
+    `<id>` in the fixtures; generators and scanners are importable in node for unit tests.

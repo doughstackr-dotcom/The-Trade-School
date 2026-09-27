@@ -2,7 +2,8 @@
 // lesson checklist, and an in-page two-step "Reset progress".
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
-import { TIERS, LESSONS, GAMES, BADGES, unitsOf } from '../registry.js';
+import { TIERS, LESSONS, GAMES, BADGES, STYLES, unitsOf, stylesOf } from '../registry.js';
+import { styleIcon } from '../core/game-kit.js';
 
 function levelCard(store) {
   const lv = store.level();
@@ -34,12 +35,17 @@ function statsRow(store) {
   const played = GAMES.filter((g) => s.games[g.id]?.plays).length;
   const stars = GAMES.reduce((a, g) => a + (s.games[g.id]?.stars || 0), 0);
   const cell = (label, value, sub) => h('div', { class: 'stat' }, h('span', { class: 'stat__label' }, label), h('span', { class: 'stat__value' }, value), sub ? h('span', { class: 'faint stat__sub' }, sub) : null);
+  const daily = store.dailyStatus ? store.dailyStatus() : { streak: 0, best: 0, done: false };
   return h('div', { class: 'stats-row card' },
     cell('Lessons', `${lessonsDone}/${LESSONS.length}`, 'completed'),
     cell('Games', `${played}/${GAMES.length}`, 'played'),
     cell('Stars', `${stars}/${GAMES.length * 3}`, 'collected'),
     cell('Badges', `${s.badges.length}/${BADGES.length}`, 'earned'),
-    cell('Best streak', String(s.bestStreak || 0), 'in a row'));
+    cell('Best streak', String(s.bestStreak || 0), 'in a row'),
+    h('a', { class: ['stat stat--link', daily.done && 'is-done'], href: '#g.daily-challenge' },
+      h('span', { class: 'stat__label' }, 'Daily streak'),
+      h('span', { class: 'stat__value stat__value--daily' }, icon('flame', { size: 18 }), String(daily.streak || 0)),
+      h('span', { class: 'faint stat__sub' }, daily.done ? `done today · best ${daily.best || 0}` : `best ${daily.best || 0} · play today`)));
 }
 
 function badgesGrid(store) {
@@ -59,23 +65,37 @@ function badgesGrid(store) {
     }));
 }
 
+/** Best for one (game, style): score, or rounds survived for Survival. '—' when never played. */
+function styleCell(store, g, style) {
+  if (!stylesOf(g).includes(style)) return h('td', { class: 'num mono faint style-col' }, h('span', { 'aria-label': 'Not offered' }, '·'));
+  const st = store.styleStats ? store.styleStats(g.id, style) : null;
+  if (!st?.plays) return h('td', { class: 'num mono faint style-col' }, '—');
+  if (style === 'survival') {
+    return h('td', { class: 'num mono style-col', title: `Best score ${fmt(st.best)}` },
+      h('span', { class: 'style-best' }, `${st.rounds ?? 0}`, h('small', null, ' rnds')));
+  }
+  return h('td', { class: 'num mono style-col' }, fmt(st.best));
+}
+
 function gamesTable(store) {
   const rows = GAMES.map((g) => {
     const s = store.state.games[g.id];
     return h('tr', null,
       h('th', { scope: 'row' }, h('a', { href: `#g.${g.id}`, class: 'table-link' }, g.title)),
       h('td', { class: 'hide-sm' }, tierChip(g.tier, { small: true })),
-      h('td', { class: 'num mono' }, s?.plays ? fmt(s.best) : '—'),
+      ...STYLES.map((st) => styleCell(store, g, st.id)),
       h('td', null, starRow(s?.stars || 0, { size: 14 })),
       h('td', { class: 'num mono hide-sm' }, s?.plays ? String(s.plays) : '0'),
       h('td', { class: 'cell-action' }, h('a', { class: 'btn btn--sm btn--ghost', href: `#g.${g.id}`, 'aria-label': `Play ${g.title}` }, icon('play', { size: 14 }), h('span', { class: 'hide-sm' }, s?.plays ? 'Again' : 'Play'))));
   });
   return h('div', { class: 'table-scroll card card--flush' },
-    h('table', { class: 'data-table' },
+    h('table', { class: 'data-table games-table' },
       h('thead', null, h('tr', null,
         h('th', { scope: 'col' }, 'Game'),
         h('th', { scope: 'col', class: 'hide-sm' }, 'Track'),
-        h('th', { scope: 'col', class: 'num' }, 'Best'),
+        ...STYLES.map((st) => h('th', { scope: 'col', class: 'num style-col' },
+          h('span', { class: 'style-head', title: st.id === 'survival' ? `${st.label}: best rounds survived` : `${st.label}: best score` },
+            styleIcon(st.id, { size: 13 }), h('span', { class: 'style-head__label' }, st.label)))),
         h('th', { scope: 'col' }, 'Stars'),
         h('th', { scope: 'col', class: 'num hide-sm' }, 'Plays'),
         h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Action')))),
@@ -149,7 +169,8 @@ export default {
             badgesGrid(store)),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'games-h' },
             h('div', { class: 'section-head' },
-              h('div', null, h('p', { class: 'eyebrow' }, 'Best runs'), h('h2', { id: 'games-h' }, 'Games'))),
+              h('div', null, h('p', { class: 'eyebrow' }, 'Best runs per style'), h('h2', { id: 'games-h' }, 'Games')),
+              h('p', { class: 'muted' }, 'Best score in Practice and Arcade, and the most rounds survived in Survival.')),
             gamesTable(store)),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'lessons-h' },
             h('div', { class: 'section-head' },

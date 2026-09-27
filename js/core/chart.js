@@ -56,6 +56,55 @@ export function niceTicks(min, max, maxTicks = 6) {
   return { step, ticks };
 }
 
+/**
+ * Ticks for a logarithmic axis on [min, max] (min > 0): 1-2-5 (or denser / sparser) steps per
+ * decade, at most ~maxTicks of them; ranges narrower than a decade fall back to niceTicks.
+ */
+export function logTicks(min, max, maxTicks = 6) {
+  if (!(min > 0) || !(max > min)) return { step: 0, ticks: [] };
+  if (max / min < 8) return niceTicks(min, max, maxTicks);
+  const sets = [[1, 1.5, 2, 3, 5, 7], [1, 2, 5], [1, 3], [1]];
+  const e0 = Math.floor(Math.log10(min));
+  const e1 = Math.ceil(Math.log10(max));
+  let best = null;
+  for (const set of sets) {
+    const ticks = [];
+    for (let e = e0; e <= e1; e++) {
+      for (const m of set) {
+        const v = +(m * 10 ** e).toPrecision(6);
+        if (v >= min * (1 - 1e-9) && v <= max * (1 + 1e-9)) ticks.push(v);
+      }
+    }
+    best = { step: 0, ticks };
+    if (ticks.length <= maxTicks) break;
+  }
+  // Very long histories: keep every n-th decade.
+  if (best.ticks.length > maxTicks) {
+    const k = Math.ceil(best.ticks.length / maxTicks);
+    best.ticks = best.ticks.filter((_, i) => i % k === 0);
+  }
+  return best;
+}
+
+/** Heikin-Ashi candles (averaged values — not traded prices). */
+export function heikinAshiCandles(candles) {
+  const out = new Array(candles.length);
+  let po = 0;
+  let pc = 0;
+  for (let i = 0; i < candles.length; i++) {
+    const k = candles[i];
+    const c = (k.o + k.h + k.l + k.c) / 4;
+    const o = i === 0 ? (k.o + k.c) / 2 : (po + pc) / 2;
+    out[i] = { ...k, o, h: Math.max(k.h, o, c), l: Math.min(k.l, o, c), c };
+    po = o;
+    pc = c;
+  }
+  return out;
+}
+
+export const CHART_TYPES = ['candles', 'ohlc', 'line', 'heikin-ashi'];
+const normType = (t) => (CHART_TYPES.includes(t) ? t : t === 'bars' ? 'ohlc' : t === 'ha' || t === 'heikin' ? 'heikin-ashi' : 'candles');
+
 function spread(items, h, lo, hi) {
   items.sort((a, b) => a.y - b.y);
   for (let i = 0; i < items.length; i++) {
@@ -76,6 +125,8 @@ function paneDecimals(span) {
 // ---------------------------------------------------------------------------------------------
 // Scene renderers (shared by CandleChart and miniChart). A scene S provides:
 //   x(idx) y(price) x0 x1 y0 y1 slotW bw n candles fmt(p) mini pills?[]
+//   optional: draw (candles to draw, e.g. Heikin-Ashi), type ('candles'|'ohlc'|'line'|
+//   'heikin-ashi'), i0 / i1 (visible index range), focus ({ from, to }: dim the rest), gradId
 // ---------------------------------------------------------------------------------------------
 
 function candleGeometry(S, k, i) {
@@ -92,39 +143,88 @@ function candleGeometry(S, k, i) {
   return { bx, wx, yTop, bh: Math.max(1, yBot - yTop), yH: S.y(k.h), yL: S.y(k.l) };
 }
 
+function barPath(S, k, i) {
+  const g = candleGeometry(S, k, i);
+  const tick = Math.max(2, Math.round(S.bw / 2));
+  const yO = crisp(S.y(k.o), S.wickW || 1);
+  const yC = crisp(S.y(k.c), S.wickW || 1);
+  return `M${g.wx},${f(g.yH)}V${f(g.yL)}M${g.wx - tick},${yO}H${g.wx}M${g.wx},${yC}H${g.wx + tick}`;
+}
+
+/** Candles, OHLC bars or a close line for the visible range [S.i0, S.i1) (all by default). */
 function renderCandles(S, skip = -1) {
-  let wb = '';
-  let wr = '';
-  let bb = '';
-  let br = '';
-  const n = Math.min(S.n, S.candles.length);
-  for (let i = 0; i < n; i++) {
+  const list = S.draw || S.candles;
+  const n = Math.min(S.n, list.length);
+  const i0 = Math.max(0, S.i0 ?? 0);
+  const i1 = Math.min(n, S.i1 ?? n);
+  if (S.type === 'line') return renderLine(S, list, i0, i1);
+  const bars = S.type === 'ohlc';
+  const mk = () => ({ wb: '', wr: '', bb: '', br: '' });
+  const inside = mk();
+  const dim = mk();
+  let dimmed = false;
+  const F = S.focus;
+  for (let i = i0; i < i1; i++) {
     if (i === skip) continue;
-    const k = S.candles[i];
+    const k = list[i];
     if (!k) continue;
+    const out = F && (i < F.from || i > F.to);
+    const B = out ? dim : inside;
+    if (out) dimmed = true;
+    const up = k.c >= k.o;
+    if (bars) {
+      if (up) B.wb += barPath(S, k, i);
+      else B.wr += barPath(S, k, i);
+      continue;
+    }
     const g = candleGeometry(S, k, i);
     const w = `M${g.wx},${f(g.yH)}V${f(g.yL)}`;
     const b = `M${g.bx},${g.yTop}h${S.bw}v${g.bh}h${-S.bw}z`;
-    if (k.c >= k.o) {
-      wb += w;
-      bb += b;
+    if (up) {
+      B.wb += w;
+      B.bb += b;
     } else {
-      wr += w;
-      br += b;
+      B.wr += w;
+      B.br += b;
     }
   }
-  const ww = S.wickW || 1;
+  const ww = bars ? Math.max(1, S.wickW || 1) + (S.bw >= 5 ? 0.25 : 0) : S.wickW || 1;
+  const cls = bars ? 'tc-bar' : 'tc-wick';
+  const paths = (B) =>
+    (B.wb ? `<path class="${cls} tc-bull" stroke-width="${ww}" d="${B.wb}"/>` : '') +
+    (B.wr ? `<path class="${cls} tc-bear" stroke-width="${ww}" d="${B.wr}"/>` : '') +
+    (B.bb ? `<path class="tc-body tc-bull" d="${B.bb}"/>` : '') +
+    (B.br ? `<path class="tc-body tc-bear" d="${B.br}"/>` : '');
+  return paths(inside) + (dimmed ? `<g class="tc-dimmed" style="opacity:${S.focusDim ?? 0.3}">${paths(dim)}</g>` : '');
+}
+
+/** Close line with a subtle area below it. */
+function renderLine(S, list, i0, i1) {
+  let d = '';
+  let first = null;
+  let last = null;
+  for (let i = Math.max(0, i0); i < i1; i++) {
+    const k = list[i];
+    if (!k || !isNum(k.c)) continue;
+    const x = f(S.x(i));
+    const y = f(S.y(k.c));
+    d += `${d ? 'L' : 'M'}${x},${y}`;
+    if (first == null) first = x;
+    last = x;
+  }
+  if (!d) return '';
+  const base = f(S.areaBase ?? S.y1);
+  const grad = S.gradId ? `url(#${S.gradId})` : 'var(--info)';
   return (
-    (wb ? `<path class="tc-wick tc-bull" stroke-width="${ww}" d="${wb}"/>` : '') +
-    (wr ? `<path class="tc-wick tc-bear" stroke-width="${ww}" d="${wr}"/>` : '') +
-    (bb ? `<path class="tc-body tc-bull" d="${bb}"/>` : '') +
-    (br ? `<path class="tc-body tc-bear" d="${br}"/>` : '')
+    `<path class="tc-area" d="${d}L${last},${base}L${first},${base}Z" style="fill:${grad}${S.gradId ? '' : ';fill-opacity:0.08'}"/>` +
+    `<path class="tc-line" d="${d}"/>`
   );
 }
 
 function renderOneCandle(S, k, i, extraClass = '') {
   const g = candleGeometry(S, k, i);
   const cls = k.c >= k.o ? 'tc-bull' : 'tc-bear';
+  if (S.type === 'ohlc') return `<path class="tc-bar ${cls} ${extraClass}" stroke-width="${S.wickW || 1}" d="${barPath(S, k, i)}"/>`;
   return (
     `<path class="tc-wick ${cls} ${extraClass}" stroke-width="${S.wickW || 1}" d="M${g.wx},${f(g.yH)}V${f(g.yL)}"/>` +
     `<path class="tc-body ${cls} ${extraClass}" d="M${g.bx},${g.yTop}h${S.bw}v${g.bh}h${-S.bw}z"/>`
@@ -215,8 +315,8 @@ function rSeries(o, S) {
   const v = o.values || [];
   let d = '';
   let pen = false;
-  const n = Math.min(S.n, v.length);
-  for (let i = 0; i < n; i++) {
+  const n = Math.min(S.n, v.length, S.i1 ?? Infinity);
+  for (let i = Math.max(0, S.i0 ?? 0); i < n; i++) {
     const val = v[i];
     if (!isNum(val)) {
       pen = false;
@@ -233,7 +333,7 @@ function rSeries(o, S) {
 function rBand(o, S) {
   const up = o.upper || [];
   const lo = o.lower || [];
-  const n = Math.min(S.n, up.length, lo.length);
+  const n = Math.min(S.n, up.length, lo.length, S.i1 ?? Infinity);
   const col = colorOf(o.color, 'info');
   let fill = '';
   let edges = '';
@@ -249,7 +349,7 @@ function rBand(o, S) {
     }
     run = [];
   };
-  for (let i = 0; i < n; i++) {
+  for (let i = Math.max(0, S.i0 ?? 0); i < n; i++) {
     if (isNum(up[i]) && isNum(lo[i])) run.push(i);
     else flush();
   }
@@ -477,8 +577,21 @@ function overlayPrices(o) {
   }
 }
 
+const PULSE_MS = 1300;
+/** Wrap an overlay's markup for className / a one-off pulse (spec.pulse: true | timestamp). */
+function wrapOverlay(o, html) {
+  if (!html || (!o.pulse && !o.className)) return html;
+  const age = o.pulse ? now() - (o._pulseAt ?? 0) : Infinity;
+  const pulsing = age >= 0 && age < PULSE_MS && !reducedMotion();
+  if (!pulsing && !o.className) return html;
+  const cls = `tc-ov${o.className ? ` ${esc(o.className)}` : ''}${pulsing ? ' tc-pulse' : ''}`;
+  return `<g class="${cls}"${pulsing ? ` style="animation-delay:${-Math.round(age)}ms"` : ''}>${html}</g>`;
+}
+
 function normalizeOverlay(type, spec) {
   const o = { ...spec, type };
+  if (o.pulse === true) o._pulseAt = now();
+  else if (isNum(o.pulse)) o._pulseAt = o.pulse;
   if (type === 'fib') {
     o.ratios = o.ratios || FIB_RATIOS.slice();
     o.extensions = o.extensions || [];
@@ -508,6 +621,14 @@ const DEFAULTS = {
   legend: true,
   showLast: true,
   interactive: true,
+  chartType: 'candles', // 'candles' | 'ohlc' | 'line' | 'heikin-ashi'
+  logScale: false,
+  pannable: false, // wheel / drag / pinch pan-zoom (off: existing games are unaffected)
+  wheelZoom: true, // with pannable: true = plain wheel zooms, 'ctrl' = only ctrl/⌘ + wheel
+  viewport: null, // [from, to] slot range shown initially (null = everything)
+  minBars: 10, // narrowest viewport (slots)
+  focus: null, // [from, to]: candles outside are dimmed (ChartStory)
+  focusDim: 0.3,
 };
 
 export class CandleChart {
@@ -542,6 +663,16 @@ export class CandleChart {
     this._L = null;
     this._ver = 0;
     this._Lver = -1;
+    this._type = normType(this.o.chartType);
+    this._log = !!this.o.logScale;
+    this._vp = null; // { from, to } in slot units, or null = everything
+    this._vpAnim = null;
+    this._ha = null; // { src, ver, candles } Heikin-Ashi cache
+    this._focus = null;
+    this._touch = new Map(); // pointerId → { x, y } for active touch pointers
+    this._pan = null;
+    this._pinch = null;
+    this._lastVp = '';
 
     container.classList.add('tc-chart');
     const svg = document.createElementNS(NS, 'svg');
@@ -550,7 +681,8 @@ export class CandleChart {
     svg.setAttribute('aria-label', this.o.ariaLabel);
     const cid = this._cid;
     svg.innerHTML =
-      `<defs><clipPath id="${cid}-p"><rect class="tc-clip-rect"/></clipPath></defs>` +
+      `<defs><clipPath id="${cid}-p"><rect class="tc-clip-rect"/></clipPath>` +
+      `<linearGradient id="${cid}-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="tc-area-stop0"/><stop offset="1" class="tc-area-stop1"/></linearGradient></defs>` +
       `<rect class="tc-bg"/>` +
       `<g class="tc-l-grid"></g>` +
       `<g class="tc-l-back" clip-path="url(#${cid}-p)"></g>` +
@@ -611,7 +743,12 @@ export class CandleChart {
       key: (e) => this._onKey(e),
       touch: (e) => {
         if (this._drawing || this._drag || (e.target && e.target.closest && e.target.closest('[data-handle]'))) e.preventDefault();
+        else if (this.o.pannable && this._interactive && e.touches && e.touches.length >= 2) e.preventDefault(); // our pinch, not the page's
       },
+      touchmove: (e) => {
+        if (this.o.pannable && this._interactive && (this._pinch || this._pan || (e.touches && e.touches.length >= 2))) e.preventDefault();
+      },
+      wheel: (e) => this._onWheel(e),
       blur: () => {
         if (this._kbIdx != null) {
           this._kbIdx = null;
@@ -625,6 +762,8 @@ export class CandleChart {
     svg.addEventListener('pointerleave', this._h.leave);
     svg.addEventListener('pointercancel', this._h.cancel);
     svg.addEventListener('touchstart', this._h.touch, { passive: false });
+    svg.addEventListener('touchmove', this._h.touchmove, { passive: false });
+    svg.addEventListener('wheel', this._h.wheel, { passive: false });
     container.addEventListener('keydown', this._h.key);
     container.addEventListener('blur', this._h.blur);
 
@@ -642,7 +781,165 @@ export class CandleChart {
     }
     this._width = Math.floor(container.clientWidth || 0);
     this.setInteractive(this.o.interactive !== false);
+    container.classList.toggle('is-pannable', !!this.o.pannable);
+    if (Array.isArray(this.o.focus)) this._focus = { from: this.o.focus[0], to: this.o.focus[1] };
+    const v = this.o.viewport;
+    if (Array.isArray(v) && v.length === 2) this._vp = this._clampVp(v[0], v[1]);
+    else if (v && isNum(v.from) && isNum(v.to)) this._vp = this._clampVp(v.from, v.to);
+    this._lastVp = this._vpKey();
     this._render();
+  }
+
+  // ---- chart type, scale, viewport, focus ------------------------------------------------------
+
+  get chartType() {
+    return this._type;
+  }
+  /** 'candles' | 'ohlc' | 'line' | 'heikin-ashi' (HA values are averaged, not traded prices). */
+  setChartType(type) {
+    const t = normType(type);
+    if (t === this._type) return;
+    this._type = t;
+    this.o.chartType = t;
+    this._snapNext = true;
+    this._changed();
+  }
+  get logScale() {
+    return this._log;
+  }
+  /** Logarithmic price axis (ignored while any visible price is ≤ 0). */
+  setLogScale(on) {
+    this._log = !!on;
+    this.o.logScale = this._log;
+    this._snapNext = true;
+    this._changed();
+  }
+  /** Candles as drawn: Heikin-Ashi in that mode, otherwise the real candles. */
+  get drawnCandles() {
+    return this._drawList();
+  }
+  _drawList() {
+    if (this._type !== 'heikin-ashi') return this.candles;
+    const h = this._ha;
+    if (!h || h.src !== this.candles || h.len !== this.candles.length || h.last !== this.candles[this.candles.length - 1]) {
+      this._ha = { src: this.candles, len: this.candles.length, last: this.candles[this.candles.length - 1], candles: heikinAshiCandles(this.candles) };
+    }
+    return this._ha.candles;
+  }
+
+  _totalSlots() {
+    return Math.max(1, this._slots ?? this.candles.length, this.visibleCount);
+  }
+  _clampVp(from, to) {
+    const total = this._totalSlots();
+    const minW = Math.min(total, Math.max(2, this.o.minBars || 10));
+    const maxW = total + Math.max(2, total * 0.1);
+    let w = clamp((isNum(to) ? to : total) - (isNum(from) ? from : 0), minW, maxW);
+    let a = isNum(from) ? from : total - w;
+    // Keep at least a few candles on screen; allow some empty space on the right.
+    if (w >= total) a = 0;
+    else a = clamp(a, -w * 0.05, total + Math.max(1, w * 0.15) - w);
+    if (a + w < Math.min(total, 3)) a = Math.min(total, 3) - w;
+    return { from: a, to: a + w };
+  }
+  _vpKey() {
+    const v = this.getViewport();
+    return `${v.from.toFixed(3)}|${v.to.toFixed(3)}`;
+  }
+  _vpChanged() {
+    const k = this._vpKey();
+    if (k === this._lastVp) return;
+    this._lastVp = k;
+    this._emit('viewport', this.getViewport());
+  }
+
+  /**
+   * setViewport(from, to, { animate = false, duration = 450 }) — show slots [from, to) (fractional
+   * allowed; candle i sits at i + 0.5). Clamped to the data (≥ minBars wide). Emits 'viewport'.
+   */
+  setViewport(from, to, { animate = false, duration = 450 } = {}) {
+    const target = this._clampVp(from, to);
+    this._vpResetAfter = false;
+    if (animate && !reducedMotion() && duration > 0) {
+      const cur = this.getViewport();
+      this._vpAnim = { a: { from: cur.from, to: cur.to }, b: target, t0: now(), dur: duration };
+      this._changed();
+      return;
+    }
+    this._vpAnim = null;
+    this._vp = target;
+    this._changed();
+    this._vpChanged();
+  }
+  /** Show everything again (the default). */
+  resetViewport({ animate = false } = {}) {
+    if (animate && !reducedMotion()) {
+      const total = this._totalSlots();
+      this.setViewport(0, total, { animate: true });
+      this._vpResetAfter = true;
+      return;
+    }
+    this._vpAnim = null;
+    this._vp = null;
+    this._changed();
+    this._vpChanged();
+  }
+  /** → { from, to, first, last, count, total }: slot range shown and the candles inside it. */
+  getViewport() {
+    const total = this._totalSlots();
+    const v = this._vpAnim ? this._vpAt(now()) : this._vp;
+    const from = v ? v.from : 0;
+    const to = v ? v.to : total;
+    const n = this.visibleCount;
+    const first = clamp(Math.ceil(from - 0.5), 0, Math.max(0, n - 1)) || 0;
+    const last = clamp(Math.floor(to - 0.5), 0, Math.max(0, n - 1)) || 0;
+    return { from, to, first, last, count: n ? Math.max(0, last - first + 1) : 0, total };
+  }
+  _vpAt(t) {
+    const A = this._vpAnim;
+    if (!A) return this._vp;
+    const p = clamp((t - A.t0) / A.dur, 0, 1);
+    const e = ease.easeInOutCubic(p);
+    const v = { from: A.a.from + (A.b.from - A.a.from) * e, to: A.a.to + (A.b.to - A.a.to) * e };
+    if (p >= 1) {
+      this._vpAnim = null;
+      this._vp = this._vpResetAfter ? null : A.b;
+      this._vpResetAfter = false;
+      this._vpChanged();
+      return this._vp;
+    }
+    return v;
+  }
+  /** Pan by `slots` (positive = later candles). */
+  panBy(slots) {
+    const v = this.getViewport();
+    this.setViewport(v.from + slots, v.to + slots);
+  }
+  /** Zoom by `factor` (> 1 zooms in) around slot `anchor` (default: the viewport centre). */
+  zoomBy(factor, anchor) {
+    const v = this.getViewport();
+    const w = v.to - v.from;
+    const a = isNum(anchor) ? anchor : (v.from + v.to) / 2;
+    const nw = w / Math.max(0.05, factor);
+    const from = a - ((a - v.from) * nw) / w;
+    this.setViewport(from, from + nw);
+  }
+
+  /** Show / hide the volume bars under the price area. */
+  setVolume(on) {
+    this.o.showVolume = !!on;
+    this._snapNext = true;
+    this._changed();
+  }
+
+  /** Dim every candle outside [from, to] (null clears). */
+  setFocus(from, to, { dim } = {}) {
+    this._focus = from == null ? null : { from: Math.min(from, to ?? from), to: Math.max(from, to ?? from) };
+    if (dim != null) this.o.focusDim = dim;
+    this._changed();
+  }
+  get focus() {
+    return this._focus ? { ...this._focus } : null;
   }
 
   // ---- data ---------------------------------------------------------------------------------
@@ -657,7 +954,9 @@ export class CandleChart {
     this._revealToken++;
     this._grow = null;
     this._snapNext = true;
+    if (this._vp) this._vp = this._clampVp(this._vp.from, this._vp.to);
     this._changed();
+    this._vpChanged();
   }
 
   setVisible(n) {
@@ -670,13 +969,22 @@ export class CandleChart {
 
   setSlots(n) {
     this._slots = n == null ? null : Math.max(1, Math.floor(n));
+    if (this._vp) this._vp = this._clampVp(this._vp.from, this._vp.to);
     this._changed();
   }
 
   append(candle, { grow = true } = {}) {
     const all = this._visible == null || this._visible >= this.candles.length;
+    const v = this._vp;
+    const total0 = this._totalSlots();
     this.candles.push({ ...candle, t: candle.t ?? this.candles.length });
     if (this._visible != null && all) this._visible = this.candles.length;
+    // A viewport showing the latest candle follows the new one (live / replay charts).
+    const grew = this._totalSlots() - total0;
+    if (v && grew > 0 && v.to >= total0 - 0.5) {
+      this._vp = { from: v.from + grew, to: v.to + grew };
+      this._vpChanged();
+    }
     this._easeNext = true;
     if (grow && !reducedMotion()) this._grow = { idx: this.candles.length - 1, t0: now(), dur: 260 };
     this._changed();
@@ -865,27 +1173,23 @@ export class CandleChart {
     return this._layoutNow();
   }
   idxToX(idx) {
-    const L = this._layoutNow();
-    return L.x0 + (idx + 0.5) * L.slotW;
+    return this._layoutNow().xOf(idx);
   }
   xToIdx(x) {
-    const L = this._layoutNow();
-    return (x - L.x0) / L.slotW - 0.5;
+    return this._layoutNow().idxOf(x);
   }
   priceToY(p) {
-    const L = this._layoutNow();
-    return L.py0 + ((L.dom[1] - p) / (L.dom[1] - L.dom[0])) * (L.py1 - L.py0);
+    return this._layoutNow().yOf(p);
   }
   yToPrice(y) {
-    const L = this._layoutNow();
-    return L.dom[1] - ((y - L.py0) / (L.py1 - L.py0)) * (L.dom[1] - L.dom[0]);
+    return this._layoutNow().priceOf(y);
   }
 
   // ---- flash --------------------------------------------------------------------------------
 
   flash(idx, color = 'accent') {
     const L = this._layoutNow();
-    const x = L.x0 + (idx + 0.5) * L.slotW;
+    const x = L.xOf(idx);
     const w = Math.max(6, L.slotW);
     const g = document.createElementNS(NS, 'rect');
     g.setAttribute('class', 'tc-flash');
@@ -926,6 +1230,8 @@ export class CandleChart {
     svg.removeEventListener('pointerleave', this._h.leave);
     svg.removeEventListener('pointercancel', this._h.cancel);
     svg.removeEventListener('touchstart', this._h.touch);
+    svg.removeEventListener('touchmove', this._h.touchmove);
+    svg.removeEventListener('wheel', this._h.wheel);
     this.el.removeEventListener('keydown', this._h.key);
     this.el.removeEventListener('blur', this._h.blur);
     for (const k of Object.keys(this._ls)) this._ls[k].clear();
@@ -951,14 +1257,22 @@ export class CandleChart {
     });
   }
 
-  _targetDomain(n) {
-    const a = this.o.autoscale;
-    if (Array.isArray(a) && a.length === 2 && isNum(a[0]) && isNum(a[1]) && a[1] > a[0]) return [a[0], a[1]];
-    const m = a === 'all' ? this.candles.length : n;
+  /** Target y-domain from candles [a, b) (and series / bands / fit overlays over the same range). */
+  _targetDomain(n, a = 0, b = n) {
+    const A = this.o.autoscale;
+    if (Array.isArray(A) && A.length === 2 && isNum(A[0]) && isNum(A[1]) && A[1] > A[0]) return this._padDomain(A[0], A[1], false);
+    const list = this._drawList();
+    let i0 = 0;
+    let m = A === 'all' ? this.candles.length : n;
+    if (A !== 'all') {
+      i0 = clamp(Math.floor(a), 0, m);
+      m = clamp(Math.ceil(b), i0, m);
+    }
     let lo = Infinity;
     let hi = -Infinity;
-    for (let i = 0; i < m; i++) {
-      const k = this.candles[i];
+    for (let i = i0; i < m; i++) {
+      const k = list[i];
+      if (!k) continue;
       if (k.l < lo) lo = k.l;
       if (k.h > hi) hi = k.h;
     }
@@ -966,10 +1280,10 @@ export class CandleChart {
       if (o.pane) continue;
       if (o.type === 'series' || o.type === 'band') {
         const arrs = o.type === 'series' ? [o.values] : [o.upper, o.lower];
-        if (o.fit === false) continue;
+        if (o.fit === false || o.hidden) continue;
         for (const arr of arrs) {
           if (!arr) continue;
-          for (let i = 0; i < Math.min(m, arr.length); i++) {
+          for (let i = i0; i < Math.min(m, arr.length); i++) {
             const v = arr[i];
             if (isNum(v)) {
               if (v < lo) lo = v;
@@ -997,13 +1311,22 @@ export class CandleChart {
         hi = 1;
       }
     }
+    return this._padDomain(lo, hi, true);
+  }
+
+  _padDomain(lo, hi, pad = true) {
+    const yPad = pad ? this.o.yPad ?? 0.08 : 0;
+    const vol = pad && this.o.showVolume ? 0.24 : 0;
+    if (this._log && lo > 0 && hi > 0) {
+      const a = Math.log(lo);
+      const b = Math.log(hi);
+      let r = b - a;
+      if (!(r > 0)) r = 0.01;
+      return [Math.exp(a - r * (yPad + vol)), Math.exp(b + r * yPad)];
+    }
     let r = hi - lo;
     if (!(r > 0)) r = Math.abs(hi) * 0.01 || 1;
-    const pad = this.o.yPad ?? 0.08;
-    let min = lo - r * pad;
-    const max = hi + r * pad;
-    if (this.o.showVolume) min -= r * 0.24;
-    return [min, max];
+    return [lo - r * (yPad + vol), hi + r * yPad];
   }
 
   _domainAt(t) {
@@ -1020,8 +1343,8 @@ export class CandleChart {
     return d;
   }
 
-  _resolveDomain(n, t) {
-    const target = this._targetDomain(n);
+  _resolveDomain(n, t, a, b) {
+    const target = this._targetDomain(n, a, b);
     const same = (a, b) => a && b && Math.abs(a[0] - b[0]) <= (b[1] - b[0]) * 1e-4 && Math.abs(a[1] - b[1]) <= (b[1] - b[0]) * 1e-4;
     if (!this._dom || this._snapNext || reducedMotion()) {
       this._dom = target;
@@ -1041,12 +1364,19 @@ export class CandleChart {
   }
 
   _layoutNow(t = now()) {
-    if (this._L && this._Lver === this._ver && !this._domAnim) return this._L;
+    if (this._L && this._Lver === this._ver && !this._domAnim && !this._vpAnim) return this._L;
     const o = this.o;
     const W = Math.max(120, this._width || Math.floor(this.el.clientWidth || 0) || 600);
     const height = Math.max(80, o.height);
     const n = this.visibleCount;
-    const dom = this._resolveDomain(n, t);
+    const slots = this._totalSlots();
+    const vp = this._vpAnim ? this._vpAt(t) : this._vp;
+    const vf = vp ? vp.from : 0;
+    const vt = vp ? vp.to : slots;
+    // Candles whose slot overlaps the viewport (one extra each side so lines run off the edge).
+    const a = Math.max(0, Math.floor(vf) - 1);
+    const b = Math.min(n, Math.ceil(vt) + 1);
+    const dom = this._resolveDomain(n, t, vp ? Math.max(0, Math.ceil(vf - 0.5)) : 0, vp ? Math.min(n, Math.floor(vt - 0.5) + 1) : n);
     const axis = o.showAxis !== false;
     const fmtW = Math.max(textW(dom[1].toFixed(o.decimals)), textW(dom[0].toFixed(o.decimals)));
     const axisW = axis ? Math.ceil(fmtW + 16) : 0;
@@ -1064,13 +1394,23 @@ export class CandleChart {
       return pane;
     });
     const H = top + timeH;
-    const slots = Math.max(1, this._slots ?? this.candles.length, n);
-    const slotW = (x1 - x0) / slots;
+    const slotW = (x1 - x0) / Math.max(1e-6, vt - vf);
     const wickW = slotW >= 18 ? 2 : 1;
     let bw = Math.max(1, Math.round(slotW * 0.65));
     if (wickW === 1 && bw % 2 === 0) bw = Math.max(1, bw - 1);
     if (wickW === 2 && bw % 2 === 1) bw = bw - 1;
-    const L = { W, H, height, x0, x1, axisW, timeH, axis, priceBottom, py0, py1, panes, slots, slotW, bw, wickW, n, dom };
+    const log = this._log && dom[0] > 0;
+    const L = { W, H, height, x0, x1, axisW, timeH, axis, priceBottom, py0, py1, panes, slots, slotW, bw, wickW, n, dom, vf, vt, i0: a, i1: b, log };
+    const l0 = log ? Math.log(dom[0]) : 0;
+    const l1 = log ? Math.log(dom[1]) : 0;
+    L.yOf = log
+      ? (p) => (p > 0 ? py0 + ((l1 - Math.log(p)) / (l1 - l0)) * (py1 - py0) : NaN)
+      : (p) => py0 + ((dom[1] - p) / (dom[1] - dom[0])) * (py1 - py0);
+    L.priceOf = log ? (y) => Math.exp(l1 - ((y - py0) / (py1 - py0)) * (l1 - l0)) : (y) => dom[1] - ((y - py0) / (py1 - py0)) * (dom[1] - dom[0]);
+    L.xOf = (i) => x0 + (i - vf + 0.5) * slotW;
+    L.idxOf = (x) => (x - x0) / slotW - 0.5 + vf;
+    L.first = clamp(Math.ceil(vf - 0.5), 0, Math.max(0, n - 1)) || 0;
+    L.last = clamp(Math.floor(vt - 0.5), 0, Math.max(0, n - 1));
     L.volTop = py1 - (py1 - py0) * 0.18;
     L.volBot = py1;
     // Pane scales.
@@ -1084,7 +1424,9 @@ export class CandleChart {
         hi = -Infinity;
         const scan = (arr) => {
           if (!arr) return;
-          for (let i = 0; i < Math.min(n, arr.length); i++) {
+          const j0 = vp ? L.first : 0;
+          const j1 = vp ? L.last + 1 : n;
+          for (let i = j0; i < Math.min(j1, arr.length); i++) {
             const v = arr[i];
             if (isNum(v)) {
               if (v < lo) lo = v;
@@ -1121,12 +1463,12 @@ export class CandleChart {
   }
 
   _scene(L, pane = null) {
-    const yOf = pane
-      ? (v) => pane.y0 + ((pane.dom[1] - v) / (pane.dom[1] - pane.dom[0] || 1)) * (pane.y1 - pane.y0)
-      : (p) => L.py0 + ((L.dom[1] - p) / (L.dom[1] - L.dom[0])) * (L.py1 - L.py0);
+    const yOf = pane ? (v) => pane.y0 + ((pane.dom[1] - v) / (pane.dom[1] - pane.dom[0] || 1)) * (pane.y1 - pane.y0) : L.yOf;
     return {
-      x: (i) => L.x0 + (i + 0.5) * L.slotW,
+      x: L.xOf,
       y: yOf,
+      i0: L.i0,
+      i1: L.i1,
       x0: L.x0,
       x1: L.x1,
       y0: pane ? pane.top : 0,
@@ -1141,6 +1483,12 @@ export class CandleChart {
       axis: L.axis,
       pills: pane ? null : [],
       labelTop: pane ? pane.top + 20 : this._legendBottom(),
+      type: this._type,
+      draw: this._type === 'heikin-ashi' ? this._drawList() : null,
+      focus: this._focus,
+      focusDim: this.o.focusDim,
+      gradId: `${this._cid}-area`,
+      areaBase: this.o.showVolume ? L.volTop : L.py1 + 6,
     };
   }
 
@@ -1173,7 +1521,7 @@ export class CandleChart {
     for (const ov of this._ov.values()) {
       if (ov.pane || ov.hidden) continue;
       const fn = RENDER[ov.type];
-      if (fn) buckets[LAYER_OF[ov.type]] += fn(ov, S);
+      if (fn) buckets[LAYER_OF[ov.type]] += wrapOverlay(ov, fn(ov, S));
     }
     g.back.innerHTML = buckets.back;
     g.series.innerHTML = buckets.series;
@@ -1184,10 +1532,11 @@ export class CandleChart {
     g.vol.innerHTML = o.showVolume ? this._volumeHTML(L, S) : '';
     let grow = '';
     let skip = -1;
+    if (this._grow && this._type === 'line') this._grow = null;
     if (this._grow) {
       const G = this._grow;
       const p = clamp((t - G.t0) / G.dur, 0, 1);
-      const k = this.candles[G.idx];
+      const k = (S.draw || this.candles)[G.idx];
       if (!k || p >= 1 || G.idx >= L.n) this._grow = null;
       else {
         const e = ease.easeOutCubic(p);
@@ -1206,7 +1555,7 @@ export class CandleChart {
     g.tags.innerHTML = this._tagsHTML(L, S);
 
     // Legend + pane titles
-    const li = this._cross ? this._cross.idx : L.n - 1;
+    const li = this._cross ? this._cross.idx : L.last;
     this._renderLegend(li, L);
 
     // Handles and draw preview
@@ -1214,12 +1563,17 @@ export class CandleChart {
     if (this._drawing) this._renderDraw();
     if (this._cross) this._placeCross(this._cross.idx, this._cross.y, L);
 
-    if (this._domAnim || this._grow) this._schedule();
+    if (this._domAnim || this._grow || this._vpAnim) this._schedule();
+  }
+
+  _priceTicks(L) {
+    const max = Math.max(2, Math.floor((L.py1 - L.py0) / 34));
+    return L.log ? logTicks(L.dom[0], L.dom[1], max) : niceTicks(L.dom[0], L.dom[1], max);
   }
 
   _gridHTML(L) {
     let d = '';
-    const { ticks } = niceTicks(L.dom[0], L.dom[1], Math.max(2, Math.floor((L.py1 - L.py0) / 34)));
+    const { ticks } = this._priceTicks(L);
     const S = this._scene(L);
     const yMax = this.o.showVolume ? L.volTop : L.priceBottom - 2;
     for (const v of ticks) {
@@ -1257,8 +1611,8 @@ export class CandleChart {
     let step = steps.find((s) => s * L.slotW >= minGap) || Math.ceil(minGap / L.slotW);
     const out = [];
     const last = Math.max(L.n, this.candles.length ? Math.min(L.slots, this.candles.length) : 0);
-    const lim = this._slots ? L.slots : last;
-    for (let i = 0; i < lim; i += step) out.push(i);
+    const lim = Math.min(this._slots ? L.slots : last, Math.ceil(L.vt));
+    for (let i = Math.max(0, Math.ceil(Math.floor(L.vf) / step) * step); i < lim; i += step) out.push(i);
     return out;
   }
 
@@ -1280,12 +1634,12 @@ export class CandleChart {
     let s = `<path class="tc-axis-line" d="M${crisp(L.x1)},0V${L.H - L.timeH}M0,${crisp(L.H - L.timeH)}H${L.W}"/>`;
     for (const pane of L.panes) s += `<path class="tc-pane-div" d="M0,${crisp(pane.top)}H${L.W}"/>`;
     const S = this._scene(L);
-    const { ticks } = niceTicks(L.dom[0], L.dom[1], Math.max(2, Math.floor((L.py1 - L.py0) / 34)));
+    const { ticks } = this._priceTicks(L);
     const yMax = this.o.showVolume ? L.volTop : L.priceBottom - 6;
     for (const v of ticks) {
       const y = S.y(v);
       if (y < 8 || y > yMax) continue;
-      s += `<text class="tc-axis-text" x="${f(L.x1 + 8)}" y="${f(y + 4)}">${v.toFixed(this.o.decimals)}</text>`;
+      s += `<text class="tc-axis-text" x="${f(L.x1 + 8)}" y="${f(y + 4)}">${this._fmtAxis(v)}</text>`;
     }
     for (const pane of L.panes) {
       const PS = this._scene(L, pane);
@@ -1306,22 +1660,36 @@ export class CandleChart {
     return s;
   }
 
+  /** Axis label: the chart's decimals (log axes over big ranges drop needless decimals). */
+  _fmtAxis(v) {
+    const d = this.o.decimals;
+    if (this._L && this._L.log && v >= 1000) return v.toFixed(0);
+    return v.toFixed(d);
+  }
+
   _volumeHTML(L, S) {
     let maxV = 0;
-    for (let i = 0; i < L.n; i++) maxV = Math.max(maxV, this.candles[i].v || 0);
+    const j0 = L.i0;
+    const j1 = Math.min(L.n, L.i1);
+    for (let i = j0; i < j1; i++) maxV = Math.max(maxV, this.candles[i].v || 0);
     if (!(maxV > 0)) return '';
     const hMax = L.volBot - L.volTop;
     let up = '';
     let dn = '';
-    for (let i = 0; i < L.n; i++) {
+    let dimUp = '';
+    let dimDn = '';
+    const F = this._focus;
+    for (let i = j0; i < j1; i++) {
       const k = this.candles[i];
       const h = Math.max(1, Math.round(((k.v || 0) / maxV) * hMax));
       const g = candleGeometry(S, k, i);
       const d = `M${g.bx},${Math.round(L.volBot) - h}h${L.bw}v${h}h${-L.bw}z`;
-      if (k.c >= k.o) up += d;
-      else dn += d;
+      const out = F && (i < F.from || i > F.to);
+      if (k.c >= k.o) out ? (dimUp += d) : (up += d);
+      else out ? (dimDn += d) : (dn += d);
     }
-    return (up ? `<path class="tc-vol tc-bull" d="${up}"/>` : '') + (dn ? `<path class="tc-vol tc-bear" d="${dn}"/>` : '');
+    const paths = (u, dd) => (u ? `<path class="tc-vol tc-bull" d="${u}"/>` : '') + (dd ? `<path class="tc-vol tc-bear" d="${dd}"/>` : '');
+    return paths(up, dn) + (dimUp || dimDn ? `<g class="tc-dimmed" style="opacity:${this.o.focusDim ?? 0.3}">${paths(dimUp, dimDn)}</g>` : '');
   }
 
   _paneHTML(L, pane) {
@@ -1340,7 +1708,7 @@ export class CandleChart {
       const y0 = S.y(0);
       let pos = '';
       let neg = '';
-      for (let i = 0; i < Math.min(L.n, hv.length); i++) {
+      for (let i = L.i0; i < Math.min(L.n, hv.length, L.i1); i++) {
         const v = hv[i];
         if (!isNum(v)) continue;
         const y = S.y(v);
@@ -1359,7 +1727,7 @@ export class CandleChart {
     for (const ov of this._ov.values()) {
       if (ov.pane !== p.id || ov.hidden) continue;
       const fn = RENDER[ov.type];
-      if (fn && ov.type !== 'fib' && ov.type !== 'band') body += fn(ov, { ...S, pills: null });
+      if (fn && ov.type !== 'fib' && ov.type !== 'band') body += wrapOverlay(ov, fn(ov, { ...S, pills: null }));
     }
     s += `<g clip-path="url(#${cid})">${body}</g>`;
     return s;
@@ -1398,7 +1766,7 @@ export class CandleChart {
   _legendBottom() {
     if (this.o.legend === false) return 4;
     const named = [...this._ov.values()].some((o) => o.type === 'series' && o.label && !o.pane && !o.hidden);
-    return named ? 38 : 22;
+    return (named ? 38 : 22) + (this._type === 'heikin-ashi' ? 16 : 0);
   }
 
   _renderLegend(idx, L = this._layoutNow()) {
@@ -1407,30 +1775,38 @@ export class CandleChart {
       g.legend.innerHTML = '';
     } else {
       const i = clamp(idx, 0, Math.max(0, Math.min(L.n, this.candles.length) - 1));
-      const k = L.n > 0 ? this.candles[i] : null;
+      const ha = this._type === 'heikin-ashi';
+      const list = ha ? this._drawList() : this.candles;
+      const k = L.n > 0 ? list[i] : null;
       if (!k) g.legend.innerHTML = '';
       else {
-        const prev = this.candles[i - 1];
+        const prev = list[i - 1];
         const ref = prev ? prev.c : k.o;
         const chg = ref ? ((k.c - ref) / ref) * 100 : 0;
         const cls = k.c >= k.o ? 'tc-up' : 'tc-down';
         const d = this.o.decimals;
         const fields = [['O', k.o], ['H', k.h], ['L', k.l], ['C', k.c]];
         const width = L.x1 - L.x0 - 12;
-        let est = fields.reduce((s, [, v]) => s + textW(v.toFixed(d)) + 20, 0);
+        let est = fields.reduce((s, [, v]) => s + textW(v.toFixed(d)) + (ha ? 40 : 20), 0);
         const chgText = `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`;
         const showChg = est + textW(chgText) + 10 < width;
         if (showChg) est += textW(chgText) + 10;
         const shown = est > width ? fields.slice(1) : fields; // very narrow: drop the open
         let s = `<text class="tc-legend" x="${L.x0 + 6}" y="17">`;
         shown.forEach(([key, v], j) => {
-          s += `<tspan class="tc-legend-k" dx="${j ? 9 : 0}">${key}</tspan><tspan class="${cls}" dx="4">${v.toFixed(d)}</tspan>`;
+          s += `<tspan class="tc-legend-k" dx="${j ? 9 : 0}">${ha ? `HA ${key}` : key}</tspan><tspan class="${cls}" dx="4">${v.toFixed(d)}</tspan>`;
         });
-        if (showChg) s += `<tspan class="${cls}" dx="9">${chgText}</tspan>`;
+        if (showChg && !ha) s += `<tspan class="${cls}" dx="9">${chgText}</tspan>`;
         s += '</text>';
         const named = [...this._ov.values()].filter((o) => o.type === 'series' && o.label && !o.pane && !o.hidden);
+        let y2 = 33;
+        if (ha) {
+          const narrow = L.x1 - L.x0 < 420;
+          s += `<text class="tc-legend tc-legend-note" x="${L.x0 + 6}" y="33">${narrow ? 'Heikin-Ashi: averaged, not traded prices' : 'Heikin-Ashi candles: averaged values, not prices that traded'}</text>`;
+          y2 = 49;
+        }
         if (named.length) {
-          s += `<text class="tc-legend tc-legend--series" x="${L.x0 + 6}" y="33">`;
+          s += `<text class="tc-legend tc-legend--series" x="${L.x0 + 6}" y="${y2}">`;
           named.forEach((o, j) => {
             const v = o.values?.[i];
             s += `<tspan dx="${j ? 10 : 0}" style="fill:${colorOf(o.color, 'ma1')}">${esc(o.label)}${isNum(v) ? ` ${v.toFixed(d)}` : ''}</tspan>`;
@@ -1468,7 +1844,7 @@ export class CandleChart {
   _placeCross(idx, y, L = this._layoutNow()) {
     const g = this._g;
     if (!this.o.crosshair) return;
-    const x = crisp(L.x0 + (idx + 0.5) * L.slotW);
+    const x = crisp(L.xOf(idx));
     const area = this._areaAt(y, L);
     let d = `M${x},0V${L.H - L.timeH}`;
     if (area) d += `M${L.x0},${crisp(y)}H${f(L.x1)}`;
@@ -1476,9 +1852,7 @@ export class CandleChart {
     // price / value pill
     if (area && L.axis) {
       const pane = area.pane;
-      const v = pane
-        ? pane.dom[1] - ((y - pane.y0) / (pane.y1 - pane.y0)) * (pane.dom[1] - pane.dom[0])
-        : L.dom[1] - ((y - L.py0) / (L.py1 - L.py0)) * (L.dom[1] - L.dom[0]);
+      const v = pane ? pane.dom[1] - ((y - pane.y0) / (pane.y1 - pane.y0)) * (pane.dom[1] - pane.dom[0]) : L.priceOf(y);
       const text = v.toFixed(pane ? pane.decimals : this.o.decimals);
       const r = g.crossY.firstChild;
       const tx = g.crossY.lastChild;
@@ -1530,7 +1904,7 @@ export class CandleChart {
     this._cross = null;
     this._g.cross.style.display = 'none';
     this._maskTimeLabels(null);
-    this._renderLegend(this.visibleCount - 1);
+    this._renderLegend(this._layoutNow().last);
   }
 
   _eventPoint(e) {
@@ -1540,7 +1914,7 @@ export class CandleChart {
 
   _payload(pt) {
     const L = this._layoutNow();
-    const exactIdx = (pt.x - L.x0) / L.slotW - 0.5;
+    const exactIdx = L.idxOf(pt.x);
     const idx = clamp(Math.round(exactIdx), 0, Math.max(0, L.slots - 1));
     const area = this._areaAt(pt.y, L);
     let price;
@@ -1550,7 +1924,7 @@ export class CandleChart {
       pane = P.spec.id;
       price = P.dom[1] - ((pt.y - P.y0) / (P.y1 - P.y0)) * (P.dom[1] - P.dom[0]);
     } else {
-      price = L.dom[1] - ((pt.y - L.py0) / (L.py1 - L.py0)) * (L.dom[1] - L.dom[0]);
+      price = L.priceOf(pt.y);
     }
     const candle = idx < L.n ? this.candles[idx] : null;
     return { idx, exactIdx, price, x: pt.x, y: pt.y, candle: candle || null, pane };
@@ -1568,6 +1942,8 @@ export class CandleChart {
     if (!this._interactive || this._destroyed) return;
     if (e.button != null && e.button > 0) return;
     const pt = this._eventPoint(e);
+    const touch = e.pointerType !== 'mouse';
+    if (touch) this._touch.set(e.pointerId, pt);
     if (this._drawing) {
       this._capture(e);
       this._drawDown(pt);
@@ -1579,8 +1955,92 @@ export class CandleChart {
       this._dragStart(h.getAttribute('data-id'), h.getAttribute('data-handle'), pt);
       return;
     }
-    this._down = { x: pt.x, y: pt.y, id: e.pointerId, type: e.pointerType };
-    if (e.pointerType !== 'mouse') this._hover(pt);
+    if (this.o.pannable && touch && this._touch.size >= 2) {
+      this._startPinch();
+      return;
+    }
+    this._down = { x: pt.x, y: pt.y, id: e.pointerId, type: e.pointerType, vp: this.getViewport(), moved: false, scrub: false, hold: null };
+    if (touch) {
+      this._hover(pt);
+      // Pannable charts: a touch held still for 300 ms scrubs the crosshair instead of panning.
+      if (this.o.pannable) {
+        const d = this._down;
+        d.hold = setTimeout(() => {
+          this._timers.delete(d.hold);
+          if (this._down === d && !d.moved && !this._pan) d.scrub = true;
+        }, 300);
+        this._timers.add(d.hold);
+      }
+    }
+  }
+
+  _startPinch() {
+    const ids = [...this._touch.keys()].slice(-2);
+    const [p1, p2] = ids.map((id) => this._touch.get(id));
+    const L = this._layoutNow();
+    const mid = (p1.x + p2.x) / 2;
+    this._endPan();
+    if (this._down?.hold) clearTimeout(this._down.hold);
+    this._down = null;
+    this._pinch = { ids, d0: Math.max(24, Math.hypot(p1.x - p2.x, p1.y - p2.y)), anchor: L.idxOf(mid), vp: this.getViewport() };
+    this._hideCross();
+    this.el.classList.add('is-panning');
+  }
+
+  _movePinch() {
+    const P = this._pinch;
+    const [p1, p2] = P.ids.map((id) => this._touch.get(id));
+    if (!p1 || !p2) return;
+    const L = this._layoutNow();
+    const scale = Math.max(24, Math.hypot(p1.x - p2.x, p1.y - p2.y)) / P.d0;
+    const w = (P.vp.to - P.vp.from) / scale;
+    const mid = (p1.x + p2.x) / 2;
+    const sw = (L.x1 - L.x0) / w;
+    const from = P.anchor + 0.5 - (mid - L.x0) / sw;
+    this.setViewport(from, from + w);
+  }
+
+  _endPan() {
+    if (!this._pan && !this._pinch) return;
+    this._pan = null;
+    this._pinch = null;
+    this.el.classList.remove('is-panning');
+  }
+
+  _onWheel(e) {
+    if (!this.o.pannable || !this._interactive || this._destroyed || this._drawing) return;
+    const L = this._layoutNow();
+    const pt = this._eventPoint(e);
+    if (pt.x < L.x0 || pt.x > L.x1 || pt.y > L.priceBottom) return;
+    let dx = e.deltaX || 0;
+    let dy = e.deltaY || 0;
+    if (e.deltaMode === 1) {
+      dx *= 16;
+      dy *= 16;
+    } else if (e.deltaMode === 2) {
+      dx *= 400;
+      dy *= 400;
+    }
+    const zoomKey = e.ctrlKey || e.metaKey; // trackpad pinch arrives as ctrl + wheel
+    if (!zoomKey && (Math.abs(dx) > Math.abs(dy) || e.shiftKey)) {
+      const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+      if (!delta) return;
+      this.panBy(delta / L.slotW);
+      e.preventDefault();
+      return;
+    }
+    if ((!zoomKey && this.o.wheelZoom === 'ctrl') || this.o.wheelZoom === false || !dy) return;
+    const factor = Math.exp(-dy * (zoomKey ? 0.01 : 0.0022));
+    const v = this.getViewport();
+    const w = v.to - v.from;
+    const total = this._totalSlots();
+    const minW = Math.min(total, Math.max(2, this.o.minBars || 10));
+    const maxW = total + Math.max(2, total * 0.1);
+    // At a limit the page scrolls instead of the chart.
+    if ((factor < 1 && w >= maxW - 1e-6) || (factor > 1 && w <= minW + 1e-6)) return;
+    this.zoomBy(factor, L.idxOf(pt.x) + 0.5);
+    e.preventDefault();
+    this._hover(pt);
   }
 
   _capture(e) {
@@ -1594,6 +2054,8 @@ export class CandleChart {
   _onMove(e) {
     if (!this._interactive || this._destroyed) return;
     const pt = this._eventPoint(e);
+    const touch = e.pointerType !== 'mouse';
+    if (touch && this._touch.has(e.pointerId)) this._touch.set(e.pointerId, pt);
     if (this._drag) {
       this._dragMove(pt);
       return;
@@ -1603,12 +2065,42 @@ export class CandleChart {
       if (this.o.crosshair) this._showCross(this._payload(pt).idx, pt.y);
       return;
     }
+    if (this._pinch) {
+      this._movePinch();
+      return;
+    }
+    const d = this._down;
+    if (this.o.pannable && d && d.id === e.pointerId) {
+      const dx = pt.x - d.x;
+      const dy = pt.y - d.y;
+      if (!this._pan && !d.scrub) {
+        const start = touch ? Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) : (e.buttons & 1) === 1 && Math.abs(dx) > 4;
+        if (start) {
+          this._pan = { x: d.x, vp: d.vp, id: e.pointerId };
+          d.moved = true;
+          clearTimeout(d.hold);
+          this._capture(e);
+          this._hideCross();
+          this.el.classList.add('is-panning');
+        } else if (touch && Math.hypot(dx, dy) > 8) {
+          d.moved = true;
+          clearTimeout(d.hold);
+        }
+      }
+      if (this._pan) {
+        const L = this._layoutNow();
+        const shift = -(pt.x - this._pan.x) / L.slotW;
+        this.setViewport(this._pan.vp.from + shift, this._pan.vp.to + shift);
+        return;
+      }
+    }
     this._hover(pt);
   }
 
   _onUp(e) {
     if (!this._interactive || this._destroyed) return;
     const pt = this._eventPoint(e);
+    this._touch.delete(e.pointerId);
     if (this._drag) {
       this._dragEnd();
       return;
@@ -1617,13 +2109,23 @@ export class CandleChart {
       this._drawUp(pt);
       return;
     }
+    if (this._pinch) {
+      if (this._touch.size < 2) this._endPan();
+      this._down = null;
+      return;
+    }
     const d = this._down;
     this._down = null;
+    if (d?.hold) clearTimeout(d.hold);
+    if (this._pan) {
+      this._endPan();
+      return; // a pan is not a click
+    }
     if (d && Math.hypot(pt.x - d.x, pt.y - d.y) < 10) this._emit('click', this._payload(pt));
   }
 
   _onLeave(e) {
-    if (this._drag || (this._drawing && this._drawing.pressed)) return;
+    if (this._drag || this._pan || this._pinch || (this._drawing && this._drawing.pressed)) return;
     this._down = null;
     // Touch/pen: the pointer "leaves" as soon as the finger lifts. Keep the crosshair (and the
     // hovered candle in the legend) until the next interaction instead of flickering it away.
@@ -1636,8 +2138,11 @@ export class CandleChart {
     this._emit('leave', { idx: null, price: null, x: null, y: null, candle: null, pane: null });
   }
 
-  _onCancel() {
+  _onCancel(e) {
+    if (e && e.pointerId != null) this._touch.delete(e.pointerId);
+    if (this._down?.hold) clearTimeout(this._down.hold);
     this._down = null;
+    this._endPan();
     if (this._drag) this._dragEnd();
     if (this._drawing) this._drawing.pressed = false;
     this._hideCross();
@@ -1741,12 +2246,29 @@ export class CandleChart {
         this._kbIdx = null;
         this._hideCross();
         return;
+      case '+':
+      case '=':
+      case '-':
+      case '_':
+      case '0':
+        if (!this.o.pannable) return;
+        if (e.key === '0') this.resetViewport();
+        else this.zoomBy(e.key === '+' || e.key === '=' ? 1.25 : 0.8, this._kbIdx != null ? this._kbIdx + 0.5 : undefined);
+        e.preventDefault();
+        return;
       default:
         handled = false;
     }
     if (!handled || L.n === 0) return;
     e.preventDefault();
     idx = clamp(idx, 0, L.n - 1);
+    // Keep the keyboard cursor on screen when a viewport is set.
+    if (this._vp && (idx < L.first || idx > L.last)) {
+      const v = this.getViewport();
+      const w = v.to - v.from;
+      const from = idx < L.first ? idx - 1 : idx + 2 - w;
+      this.setViewport(from, from + w);
+    }
     this._kbIdx = idx;
     const k = this.candles[idx];
     const y = this.priceToY(k.c);
@@ -1797,8 +2319,8 @@ export class CandleChart {
     const L = this._layoutNow();
     const y = clamp(pt.y, L.py0, L.py1);
     const x = clamp(pt.x, L.x0, L.x1);
-    let idx = (x - L.x0) / L.slotW - 0.5;
-    let price = L.dom[1] - ((y - L.py0) / (L.py1 - L.py0)) * (L.dom[1] - L.dom[0]);
+    let idx = L.idxOf(x);
+    let price = L.priceOf(y);
     if (snap === 'ohlc' || snap === true || snap === 'candle') {
       const i = clamp(Math.round(idx), 0, Math.max(0, L.n - 1));
       const k = this.candles[i];
@@ -2048,15 +2570,18 @@ export class CandleChart {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * miniChart(candles, { width = 160, height = 90, overlays = [], highlight = null, padding = 6, ariaLabel })
+ * miniChart(candles, { width = 160, height = 90, overlays = [], highlight = null, padding = 6, ariaLabel,
+ *                      yPad = 0.06, chartType = 'candles'|'ohlc'|'line'|'heikin-ashi' })
  * overlays: specs with a `type` ('hline'|'segment'|'series'|'band'|'zone'|'box'|'marker'|'path'|'fib'|'text').
  * highlight: idx, [from, to] or { from, to } — tinted background behind those candles.
  */
-export function miniChart(candles = [], { width = 160, height = 90, overlays = [], highlight = null, padding = 6, ariaLabel = 'Chart thumbnail', yPad = 0.06 } = {}) {
+export function miniChart(candles = [], { width = 160, height = 90, overlays = [], highlight = null, padding = 6, ariaLabel = 'Chart thumbnail', yPad = 0.06, chartType = 'candles' } = {}) {
   const n = candles.length;
+  const type = normType(chartType);
+  const draw = type === 'heikin-ashi' ? heikinAshiCandles(candles) : null;
   let lo = Infinity;
   let hi = -Infinity;
-  for (const k of candles) {
+  for (const k of draw || candles) {
     if (k.l < lo) lo = k.l;
     if (k.h > hi) hi = k.h;
   }
@@ -2098,8 +2623,11 @@ export function miniChart(candles = [], { width = 160, height = 90, overlays = [
     mini: true,
     axis: false,
     pills: null,
+    type,
+    draw,
+    gradId: type === 'line' ? `tcm${++UID}-area` : null,
   };
-  let back = '';
+  let back = type === 'line' ? `<defs><linearGradient id="${S.gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="tc-area-stop0"/><stop offset="1" class="tc-area-stop1"/></linearGradient></defs>` : '';
   if (highlight != null) {
     let a;
     let b;

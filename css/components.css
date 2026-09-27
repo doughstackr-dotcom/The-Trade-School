@@ -1950,6 +1950,7 @@ figcaption {
 }
 
 .game__feedback:empty,
+.game__hint-slot:empty,
 .game__actions:empty,
 .results__extra:empty {
   display: none;
@@ -4374,4 +4375,1793 @@ figcaption {
 
 .arcade {
   padding-bottom: clamp(16px, 3vw, 32px);
+}
+
+/* ==========================================================================
+   §12 expansion (kits v2): play styles, chart sources, lesson media, new pages
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- live dot (nav, cards, chips) */
+
+.live-dot {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bear);
+  vertical-align: middle;
+}
+
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--bear);
+  opacity: 0;
+  animation: live-pulse 1.8s var(--ease-out) infinite;
+}
+
+.live-dot[data-state="offline"],
+.live-dot[data-state="sim"] {
+  background: var(--text-3);
+}
+
+.live-dot[data-state="offline"]::after,
+.live-dot[data-state="sim"]::after {
+  animation: none;
+}
+
+.live-dot[data-state="replay"],
+.live-dot[data-state="connecting"] {
+  background: var(--accent);
+}
+
+.live-dot[data-state="replay"]::after,
+.live-dot[data-state="connecting"]::after {
+  border-color: var(--accent);
+}
+
+.live-dot--lg {
+  width: 10px;
+  height: 10px;
+}
+
+@keyframes live-pulse {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot::after {
+    animation: none;
+  }
+}
+
+.nav__link--live {
+  gap: 7px;
+}
+
+.nav__link--live .live-dot {
+  margin-top: 1px;
+}
+
+/* Glossary drops out of the top nav below 1180px (it stays in the footer). */
+@media (max-width: 1179.98px) {
+  .nav__link--wide {
+    display: none;
+  }
+}
+
+@media (max-width: 819.98px) {
+  .tabbar {
+    grid-template-columns: repeat(var(--tabs, 5), minmax(0, 1fr));
+  }
+
+  .tabbar__link {
+    font-size: 10.5px;
+    letter-spacing: 0;
+  }
+}
+
+.tabbar__icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.tabbar__icon .live-dot {
+  position: absolute;
+  top: -1px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* ---------------------------------------------------------------- game intro: style / level / charts pickers */
+
+.game-intro__setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 26px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.game-intro__setup .game-intro__modes {
+  margin-top: 0;
+}
+
+.game-intro__picker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.game-intro__picker .segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.game-intro__picker .segmented button .icon {
+  color: var(--text-3);
+}
+
+.game-intro__picker .segmented button[aria-checked="true"] .icon {
+  color: var(--accent-strong);
+}
+
+.game-intro__picker .segmented button.is-locked {
+  opacity: 0.6;
+}
+
+.game-intro__picker .segmented button.is-locked .icon--lock {
+  margin-left: -2px;
+}
+
+.game-intro__picker .game-intro__mode-note {
+  max-width: 52ch;
+  line-height: 1.45;
+}
+
+.game-intro__source-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.game-intro__daily {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 560px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in oklab, var(--accent) 38%, var(--line));
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.game-intro__daily-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent-strong);
+}
+
+.game-intro__daily-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.game-intro__daily-text strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.game-intro__streak {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--accent-strong);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.game-intro__streak small {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 559.98px) {
+  .game-intro__setup {
+    padding: 14px 12px;
+  }
+
+  .game-intro__picker,
+  .game-intro__picker .segmented {
+    width: 100%;
+  }
+
+  .game-intro__picker .segmented button {
+    flex: 1 1 0;
+    justify-content: center;
+    padding-inline: 8px;
+  }
+}
+
+/* ---------------------------------------------------------------- HUD: lives, meta row, hint */
+
+.hud__lives .hud__hearts {
+  gap: 3px;
+}
+
+.heart {
+  display: inline-grid;
+  place-items: center;
+  color: var(--bear);
+  transition: color 0.2s, opacity 0.2s;
+}
+
+.heart.is-lost {
+  color: var(--text-3);
+  opacity: 0.55;
+}
+
+.heart.is-breaking {
+  animation: heart-break 0.6s var(--ease-out);
+}
+
+@keyframes heart-break {
+  0% {
+    color: var(--bear);
+    opacity: 1;
+    transform: scale(1);
+  }
+  35% {
+    color: var(--bear);
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hud__lives.is-hit {
+  animation: hud-shake 0.4s ease-in-out;
+}
+
+@keyframes hud-shake {
+  20%,
+  60% {
+    transform: translateX(-3px);
+  }
+  40%,
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+.game__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: 24px;
+}
+
+.game__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.game-chip .icon {
+  color: var(--text-3);
+}
+
+.game-chip--survival .icon {
+  color: var(--bear);
+}
+
+.game-chip--arcade .icon {
+  color: var(--accent-strong);
+}
+
+.game-chip--practice .icon {
+  color: var(--info);
+}
+
+.source-chip {
+  gap: 6px;
+  border-color: var(--line);
+  background: transparent;
+}
+
+.source-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.source-chip.is-real {
+  border-color: color-mix(in oklab, var(--info) 40%, var(--line));
+  color: var(--text);
+}
+
+.source-chip.is-real .source-chip__dot {
+  background: var(--info);
+}
+
+.source-chip.is-fallback {
+  border-color: color-mix(in oklab, var(--warn) 45%, var(--line));
+  background: color-mix(in oklab, var(--warn) 10%, transparent);
+  color: var(--text);
+}
+
+.source-chip.is-fallback .source-chip__dot {
+  background: var(--warn);
+}
+
+.source-chip.is-loading .source-chip__dot {
+  background: var(--accent);
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.game__hint-btn {
+  gap: 6px;
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  color: var(--text);
+}
+
+.game__hint-btn .icon {
+  color: var(--accent-strong);
+}
+
+.game__hint-cost {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.game__hint-btn:disabled {
+  opacity: 0.7;
+}
+
+.hint-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hint-note__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.hint-note__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hint-note__title {
+  color: var(--accent-strong) !important;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.game__hint.explainer {
+  border-left-color: var(--accent);
+}
+
+.feedback--bad .feedback__pts {
+  color: var(--bear-strong);
+}
+
+.feedback--bad .feedback__pts small {
+  color: var(--bear-strong);
+}
+
+.game__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 160px;
+  padding: 24px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+.game__loading-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.game__loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: blink 1.1s ease-in-out infinite;
+}
+
+.game__loading-dots span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.game__loading-dots span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+/* "Mystery chart revealed" line */
+.source-reveal {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklab, var(--info) 35%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--info) 7%, var(--surface));
+  animation: rise 0.3s var(--ease-out);
+}
+
+.source-reveal__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--info);
+}
+
+.source-reveal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.source-reveal__eyebrow {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.source-reveal__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 7px;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.source-reveal__line strong {
+  font-size: 17px;
+}
+
+.source-reveal__name {
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.source-reveal__sep {
+  color: var(--text-3);
+}
+
+.source-reveal__attr {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.source-reveal__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.source-reveal--compact {
+  padding: 8px 12px;
+  animation: none;
+}
+
+.source-reveal--compact .source-reveal__icon {
+  flex-basis: 26px;
+  height: 26px;
+}
+
+.source-reveal--compact .source-reveal__line,
+.source-reveal--compact .source-reveal__line strong {
+  font-size: 14.5px;
+}
+
+.game__retry .icon {
+  color: var(--text-2);
+}
+
+/* Results: survival + per-style bests */
+.results__survived,
+.results__daily {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.results__survived .icon {
+  color: var(--bear);
+}
+
+.results__daily .icon {
+  color: var(--accent-strong);
+}
+
+.style-bests {
+  width: 100%;
+  text-align: left;
+}
+
+.style-bests__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.style-bests__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.style-bests__item.is-current {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  background: color-mix(in oklab, var(--accent-soft) 45%, var(--surface));
+}
+
+.style-bests__icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+}
+
+.style-bests__item.is-current .style-bests__icon {
+  color: var(--accent-strong);
+}
+
+.style-bests__label {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.style-bests__value {
+  font-size: 15px;
+}
+
+.style-bests__item .stars {
+  grid-column: 2 / -1;
+}
+
+/* ---------------------------------------------------------------- lesson media */
+
+.lesson-figure {
+  gap: 10px;
+  max-width: 760px;
+}
+
+.lesson-figure--wide {
+  max-width: none;
+}
+
+.lesson-figure__media {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.lesson-figure__media > svg {
+  width: 100%;
+  height: auto;
+}
+
+.lesson-figure__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  max-width: 680px;
+  color: var(--text-2);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.lesson-figure__label {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lesson-figure__credit {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.takeaway {
+  display: flex;
+  gap: 14px;
+  max-width: 680px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in oklab, var(--accent) 40%, var(--line));
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--accent-soft) 55%, var(--surface));
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.takeaway__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent-strong);
+}
+
+.takeaway__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 16px;
+}
+
+.takeaway__title {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.takeaway__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.takeaway__list li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.takeaway__list li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.lesson-story {
+  min-height: 200px;
+}
+
+.lesson-story__loading {
+  height: 320px;
+}
+
+.story-fallback__captions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-left: 1.4em !important;
+  list-style: decimal !important;
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+.real-example {
+  gap: 10px;
+}
+
+.real-example__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.real-example__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.real-example__note {
+  font-size: 13px;
+}
+
+.real-example__source:empty {
+  display: none;
+}
+
+.checklist-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.checklist-step__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.check-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  line-height: 1.35;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.check-item:hover {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+}
+
+.check-item__mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  height: 24px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.check-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.check-item__text strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.check-item__text small {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.check-item.is-pass {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  background: color-mix(in oklab, var(--bull-soft) 50%, var(--surface));
+}
+
+.check-item.is-pass .check-item__mark {
+  border-color: var(--bull);
+  background: var(--bull);
+  color: var(--bull-ink);
+  animation: mark-in 0.35s var(--ease-back);
+}
+
+.check-item.is-fail {
+  border-color: color-mix(in oklab, var(--bear) 45%, var(--line));
+  background: color-mix(in oklab, var(--bear-soft) 50%, var(--surface));
+}
+
+.check-item.is-fail .check-item__mark {
+  border-color: var(--bear);
+  background: var(--bear);
+  color: var(--bear-ink);
+  animation: mark-in 0.35s var(--ease-back);
+}
+
+.checklist-step__actions {
+  margin-top: 2px;
+}
+
+.checklist-step__verdict:empty {
+  display: none;
+}
+
+@media (max-width: 859.98px) {
+  .checklist-step {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.compare__side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.compare__side--good {
+  border-top: 3px solid var(--bull);
+}
+
+.compare__side--bad {
+  border-top: 3px solid var(--bear);
+}
+
+.compare__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.compare__title {
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.compare__chart {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.compare__points {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.compare__points li {
+  position: relative;
+  padding-left: 16px;
+}
+
+.compare__points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.6em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.compare__side--good .compare__points li::before {
+  background: var(--bull);
+}
+
+.compare__side--bad .compare__points li::before {
+  background: var(--bear);
+}
+
+@media (max-width: 719.98px) {
+  .compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- home: today, play your way, arcade filters */
+
+.today {
+  margin-top: 28px;
+}
+
+.today__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.today-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.today-card__top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.today-card__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.today-card__icon--live {
+  background: color-mix(in oklab, var(--bear) 14%, var(--surface));
+  color: var(--bear-strong);
+}
+
+.today-card__head {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.today-card__head .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.today-card__title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.today-card__streak {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.today-card__num {
+  color: var(--accent-strong);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.today-card__streak small {
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.today-card__text {
+  flex: 1 1 auto;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.today-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.today-card__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-strong);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 719.98px) {
+  .today__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+.play-way__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.play-way__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.play-way__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.play-way__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.play-way__card--practice .play-way__icon {
+  background: color-mix(in oklab, var(--info) 14%, var(--surface));
+  color: var(--info);
+}
+
+.play-way__card--arcade .play-way__icon {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.play-way__card--survival .play-way__icon {
+  background: var(--bear-soft);
+  color: var(--bear-strong);
+}
+
+.play-way__title {
+  font-size: 22px;
+}
+
+.play-way__blurb {
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.play-way__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  font-size: 14px;
+}
+
+.play-way__rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+}
+
+.play-way__rules .icon {
+  margin-top: 3px;
+  color: var(--bull-strong);
+}
+
+@media (max-width: 859.98px) {
+  .play-way__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .play-way__card {
+    padding: 16px;
+  }
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.filter-chip:hover {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  color: var(--text);
+}
+
+.filter-chip[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.filter-chip__n {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.filter-chip[aria-pressed="true"] .filter-chip__n {
+  color: color-mix(in oklab, var(--bg) 70%, transparent);
+}
+
+@media (max-width: 559.98px) {
+  .filter-chips {
+    flex-wrap: nowrap;
+    margin-inline: -16px;
+    padding: 0 16px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-chip {
+    flex: 0 0 auto;
+  }
+}
+
+.arcade__empty {
+  padding: 24px 0;
+}
+
+.game-tile__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.style-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.style-icons__i {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.style-icons__i--survival {
+  color: var(--bear);
+}
+
+.style-icons__i--arcade {
+  color: var(--accent-strong);
+}
+
+.style-icons__i--practice {
+  color: var(--info);
+}
+
+/* Preview art (home arcade tiles) */
+.art-card {
+  fill: var(--surface-2);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.art-card.is-face {
+  fill: var(--surface);
+  stroke: color-mix(in oklab, var(--accent) 55%, var(--line));
+}
+
+.art-card.is-back {
+  fill: var(--surface-2);
+  opacity: 0.8;
+}
+
+.art-q,
+.art-today {
+  fill: var(--text-3);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.art-today {
+  fill: var(--accent-strong);
+}
+
+.art-wick {
+  stroke-width: 1.5;
+}
+
+.art-wick.is-up,
+.art-body.is-up {
+  stroke: var(--bull);
+  fill: var(--bull);
+}
+
+.art-wick.is-down,
+.art-body.is-down {
+  stroke: var(--bear);
+  fill: var(--bear);
+}
+
+.art-pill rect {
+  fill: var(--surface);
+  stroke-width: 1.5;
+}
+
+.art-pill text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.art-pill.is-up rect {
+  stroke: var(--bull);
+}
+
+.art-pill.is-up text {
+  fill: var(--bull-strong);
+}
+
+.art-pill.is-down rect {
+  stroke: var(--bear);
+}
+
+.art-pill.is-down text {
+  fill: var(--bear-strong);
+}
+
+.art-day {
+  fill: var(--surface-2);
+  stroke: var(--line);
+}
+
+.art-day.is-done {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+
+.art-day.is-today {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+
+.art-day-label {
+  fill: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+
+.art-check {
+  fill: none;
+  stroke: var(--accent-strong);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.art-edge {
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.art-edge.is-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.art-node {
+  fill: var(--surface);
+  stroke: var(--text-3);
+  stroke-width: 1.5;
+}
+
+.art-node.is-path {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.art-vol {
+  opacity: 0.55;
+}
+
+.art-vol.is-up {
+  fill: var(--bull);
+}
+
+.art-vol.is-down {
+  fill: var(--bear);
+}
+
+.art-vol.is-mark {
+  fill: var(--accent);
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- track: game tags */
+
+.item-btn__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.item-btn__tags .style-icons {
+  margin-left: 0;
+}
+
+/* ---------------------------------------------------------------- progress: daily streak, per-style bests */
+
+.stats-row {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.stat--link {
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 0.15s;
+}
+
+.stats-row .stat--link:hover {
+  background: color-mix(in oklab, var(--accent-soft) 45%, var(--surface));
+  text-decoration: none;
+}
+
+.stat__value--daily {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat__value--daily .icon {
+  color: var(--accent-strong);
+}
+
+@media (max-width: 1079.98px) {
+  .stats-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 859.98px) {
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-row .stat:last-child {
+    grid-column: auto;
+  }
+}
+
+.style-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.games-table .style-col {
+  white-space: nowrap;
+}
+
+.style-best small {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+@media (max-width: 719.98px) {
+  .style-head__label {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- playbook (stub) */
+
+.playbook__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.playbook-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.playbook-card__art {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 320 / 150;
+  padding: 4px;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 25%,
+    var(--surface);
+}
+
+.playbook-card__art svg {
+  width: 100%;
+  height: 100%;
+}
+
+.playbook-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 16px;
+}
+
+.playbook-card__title {
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+
+.playbook-card__summary {
+  flex: 1 1 auto;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.playbook-card__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.playbook__note {
+  margin-top: 20px;
+}
+
+.playbook-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 16px;
+}
+
+.playbook-detail .page-head {
+  padding-bottom: 0;
+}
+
+.playbook-detail .lesson-figure {
+  max-width: none;
+}
+
+.playbook-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.playbook-rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 16px;
+}
+
+.playbook-rules__n {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.playbook-plan {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.playbook-plan > div {
+  padding: 14px 16px;
+  border-left: 1px solid var(--line);
+}
+
+.playbook-plan > div:first-child {
+  border-left: 0;
+}
+
+.playbook-plan dt {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.playbook-plan dd {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+@media (max-width: 719.98px) {
+  .playbook-plan {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .playbook-plan > div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .playbook-plan > div:first-child {
+    border-top: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- live market lab (stub) */
+
+.live {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.live__bar {
+  --gap: 10px;
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.live__symbol {
+  width: auto;
+  min-width: 200px;
+}
+
+.live-attrib:empty {
+  display: none;
+}
+
+@media (max-width: 559.98px) {
+  .live__symbol {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .live__bar .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* Seven primary links (Playbook, Live added): tighten the top bar so the wordmark never
+   truncates, even with fallback fonts (the container caps the bar at 1120px on wide screens). */
+@media (min-width: 1080px) {
+  .brand {
+    margin-right: 8px;
+  }
+
+  .nav__link {
+    padding: 0 8px;
+    font-size: 14.5px;
+  }
+
+  .nav__link.is-active::after {
+    left: 8px;
+    right: 8px;
+  }
+
+  .xp-pill__meter {
+    display: none;
+  }
+}
+
+/* 820–959px (top nav, six links): the tightest fit. */
+@media (min-width: 820px) and (max-width: 959.98px) {
+  .topbar__inner {
+    gap: 4px;
+  }
+
+  .brand {
+    margin-right: 0;
+  }
+
+  .nav__link {
+    padding: 0 5px;
+    font-size: 13.5px;
+  }
+
+  .nav__link--live {
+    gap: 5px;
+  }
+
+  .nav__link.is-active::after {
+    left: 5px;
+    right: 5px;
+  }
+
+  .icon-btn {
+    width: 34px;
+  }
+
+  .xp-pill {
+    margin-right: 0;
+  }
+}
+
+.feedback__lives {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--bear-strong);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 559.98px) {
+  /* Survival: the lives note drops under the explanation instead of squeezing it. */
+  .feedback:has(.feedback__lives) {
+    flex-wrap: wrap;
+  }
+
+  .feedback:has(.feedback__lives) .feedback__body {
+    flex-basis: calc(100% - 50px);
+  }
+
+  .feedback__pts:has(.feedback__lives) {
+    flex-basis: 100%;
+    align-items: flex-start;
+    padding-left: 46px;
+  }
+}
+
+@media (max-width: 559.98px) {
+  /* The game name already links to the game: drop the action column so the per-style columns fit. */
+  .games-table .cell-action,
+  .games-table thead th:last-child {
+    display: none;
+  }
+
+  .games-table .style-col {
+    padding-inline: 6px;
+  }
+}
+
+@media (max-width: 559.98px) {
+  .games-table tbody th {
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .games-table .stars .icon {
+    width: 12px;
+    height: 12px;
+  }
 }

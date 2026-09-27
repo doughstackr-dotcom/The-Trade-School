@@ -2,15 +2,24 @@
 import { store } from './core/store.js';
 import { startRouter, navigate } from './core/router.js';
 import { h, svg, icon, sfx } from './core/ui.js';
-import { findEntry } from './registry.js';
+import { findEntry, tiersOf } from './registry.js';
 
+// tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
+// wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
   { hash: 'beginner', label: 'Beginner', icon: 'candle' },
   { hash: 'advanced', label: 'Advanced', icon: 'target' },
+  { hash: 'playbook', label: 'Playbook', icon: 'flag' },
+  { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
   { hash: 'progress', label: 'Progress', icon: 'trophy' },
-  { hash: 'glossary', label: 'Glossary', icon: 'book' },
+  { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
 ];
+
+/** Small pulsing dot marking the Live Market Lab link. */
+function liveDot() {
+  return h('span', { class: 'live-dot', 'aria-hidden': 'true' });
+}
 
 const THEMES = ['system', 'light', 'dark'];
 const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' };
@@ -46,11 +55,15 @@ function navKeyFor(route, entry) {
   if (!route) return null;
   if (route.kind === 'page') {
     if (route.page === 'track') return route.tier;
-    if (route.page === 'library' || route.page === 'progress' || route.page === 'glossary') return route.page;
+    if (['library', 'progress', 'glossary', 'playbook', 'live'].includes(route.page)) return route.page;
     return null;
   }
   if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
-    if (entry.tier === 'both') return store.state.lastTier || 'beginner';
+    if (entry.tier === 'both') {
+      // A 'both' game that sits in one track's units (e.g. Live Predict) belongs to that track.
+      const tiers = tiersOf(entry.id);
+      return tiers.length === 1 ? tiers[0] : store.state.lastTier || 'beginner';
+    }
     return entry.tier;
   }
   return null;
@@ -62,14 +75,16 @@ function buildShell(app) {
 
   const topNav = h('nav', { class: 'nav', 'aria-label': 'Primary' },
     NAV.map((n) => {
-      const a = h('a', { class: 'nav__link', href: `#${n.hash}`, 'data-nav': n.hash }, h('span', null, n.label));
+      const a = h('a', { class: ['nav__link', n.wide && 'nav__link--wide', n.live && 'nav__link--live'], href: `#${n.hash}`, 'data-nav': n.hash },
+        n.live ? liveDot() : null, h('span', null, n.label));
       navLinks.push(a);
       return a;
     }));
 
-  const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Primary' },
-    NAV.map((n) => {
-      const a = h('a', { class: 'tabbar__link', href: `#${n.hash}`, 'data-nav': n.hash }, icon(n.icon, { size: 22 }), h('span', null, n.label));
+  const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Primary', style: { '--tabs': NAV.filter((n) => n.tab !== false).length } },
+    NAV.filter((n) => n.tab !== false).map((n) => {
+      const a = h('a', { class: ['tabbar__link', n.live && 'tabbar__link--live'], href: `#${n.hash}`, 'data-nav': n.hash },
+        h('span', { class: 'tabbar__icon' }, icon(n.icon, { size: 22 }), n.live ? liveDot() : null), h('span', null, n.label));
       tabLinks.push(a);
       return a;
     }));
@@ -141,10 +156,12 @@ function buildShell(app) {
     h('div', { class: 'container footer__inner' },
       h('div', { class: 'footer__brand' },
         brandMark(22),
-        h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' All prices are generated.')),
+        h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#beginner' }, 'Beginner'),
         h('a', { href: '#advanced' }, 'Advanced'),
+        h('a', { href: '#playbook' }, 'Playbook'),
+        h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
         h('a', { href: '#progress' }, 'Progress'))));

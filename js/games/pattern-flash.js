@@ -22,7 +22,7 @@ export default {
         g.nextRound();
       },
       onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[round - 1];
+        const [question, labels, correct, explain] = order[(round - 1) % order.length];
         const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
         stage.append(choiceQuiz({
           question,

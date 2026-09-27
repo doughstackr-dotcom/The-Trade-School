@@ -1,9 +1,23 @@
 // Tier page: header with a rising "route" chart of the units, then a ladder of units,
 // each with its lesson and game(s).
 import { h, svg, icon, starRow, meter, tierChip, fmt } from '../core/ui.js';
-import { TIERS, findEntry, findTier, unitsOf, learningPath, hashFor } from '../registry.js';
+import { TIERS, findEntry, findTier, findStyle, unitsOf, learningPath, hashFor, stylesOf, sourcesOf } from '../registry.js';
+import { styleIcon } from '../core/game-kit.js';
 
-const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate' };
+const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate', memory: 'Memory', swipe: 'Swipe', story: 'Story', live: 'Live' };
+
+/** Tiny style icons + a "Real charts" / "Live" tag for a game item. */
+function gameTags(e) {
+  const ids = stylesOf(e);
+  const labels = ids.map((id) => findStyle(id)?.label || id);
+  const real = sourcesOf(e).includes('real');
+  return h('span', { class: 'item-btn__tags' },
+    h('span', { class: 'style-icons', role: 'img', 'aria-label': `Styles: ${labels.join(', ')}`, title: `Play styles: ${labels.join(', ')}` },
+      ids.map((id) => h('span', { class: `style-icons__i style-icons__i--${id}` }, styleIcon(id, { size: 12 })))),
+    e.kind === 'live'
+      ? h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live data')
+      : real ? h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'source-chip__dot', 'aria-hidden': 'true' }), 'Real charts') : null);
+}
 
 function itemDone(store, item) {
   return item.type === 'lesson' ? store.isLessonDone(item.id) : (store.gameStats(item.id)?.stars || 0) >= 1;
@@ -92,7 +106,8 @@ function itemButton(store, type, id) {
     h('span', { class: 'item-btn__text' },
       h('span', { class: 'item-btn__kind' }, `Game · ${KIND_LABEL[e.kind] || 'Play'} · ${e.minutes} min`, e.tier === 'both' ? ' · both tracks' : ''),
       h('strong', { class: 'item-btn__title' }, e.title),
-      h('span', { class: 'item-btn__blurb' }, e.blurb)),
+      h('span', { class: 'item-btn__blurb' }, e.blurb),
+      gameTags(e)),
     h('span', { class: 'item-btn__status' },
       s?.plays
         ? h('span', { class: 'item-btn__score' }, starRow(s.stars || 0, { size: 15 }), h('small', { class: 'mono faint' }, `best ${fmt(s.best)}`))

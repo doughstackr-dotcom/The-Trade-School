@@ -1,10 +1,13 @@
 // #dev-chart — hidden kitchen-sink page that exercises every CandleChart feature.
 // Also the engine's visual test bench. Uses no shell helpers so it works standalone.
 
-import { CandleChart, miniChart, candleSVG } from '../core/chart.js';
+import { CandleChart, miniChart, candleSVG, CHART_TYPES } from '../core/chart.js';
+import { ChartStory } from '../core/story.js';
 import { randomSeed } from '../core/rng.js';
-import { trendSeries, randomWalk, aggregate } from '../core/data.js';
-import { CANDLE_PATTERNS, CHART_PATTERNS, candleScenario, chartScenario } from '../core/patterns.js';
+import { trendSeries, randomWalk, aggregate, realisticMarket } from '../core/data.js';
+import { CANDLE_PATTERNS, CHART_PATTERNS, candleScenario, chartScenario, CANDLE_PATTERN_IDS } from '../core/patterns.js';
+import { findSetups, describeChart, SETUP_KINDS } from '../core/scanner.js';
+import { isMockMode, setMockMode, marketInfo, marketStatus, getCatalog, subscribeLive, axisLabel, intervalLabel } from '../core/market.js';
 import * as ind from '../core/indicators.js';
 
 function el(tag, attrs = {}, ...children) {
@@ -42,6 +45,18 @@ const CSS = `
 .dev-chart .dc-thumb svg { width: 100%; height: auto; }
 .dev-chart select { font: 500 14px var(--font-body); padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); min-height: 36px; max-width: 100%; }
 .dev-chart .dc-candles { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; }
+.dev-chart .dc-seg { display: inline-flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-sm, 6px); overflow: hidden; }
+.dev-chart .dc-seg .dc-btn { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
+.dev-chart .dc-seg .dc-btn:last-child { border-right: 0; }
+.dev-chart .dc-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.dev-chart .dc-list button { font: 600 12px/1.2 var(--font-body); padding: 6px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); cursor: pointer; min-height: 30px; }
+.dev-chart .dc-list button[data-dir="bullish"] { border-color: var(--bull); }
+.dev-chart .dc-list button[data-dir="bearish"] { border-color: var(--bear); }
+.dev-chart .dc-note { font: 600 12px/1.4 var(--font-body); color: var(--warn); margin: 0; }
+.dev-chart .dc-kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font: 13px/1.4 var(--font-mono); color: var(--text-2); margin: 0; }
+.dev-chart .dc-kv dt { color: var(--text-3); }
+.dev-chart .dc-kv dd { margin: 0; overflow-wrap: anywhere; }
+.dev-chart .dc-read { font: 15px/1.55 var(--font-body); color: var(--text); margin: 0; }
 `;
 
 export function mount(root, ctx = {}) {
@@ -181,6 +196,222 @@ export function mount(root, ctx = {}) {
 
   page.append(el('section', { class: 'dc-card', 'aria-label': 'Main chart' }, el('h2', {}, 'Main chart'), controls, el('div', { style: { height: '10px' } }), mainHost, status, out));
   buildMain();
+
+  // ---- chart types, log scale, viewport ---------------------------------------------------
+  {
+    const host = el('div', { 'data-test': 'viewport-chart' });
+    const readout = el('p', { class: 'dc-muted mono', 'data-test': 'vp-readout', 'aria-live': 'polite' }, '—');
+    const long = realisticMarket({ seed: seed ^ 0x2f1, count: 1500, start: 40, drift: 0.0021, vol: 0.02, regime: 'mixed' });
+    const vc = new CandleChart(host, {
+      candles: long,
+      height: 340,
+      showVolume: true,
+      pannable: true,
+      viewport: [1350, 1500],
+      ariaLabel: 'Pannable 1500-candle chart: scroll or pinch to zoom, drag to pan',
+      timeLabel: (i) => `W${i + 1}`,
+    });
+    charts.push(vc);
+    const e50 = ind.ema(ind.closes(long), 50);
+    vc.addSeries({ values: e50, color: 'ma2', label: 'EMA 50' });
+    const show = (v) => {
+      readout.textContent = `viewport ${v.from.toFixed(1)} → ${v.to.toFixed(1)} · candles ${v.first}–${v.last} (${v.count} of ${v.total}) · ${vc.chartType}${vc.logScale ? ' · log' : ''}`;
+    };
+    vc.on('viewport', show);
+    show(vc.getViewport());
+    const typeBtns = CHART_TYPES.map((t) =>
+      el('button', { type: 'button', class: 'dc-btn', 'aria-pressed': String(t === 'candles'), 'data-type': t, onclick: () => {
+        vc.setChartType(t);
+        typeBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.type === t)));
+        show(vc.getViewport());
+      } }, t === 'heikin-ashi' ? 'Heikin-Ashi' : t === 'ohlc' ? 'OHLC bars' : t[0].toUpperCase() + t.slice(1)),
+    );
+    const logBtn = el('button', { type: 'button', class: 'dc-btn', 'aria-pressed': 'false', 'data-test': 'log', onclick: () => {
+      vc.setLogScale(!vc.logScale);
+      logBtn.setAttribute('aria-pressed', String(vc.logScale));
+      show(vc.getViewport());
+    } }, 'Log scale');
+    const b = (label, fn, extra = {}) => el('button', { type: 'button', class: 'dc-btn', onclick: fn, ...extra }, label);
+    page.append(
+      el('section', { class: 'dc-card', 'aria-label': 'Chart types, log scale and viewport' },
+        el('h2', {}, 'Chart types, log scale & viewport'),
+        el('p', { class: 'dc-muted' }, '1500 simulated candles (realisticMarket). pannable: true — wheel / ctrl-wheel / trackpad pinch to zoom, drag to pan, two-finger pinch and pan on touch, + / − / 0 keys. Only the visible range is drawn.'),
+        el('div', { class: 'dc-row' }, el('div', { class: 'dc-seg', role: 'group', 'aria-label': 'Chart type' }, ...typeBtns), logBtn),
+        el('div', { class: 'dc-row', style: { marginTop: '8px' } },
+          b('Last 150', () => vc.setViewport(1350, 1500, { animate: true })),
+          b('Last 40', () => vc.setViewport(1460, 1500, { animate: true })),
+          b('All', () => vc.resetViewport({ animate: true }), { 'data-test': 'vp-all' }),
+          b('Zoom +', () => vc.zoomBy(1.5)),
+          b('Zoom −', () => vc.zoomBy(1 / 1.5)),
+          b('Pan ←', () => vc.panBy(-20)),
+          b('Pan →', () => vc.panBy(20)),
+          b('Append', () => {
+            const last = vc.candles[vc.candles.length - 1];
+            const c = last.c * (1 + (Math.random() - 0.48) * 0.03);
+            vc.append({ o: last.c, h: Math.max(last.c, c) * 1.004, l: Math.min(last.c, c) * 0.996, c, v: last.v });
+          })),
+        el('div', { style: { height: '10px' } }), host, readout,
+      ),
+    );
+  }
+
+  // ---- ChartStory --------------------------------------------------------------------------
+  {
+    const sc = candleScenario('hammer', { seed, leadIn: 30, after: 8, outcome: 'success' });
+    const i = sc.end;
+    const k = sc.candles[i];
+    const risk = k.h - k.l;
+    const entry = sc.candles[i + 1].c;
+    const stop = k.l - risk * 0.1;
+    const target = entry + 2 * (entry - stop);
+    const lows = sc.candles.slice(Math.max(0, i - 30), i - 3).map((c) => c.l);
+    const zoneLo = Math.min(...lows.slice(-12));
+    const host = el('div', { 'data-test': 'story' });
+    page.append(el('section', { class: 'dc-card', 'aria-label': 'Chart story' }, el('h2', {}, 'ChartStory'), el('p', { class: 'dc-muted' }, 'Frames with captions, cumulative overlays (the newest pulse once), focus dimming with smooth zoom, EMA 20 and volume. ←/→ when focused.'), el('div', { style: { height: '8px' } }), host));
+    const story = new ChartStory(host, {
+      candles: sc.candles,
+      height: 300,
+      indicators: { ema20: true, volume: true },
+      ariaLabel: 'Hammer at the end of a decline, step by step',
+      frames: [
+        { to: i - 6, title: 'The set-up.', caption: 'Price has fallen for weeks: lower highs, lower lows, all under a falling 20-EMA.', overlays: [{ type: 'segment', a: { idx: 2, price: sc.candles[2].h }, b: { idx: i - 7, price: sc.candles[i - 7].h }, color: 'bear', dashed: true, label: 'Downtrend' }] },
+        { to: i, title: 'Into support.', caption: 'Sellers push price back towards the area where it bounced before.', overlays: [{ type: 'zone', from: zoneLo - risk * 0.25, to: zoneLo + risk * 0.35, color: 'support', label: 'Support' }], focus: [i - 10, i] },
+        { to: i + 1, title: 'A hammer.', caption: 'A long lower wick and a close near the high: lower prices were rejected.', overlays: [{ type: 'box', from: i, to: i, color: 'accent', label: 'Hammer' }], focus: [i - 6, i + 3], zoom: true },
+        { to: i + 2, title: 'Confirmation.', caption: 'The next candle closes above the hammer high — the signal to act, with a stop under the wick.', overlays: [{ type: 'marker', idx: i + 1, position: 'below', text: 'Entry', color: 'bull' }, { type: 'hline', price: stop, color: 'bear', label: 'Stop' }, { type: 'hline', price: target, color: 'bull', label: 'Target 2R' }], focus: [i - 6, i + 3], zoom: true },
+        { to: sc.candles.length, title: 'What happened.', caption: 'This time buyers followed through. Not every hammer works — that is why the stop comes first.', clear: false },
+      ],
+    });
+    cleanups.push(() => story.destroy());
+  }
+
+  // ---- scanner ------------------------------------------------------------------------------
+  {
+    const host = el('div', { 'data-test': 'scanner-chart' });
+    const info = el('p', { class: 'dc-note' });
+    const list = el('ul', { class: 'dc-list', 'aria-label': 'Setups found' });
+    const counts = el('p', { class: 'dc-muted' });
+    const read = el('p', { class: 'dc-read', 'data-test': 'describe' });
+    const readJson = el('pre', { 'aria-label': 'describeChart output' });
+    const dsSelect = el('select', { 'aria-label': 'Data set' }, ...['BTC-USD_1d', 'SPY_1d', 'EUR-USD_1w', 'ETH-USD_1w'].map((v) => el('option', { value: v }, v.replace('_', ' · '))));
+    const GROUPS = {
+      'Chart patterns & levels': ['double-top', 'double-bottom', 'head-and-shoulders', 'inverse-head-and-shoulders', 'bull-flag', 'bear-flag', 'support-bounce', 'resistance-reject', 'breakout-up', 'breakout-down', 'fakeout-up', 'fakeout-down'],
+      'Trend & momentum': ['trend-up', 'trend-down', 'range', 'golden-cross', 'death-cross', 'bullish-divergence', 'bearish-divergence', 'fib-pullback'],
+      'Candle patterns (no doji)': CANDLE_PATTERN_IDS.filter((id) => id !== 'doji' && id !== 'spinning-top'),
+    };
+    const gSelect = el('select', { 'aria-label': 'Setup kinds' }, ...Object.keys(GROUPS).map((g) => el('option', { value: g }, g)));
+    page.append(el('section', { class: 'dc-card', 'aria-label': 'Scanner' }, el('h2', {}, 'Scanner: findSetups + describeChart'), el('div', { class: 'dc-row' }, dsSelect, gSelect), info, el('div', { style: { height: '8px' } }), host, counts, list, el('h2', { style: { marginTop: '12px' } }, 'describeChart'), read, readJson));
+    let sChart = null;
+    let alive = true;
+    cleanups.push(() => {
+      alive = false;
+      sChart?.destroy();
+    });
+    const loadSet = async (name) => {
+      try {
+        const res = await fetch(new URL(`../../tests/fixtures/market/${name}.json`, import.meta.url));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        return { candles: data.candles, label: `TEST FIXTURE (synthetic, not real prices): ${name}`, interval: data.interval, decimals: name.startsWith('EUR') ? 5 : 2 };
+      } catch {
+        return { candles: realisticMarket({ seed, count: 500 }), label: 'Fixtures unavailable here: simulated market (realisticMarket)', interval: null, decimals: 2 };
+      }
+    };
+    const colorOfDir = (d) => (d === 'bullish' ? 'bull' : d === 'bearish' ? 'bear' : 'info');
+    const short = (kind) => (SETUP_KINDS[kind].name.length > 16 ? SETUP_KINDS[kind].name.replace('Inverse head and shoulders', 'Inv. H&S').replace('Head and shoulders', 'H&S').replace('Failed breakout', 'Fakeout').replace('Fibonacci pullback', 'Fib pullback').replace('Resistance rejection', 'Rejection').replace('Bullish RSI divergence', 'Bull div.').replace('Bearish RSI divergence', 'Bear div.') : SETUP_KINDS[kind].name);
+    const run = async () => {
+      const set = await loadSet(dsSelect.value);
+      if (!alive) return;
+      const cs = set.candles;
+      info.textContent = set.label;
+      sChart?.destroy();
+      const bars = host.clientWidth && host.clientWidth < 560 ? 70 : 160;
+      sChart = new CandleChart(host, { candles: cs, height: 320, pannable: true, viewport: [cs.length - bars, cs.length], decimals: set.decimals, showVolume: cs.some((c) => c.v > 0), ariaLabel: 'Scanner results', timeLabel: set.interval ? (i, k) => (k ? axisLabel(k.t, set.interval) : '') : null });
+      const setups = findSetups(cs, { kinds: GROUPS[gSelect.value] });
+      for (const s of setups) {
+        const col = colorOfDir(s.direction);
+        const m = s.meta;
+        if (SETUP_KINDS[s.kind].group === 'candle') sChart.addBox({ from: s.start, to: s.end, color: col });
+        if (m.points) sChart.addPath({ points: m.points, color: col, width: 1.5 });
+        if (m.neckline && typeof m.neckline === 'object') sChart.addSegment({ a: { idx: m.neckline.x1, price: m.neckline.y1 }, b: { idx: m.neckline.x2, price: m.neckline.y2 }, color: 'info', width: 1.5 });
+        else if (typeof m.neckline === 'number') sChart.addSegment({ a: { idx: s.start, price: m.neckline }, b: { idx: s.end, price: m.neckline }, color: 'info', width: 1.5 });
+        if (m.level != null) sChart.addSegment({ a: { idx: s.start, price: m.level }, b: { idx: s.end, price: m.level }, color: col, width: 1.5, dashed: true });
+        if (m.upper) sChart.addSegment({ a: { idx: m.upper.x1, price: m.upper.y1 }, b: { idx: m.upper.x2, price: m.upper.y2 }, color: 'resistance', width: 1.25 });
+        if (m.lower) sChart.addSegment({ a: { idx: m.lower.x1, price: m.lower.y1 }, b: { idx: m.lower.x2, price: m.lower.y2 }, color: 'support', width: 1.25 });
+        if (m.a && m.b && m.c) sChart.addPath({ points: [m.a, m.b, m.c], color: 'fib', width: 1.25 });
+        else if (m.a && m.b) sChart.addSegment({ a: { idx: m.a.idx, price: m.a.price }, b: { idx: m.b.idx, price: m.b.price }, color: col, width: 1.5 });
+        if (s.kind === 'range') sChart.addBox({ from: s.start, to: s.end, top: m.top, bottom: m.bottom, color: 'info' });
+        sChart.addMarker({ idx: s.decisionIdx, position: s.direction === 'bearish' ? 'above' : 'below', shape: s.direction === 'neutral' ? 'dot' : 'arrow', color: col, text: short(s.kind) });
+      }
+      const byKind = {};
+      for (const s of setups) byKind[s.kind] = (byKind[s.kind] || 0) + 1;
+      counts.textContent = `${setups.length} setups in ${cs.length} candles: ${Object.entries(byKind).map(([k, n]) => `${k} ×${n}`).join(', ') || 'none'}. Tap one to jump to it.`;
+      list.textContent = '';
+      for (const s of setups.slice(-40).reverse()) {
+        list.append(el('li', {}, el('button', { type: 'button', 'data-dir': s.direction, onclick: () => {
+          const w = Math.max(40, s.end - s.start + 30);
+          sChart.setViewport(s.decisionIdx - w + 12, s.decisionIdx + 12, { animate: true });
+          sChart.flash(s.decisionIdx);
+        } }, `${short(s.kind)} @${s.decisionIdx}`)));
+      }
+      const d = describeChart(cs, { decimals: set.decimals });
+      read.textContent = d.summary;
+      readJson.textContent = JSON.stringify({ ...d, summary: undefined }, (key, v) => (typeof v === 'number' ? +v.toFixed(set.decimals + 1) : v), 1);
+    };
+    dsSelect.addEventListener('change', run);
+    gSelect.addEventListener('change', run);
+    run();
+  }
+
+  // ---- market.js status (mock mode) --------------------------------------------------------
+  {
+    const box = el('div', { class: 'stack' });
+    page.append(el('section', { class: 'dc-card', 'aria-label': 'Market data', 'data-test': 'market' }, el('h2', {}, 'market.js'), box));
+    let unsub = null;
+    let lChart = null;
+    cleanups.push(() => {
+      unsub?.();
+      lChart?.destroy();
+    });
+    const render = () => {
+      unsub?.();
+      unsub = null;
+      lChart?.destroy();
+      lChart = null;
+      box.textContent = '';
+      const info = marketInfo();
+      const kv = el('dl', { class: 'dc-kv' }, el('dt', {}, 'mock mode'), el('dd', { 'data-test': 'mock' }, String(info.mock)), el('dt', {}, 'marketStatus()'), el('dd', {}, marketStatus()), el('dt', {}, 'last error'), el('dd', {}, info.lastError || '—'));
+      const toggle = el('button', { type: 'button', class: 'dc-btn', onclick: () => {
+        setMockMode(!isMockMode());
+        render();
+      } }, info.mock ? 'Turn mock mode off' : 'Turn mock mode on (localhost)');
+      box.append(kv, el('div', { class: 'dc-row' }, toggle));
+      if (!info.mock) {
+        box.append(el('p', { class: 'dc-muted' }, 'Mock mode is off, so this page makes no market-data requests. With it on, market.js serves tests/fixtures/market/*.json (labelled test data).'));
+        return;
+      }
+      const cat = el('p', { class: 'dc-muted mono' }, 'catalog…');
+      const status = el('p', { class: 'dc-muted mono', 'aria-live': 'polite' }, 'subscribing…');
+      const host = el('div');
+      const pick = el('select', { 'aria-label': 'Live or replay' }, el('option', { value: 'BTC-USD|1m' }, 'BTC-USD 1m (live, mock clock)'), el('option', { value: 'SPY|1d' }, 'SPY 1d (replay)'));
+      box.append(cat, el('div', { class: 'dc-row' }, pick), host, status);
+      getCatalog().then((c) => {
+        cat.textContent = `catalog (${c.status}${c.mock ? ', fixture' : ''}): ${c.symbols.map((s) => `${s.id} [${s.intervals.join(' ')}]${s.live ? ' live' : ''}`).join(' · ')}`;
+      });
+      const start = () => {
+        unsub?.();
+        lChart?.destroy();
+        const [symbol, interval] = pick.value.split('|');
+        lChart = new CandleChart(host, { candles: [], height: 240, ariaLabel: `${symbol} ${interval}`, pannable: true, timeLabel: (i, k) => (k ? axisLabel(k.t, interval) : '') });
+        unsub = subscribeLive({ symbol, interval, bars: 80, stepMs: 1500 }, (u) => {
+          if (u.candles.length) lChart.setCandles(u.candles);
+          status.textContent = `${u.status}${u.forming ? ' (forming)' : ''} · ${u.symbol} ${intervalLabel(u.interval)} · ${u.candles.length} candles${u.last ? ` · last ${axisLabel(u.last.t, u.interval)} ${u.last.c}` : ''} · ${u.attribution || ''}`;
+        });
+      };
+      pick.addEventListener('change', start);
+      start();
+    };
+    render();
+  }
 
   // ---- chart pattern scenario viewer -----------------------------------------------------
   const pHost = el('div');

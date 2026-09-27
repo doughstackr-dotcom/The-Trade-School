@@ -1,11 +1,15 @@
-// Home: the one bold moment (a live teaching chart), the two tracks, the arcade and your level.
-import { h, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
-import { TIERS, UNITS, GAMES, BADGES, findEntry, unitsOf, hashFor, learningPath } from '../registry.js';
+// Home: the one bold moment (a live teaching chart), today's Daily Challenge and Live Market Lab,
+// the two tracks, the three play styles, the arcade (filterable by kind) and your level.
+import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
+import {
+  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, unitsOf, hashFor, learningPath,
+} from '../registry.js';
 import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
 import { sma } from '../core/indicators.js';
+import { styleIcon } from '../core/game-kit.js';
 
-const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate' };
+const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate', memory: 'Memory', swipe: 'Swipe', story: 'Story', live: 'Live' };
 
 const HERO_STEPS = [
   { key: 'support', label: 'Support', caption: 'Support — buyers stepped in at the same price twice. That zone matters.' },
@@ -351,6 +355,52 @@ export function gamePreview(id, seed, { miniChart }, pat = null, size = { width:
         { type: 'hline', price: entry, color: 'text', dashed: true },
       ] });
     }
+    case 'order-desk': {
+      const candles = randomWalk({ seed, count: 40, vol: 0.006, volume: false });
+      const last = candles[candles.length - 1].c;
+      const spread = Math.max(0.12, last * 0.0016);
+      return miniChart(candles, { ...opts, yPad: 0.16, overlays: [
+        { type: 'zone', from: last - spread / 2, to: last + spread / 2, color: 'accent', opacity: 0.18 },
+        { type: 'hline', price: last + spread / 2, color: 'bear', label: size.width >= 200 ? 'Ask' : undefined },
+        { type: 'hline', price: last - spread / 2, color: 'bull', label: size.width >= 200 ? 'Bid' : undefined },
+      ] });
+    }
+    case 'chart-match':
+      return memoryArt(seed, size);
+    case 'volume-verdict': {
+      if (pat?.chartScenario) {
+        const sc = pat.chartScenario('ascending-triangle', { seed, count: 90, after: 10, outcome: 'fail' });
+        return withVolume(miniChart, sc.candles.slice(20), size, [{ type: 'hline', price: sc.level, color: 'accent', dashed: true }], sc.breakoutIdx - 20);
+      }
+      const candles = randomWalk({ seed, count: 60, vol: 0.012 });
+      return withVolume(miniChart, candles, size, []);
+    }
+    case 'setup-swipe':
+      return swipeArt(seed, size, miniChart);
+    case 'daily-challenge':
+      return dailyArt(size);
+    case 'trap-or-trade': {
+      if (pat?.chartScenario) {
+        const sc = pat.chartScenario('ascending-triangle', { seed: seed + 5, count: 96, after: 14, outcome: 'fail' });
+        const c = sc.candles.slice(24);
+        return miniChart(c, { ...opts, yPad: 0.16, overlays: [
+          { type: 'hline', price: sc.level, color: 'resistance', dashed: true },
+          { type: 'marker', idx: sc.breakoutIdx - 24, position: 'above', shape: 'tag', text: '?', color: 'accent' },
+        ] });
+      }
+      const { candles } = fromPath([[0, 98], [0.5, 101.8], [0.7, 100.2], [0.88, 102.4], [1, 100.6]], { seed, count: 60, volume: false });
+      return miniChart(candles, { ...opts, overlays: [{ type: 'hline', price: 102, color: 'resistance', dashed: true }] });
+    }
+    case 'tilt-control':
+      return storyArt(size);
+    case 'live-predict': {
+      const candles = randomWalk({ seed, count: 60, drift: 0.0008, vol: 0.01, volume: false });
+      const last = candles[candles.length - 1];
+      return miniChart(candles, { ...opts, yPad: 0.16, overlays: [
+        { type: 'hline', price: last.c, color: 'accent', dashed: true },
+        { type: 'marker', idx: candles.length - 1, price: last.c, position: 'at', shape: 'ring', color: 'accent' },
+      ] });
+    }
     case 'trade-simulator':
     default: {
       const { candles, anchors } = fromPath([[0, 101], [0.22, 97.6], [0.4, 100.4], [0.52, 98.6], [0.8, 105.5], [1, 104.2]], { seed, count: 110, noise: 0.45, volume: false });
@@ -366,6 +416,133 @@ export function gamePreview(id, seed, { miniChart }, pat = null, size = { width:
       return miniChart(candles, { ...opts, overlays: ov });
     }
   }
+}
+
+/** Nest a miniChart above a row of volume bars (last bar marked) in one SVG. */
+function withVolume(miniChart, candles, size, overlays, markIdx = null) {
+  const W = size.width;
+  const H = size.height;
+  const top = miniChart(candles, { width: W, height: Math.round(H * 0.74), padding: 8, overlays, yPad: 0.1 });
+  top.setAttribute('x', '0');
+  top.setAttribute('y', '0');
+  // Nested SVGs: inline sizes beat the tile's `svg { width: 100% }` rule.
+  top.style.width = `${W}px`;
+  top.style.height = `${Math.round(H * 0.74)}px`;
+  const vols = candles.map((c) => c.v || 0);
+  const maxV = Math.max(1, ...vols);
+  const n = candles.length;
+  const bw = (W - 16) / n;
+  const baseY = H - 4;
+  const bars = candles.map((c, i) => {
+    const hgt = Math.max(1, ((c.v || 0) / maxV) * H * 0.22);
+    const cls = i === markIdx ? 'art-vol is-mark' : c.c >= c.o ? 'art-vol is-up' : 'art-vol is-down';
+    return svg('rect', { x: 8 + i * bw + bw * 0.15, y: baseY - hgt, width: Math.max(0.8, bw * 0.7), height: hgt, class: cls });
+  });
+  return svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'art art--volume', 'aria-hidden': 'true' }, top, ...bars);
+}
+
+/** Chart Match: a grid of memory cards, a few flipped to show candles. */
+function memoryArt(seed, size) {
+  const rng = makeRng(seed);
+  const W = size.width;
+  const H = size.height;
+  const cols = 4;
+  const rows = 2;
+  const gap = 8;
+  const cw = (W - 16 - gap * (cols - 1)) / cols;
+  const ch = (H - 16 - gap * (rows - 1)) / rows;
+  const up = new Set(rng.sample([0, 1, 2, 3, 4, 5, 6, 7], 3));
+  const kids = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      const x = 8 + c * (cw + gap);
+      const y = 8 + r * (ch + gap);
+      const face = up.has(i);
+      kids.push(svg('rect', { x, y, width: cw, height: ch, rx: 6, class: face ? 'art-card is-face' : 'art-card' }));
+      if (face) {
+        const bull = rng.chance(0.5);
+        const cx = x + cw / 2;
+        const bodyH = ch * rng.float(0.25, 0.45);
+        const by = y + (ch - bodyH) / 2 + rng.float(-4, 4);
+        kids.push(svg('line', { x1: cx, x2: cx, y1: y + ch * 0.14, y2: y + ch * 0.86, class: bull ? 'art-wick is-up' : 'art-wick is-down' }));
+        kids.push(svg('rect', { x: cx - cw * 0.12, y: by, width: cw * 0.24, height: bodyH, rx: 1.5, class: bull ? 'art-body is-up' : 'art-body is-down' }));
+      } else {
+        kids.push(svg('text', { x: x + cw / 2, y: y + ch / 2 + 5, 'text-anchor': 'middle', class: 'art-q' }, '?'));
+      }
+    }
+  }
+  return svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'art', 'aria-hidden': 'true' }, ...kids);
+}
+
+/** Setup Swipe: a tilted card with a chart, Skip on the left and Take on the right. */
+function swipeArt(seed, size, miniChart) {
+  const W = size.width;
+  const H = size.height;
+  const cw = Math.min(W * 0.52, 170);
+  const ch = H - 20;
+  const x = (W - cw) / 2;
+  const y = 10;
+  const ts = trendSeries({ seed, count: 40, direction: 'up', swings: 3, volume: false });
+  const inner = miniChart(ts.candles, { width: cw - 12, height: ch - 12, padding: 4 });
+  inner.setAttribute('x', String(x + 6));
+  inner.setAttribute('y', String(y + 6));
+  inner.style.width = `${cw - 12}px`;
+  inner.style.height = `${ch - 12}px`;
+  const card = svg('g', { transform: `rotate(6 ${W / 2} ${H / 2})` },
+    svg('rect', { x, y, width: cw, height: ch, rx: 8, class: 'art-card is-face' }),
+    inner);
+  const pill = (px, label, cls) => svg('g', { class: `art-pill ${cls}` },
+    svg('rect', { x: px - 24, y: H / 2 - 11, width: 48, height: 22, rx: 11 }),
+    svg('text', { x: px, y: H / 2 + 4, 'text-anchor': 'middle' }, label));
+  return svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'art', 'aria-hidden': 'true' },
+    svg('rect', { x: x - 10, y: y + 4, width: cw, height: ch, rx: 8, class: 'art-card is-back', transform: `rotate(-5 ${W / 2} ${H / 2})` }),
+    card,
+    W >= 200 ? pill(30, 'SKIP', 'is-down') : null,
+    W >= 200 ? pill(W - 30, 'TAKE', 'is-up') : null);
+}
+
+/** Daily Challenge: a week strip with a streak of completed days and today highlighted. */
+function dailyArt(size) {
+  const W = size.width;
+  const H = size.height;
+  const n = 7;
+  const gap = 6;
+  const cw = Math.min(34, (W - 16 - gap * (n - 1)) / n);
+  const total = n * cw + gap * (n - 1);
+  const x0 = (W - total) / 2;
+  const y = H / 2 - cw / 2 + 6;
+  const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const kids = [];
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * (cw + gap);
+    const state = i < 4 ? 'is-done' : i === 4 ? 'is-today' : '';
+    kids.push(svg('rect', { x, y, width: cw, height: cw, rx: 7, class: `art-day ${state}` }));
+    kids.push(svg('text', { x: x + cw / 2, y: y - 6, 'text-anchor': 'middle', class: 'art-day-label' }, days[i]));
+    if (i < 4) kids.push(svg('path', { d: `M${x + cw * 0.28} ${y + cw * 0.52} l${cw * 0.16} ${cw * 0.16} l${cw * 0.3} -${cw * 0.32}`, class: 'art-check' }));
+    if (i === 4) kids.push(svg('text', { x: x + cw / 2, y: y + cw / 2 + 5, 'text-anchor': 'middle', class: 'art-today' }, '?'));
+  }
+  return svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'art', 'aria-hidden': 'true' }, ...kids);
+}
+
+/** Tilt Control: a branching decision tree with the disciplined path highlighted. */
+function storyArt(size) {
+  const W = size.width;
+  const H = size.height;
+  const nodes = [
+    [0.1, 0.5], [0.4, 0.28], [0.4, 0.72], [0.7, 0.14], [0.7, 0.42], [0.7, 0.62], [0.7, 0.88], [0.92, 0.3],
+  ].map(([x, y]) => [x * W, y * H]);
+  const edges = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6], [4, 7]];
+  const path = new Set(['0-1', '1-4', '4-7']);
+  const kids = edges.map(([a, b]) => svg('line', {
+    x1: nodes[a][0], y1: nodes[a][1], x2: nodes[b][0], y2: nodes[b][1],
+    class: path.has(`${a}-${b}`) ? 'art-edge is-path' : 'art-edge',
+  }));
+  nodes.forEach(([x, y], i) => {
+    const on = i === 0 || i === 1 || i === 4 || i === 7;
+    kids.push(svg('circle', { cx: x, cy: y, r: i === 7 ? 9 : 6.5, class: on ? 'art-node is-path' : 'art-node' }));
+  });
+  return svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'art', 'aria-hidden': 'true' }, ...kids);
 }
 
 // ------------------------------------------------------------------ sections
@@ -428,10 +605,19 @@ function trackCard(store, tier) {
     h('a', { class: 'btn track-card__cta', href: `#${tier.id}` }, `Open the ${tier.title} track`, icon('arrow-right')));
 }
 
+function styleIcons(g) {
+  const ids = stylesOf(g);
+  const labels = ids.map((id) => findStyle(id)?.label || id);
+  return h('span', { class: 'style-icons', role: 'img', 'aria-label': `Styles: ${labels.join(', ')}`, title: `Play styles: ${labels.join(', ')}` },
+    ids.map((id) => h('span', { class: `style-icons__i style-icons__i--${id}` }, styleIcon(id, { size: 13 }))));
+}
+
 function arcadeTile(store, g, feature = false) {
   const st = store.gameStats(g.id);
+  const kind = findKind(g.kind);
+  const real = sourcesOf(g).includes('real');
   const art = h('div', { class: 'game-tile__art', 'aria-hidden': 'true', 'data-art': g.id });
-  const tile = h('a', { class: ['game-tile card card--link', feature && 'game-tile--feature'], href: `#g.${g.id}` },
+  const tile = h('a', { class: ['game-tile card card--link', feature && 'game-tile--feature'], href: `#g.${g.id}`, 'data-kind': g.kind },
     art,
     h('div', { class: 'game-tile__body' },
       feature ? h('p', { class: 'eyebrow eyebrow--accent' }, 'Capstone simulation') : null,
@@ -441,8 +627,100 @@ function arcadeTile(store, g, feature = false) {
       h('p', { class: 'game-tile__blurb' }, g.blurb),
       h('div', { class: 'game-tile__meta' },
         tierChip(g.tier, { small: true }),
-        h('span', { class: 'faint' }, `${KIND_LABEL[g.kind] || 'Game'} · ${g.minutes} min`))));
+        h('span', { class: 'game-tile__kind faint' }, kind ? icon(kind.icon, { size: 13 }) : null, `${KIND_LABEL[g.kind] || 'Game'} · ${g.minutes} min`),
+        g.kind === 'live'
+          ? h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live data')
+          : real ? h('span', { class: 'chip chip--sm source-chip is-real', title: 'Offers real market charts' }, h('span', { class: 'source-chip__dot', 'aria-hidden': 'true' }), 'Real charts') : null,
+        styleIcons(g))));
   return { tile, art };
+}
+
+/** Today: the Daily Challenge (streak) and the Live Market Lab (market status). */
+function todaySection(store, cleanups) {
+  const daily = findEntry('daily-challenge');
+  const d = store.dailyStatus ? store.dailyStatus() : { done: false, streak: 0, best: 0 };
+  const dateText = (() => {
+    try {
+      return new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    } catch {
+      return 'Today';
+    }
+  })();
+  const dailyCard = daily ? h('a', { class: ['today-card card card--link today-card--daily', d.done && 'is-done'], href: '#g.daily-challenge' },
+    h('div', { class: 'today-card__top' },
+      h('span', { class: 'today-card__icon', 'aria-hidden': 'true' }, icon('flame', { size: 22 })),
+      h('div', { class: 'today-card__head' },
+        h('span', { class: 'eyebrow eyebrow--accent' }, 'Daily Challenge'),
+        h('strong', { class: 'today-card__title' }, dateText)),
+      h('span', { class: 'today-card__streak', title: `Best streak: ${d.best || 0} days` },
+        h('span', { class: 'today-card__num mono' }, String(d.streak || 0)),
+        h('small', null, 'day streak'))),
+    h('p', { class: 'today-card__text muted' }, daily.blurb),
+    h('div', { class: 'today-card__foot' },
+      d.done
+        ? h('span', { class: 'chip chip--bull chip--sm' }, icon('check', { size: 13 }), `Done today · ${fmt(d.score || 0)} pts`)
+        : h('span', { class: 'chip chip--sm chip--outline' }, d.streak ? 'Keep your streak alive' : 'Not played yet today'),
+      h('span', { class: 'today-card__go' }, d.done ? 'Replay' : 'Play today’s five', icon('arrow-right', { size: 16 })))) : null;
+
+  const statusChip = h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live & replay');
+  const statusText = h('p', { class: 'today-card__text muted' }, 'Real market prices on a moving chart, with an automatic plain-English read of the trend, the nearest levels and fresh candle patterns.');
+  const liveCard = h('a', { class: 'today-card card card--link today-card--live', href: '#live' },
+    h('div', { class: 'today-card__top' },
+      h('span', { class: 'today-card__icon today-card__icon--live', 'aria-hidden': 'true' }, icon('bolt', { size: 22 })),
+      h('div', { class: 'today-card__head' },
+        h('span', { class: 'eyebrow eyebrow--accent' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), ' Live now'),
+        h('strong', { class: 'today-card__title' }, 'Live Market Lab')),
+      null),
+    statusText,
+    h('div', { class: 'today-card__foot' }, statusChip, h('span', { class: 'today-card__go' }, 'Open the lab', icon('arrow-right', { size: 16 }))));
+
+  // Market status from market.js when it is available. Nothing is fetched from here: the status
+  // reflects the last request this session (or mock mode); the lab itself connects on demand.
+  import('../core/market.js').then((m) => {
+    if (cleanups.dead) return;
+    const render = () => {
+      let st = 'online';
+      try {
+        st = m.marketStatus?.() || 'online';
+      } catch {
+        st = 'online';
+      }
+      const mock = !!m.isMockMode?.();
+      const label = mock ? 'Test data' : st === 'offline' ? 'Offline · simulated' : st === 'unconfigured' ? 'Replay mode' : 'Live & replay';
+      statusChip.className = `chip chip--sm source-chip ${st === 'offline' ? 'is-fallback' : 'is-real'}`;
+      statusChip.replaceChildren(h('span', { class: 'live-dot', 'aria-hidden': 'true', 'data-state': st === 'offline' ? 'offline' : 'live' }), label);
+    };
+    render();
+    const off = m.onMarketStatus?.(render);
+    if (typeof off === 'function') cleanups.push(off);
+  }).catch(() => {
+    /* market module unavailable: keep the static card */
+  });
+
+  return h('section', { class: 'container today', 'aria-label': 'Today' },
+    h('div', { class: 'today__grid' }, dailyCard, liveCard));
+}
+
+const STYLE_RULES = {
+  practice: ['No clock', 'Hints: a hinted round scores up to 50%', 'Try again after a miss', 'Pick Easy, Normal or Hard', 'Half XP'],
+  arcade: ['Fixed rounds and a clock', 'Streaks multiply your score (×1.5, ×2)', 'Three stars to chase', 'Full XP'],
+  survival: ['Three lives', 'Rounds keep coming and get harder', 'The clock speeds up as you go', 'Stars at 5, 10 and 15 rounds'],
+};
+
+function playYourWay() {
+  return h('section', { class: 'container section section--tight play-way', 'aria-labelledby': 'play-way-h' },
+    h('div', { class: 'section-head' },
+      h('div', null,
+        h('p', { class: 'eyebrow' }, 'Play your way'),
+        h('h2', { id: 'play-way-h' }, 'Three styles, every game')),
+      h('p', { class: 'muted' }, 'Pick a style on any game’s start screen; it is remembered per game. Many games also let you switch between clean textbook charts and real market history.')),
+    h('div', { class: 'play-way__grid' },
+      STYLES.map((st) => h('article', { class: `play-way__card play-way__card--${st.id}` },
+        h('div', { class: 'play-way__head' },
+          h('span', { class: 'play-way__icon', 'aria-hidden': 'true' }, styleIcon(st.id, { size: 22 })),
+          h('h3', { class: 'play-way__title' }, st.label)),
+        h('p', { class: 'play-way__blurb' }, st.blurb),
+        h('ul', { class: 'play-way__rules' }, (STYLE_RULES[st.id] || []).map((r) => h('li', null, icon('check', { size: 14 }), h('span', null, r))))))));
 }
 
 function levelStrip(store) {
@@ -491,7 +769,7 @@ export default {
             h('span', { class: 'hero__line' }, h('span', { class: 'hero__em' }, 'one candle')), ' ',
             h('span', { class: 'hero__line' }, 'at a time.')),
           h('p', { class: 'hero__lead' },
-            'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Every chart is simulated, so you can practise without risking a cent.'),
+            'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
           h('div', { class: 'hero__ctas' },
             h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
             h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced')),
@@ -501,33 +779,65 @@ export default {
             h('div', null, h('dt', null, 'Tracks'), h('dd', { class: 'mono' }, String(TIERS.length))))),
         chartHost));
 
-    const arcadeGrid = h('div', { class: 'arcade__grid' });
+    const arcadeGrid = h('div', { class: 'arcade__grid', id: 'arcade-grid' });
+    const emptyNote = h('p', { class: 'faint arcade__empty', hidden: true }, 'No games of this kind yet.');
+    const filterBtns = [];
+    const counts = Object.fromEntries(ARCADE_FILTERS.map((f) => [f.id, f.kinds ? GAMES.filter((g) => f.kinds.includes(g.kind)).length : GAMES.length]));
+    const filterRow = h('div', { class: 'filter-chips', role: 'group', 'aria-label': 'Filter games by kind' },
+      ARCADE_FILTERS.filter((f) => counts[f.id] > 0).map((f) => {
+        const b = h('button', {
+          type: 'button', class: 'filter-chip', 'aria-pressed': String(f.id === 'all'), 'aria-controls': 'arcade-grid', 'data-filter': f.id,
+          on: { click: () => applyFilter(f.id) },
+        }, h('span', null, f.label), h('span', { class: 'filter-chip__n mono' }, String(counts[f.id])));
+        filterBtns.push(b);
+        return b;
+      }));
     const arcade = h('section', { class: 'container section arcade', 'aria-labelledby': 'arcade-h' },
       h('div', { class: 'section-head' },
         h('div', null,
           h('p', { class: 'eyebrow' }, 'The arcade'),
           h('h2', { id: 'arcade-h' }, `${GAMES.length} games that train your eye`)),
-        h('p', { class: 'muted' }, 'Quick rounds, streak multipliers and three stars to chase. Each game drills one skill from its lesson — then the capstones put them together.')),
-      arcadeGrid);
+        h('p', { class: 'muted' }, 'Quizzes, drawing, predictions, memory, swipe, story and live games. Each drills one skill from its lesson, then the capstones put them together.')),
+      filterRow,
+      arcadeGrid,
+      emptyNote);
+    let tiles = [];
+    function applyFilter(id) {
+      const f = ARCADE_FILTERS.find((x) => x.id === id) || ARCADE_FILTERS[0];
+      filterBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === f.id)));
+      let shown = 0;
+      for (const t of tiles) {
+        const on = !f.kinds || f.kinds.includes(t.dataset.kind);
+        t.hidden = !on;
+        if (on) shown++;
+      }
+      arcadeGrid.dataset.filter = f.id;
+      emptyNote.hidden = shown > 0;
+    }
 
     root.append(
       h('div', { class: 'home' },
         hero,
         continueStrip(store),
+        todaySection(store, cleanups),
         h('section', { class: 'container section tracks', 'aria-labelledby': 'tracks-h' },
           h('div', { class: 'section-head' },
             h('div', null,
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
-            h('p', { class: 'muted' }, 'Start with reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, timeframes and risk.')),
+            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology.')),
           h('div', { class: 'tracks__grid' }, TIERS.map((t) => trackCard(store, t)))),
+        playYourWay(),
         arcade,
         levelStrip(store)));
 
     const FEATURE = 'trade-simulator';
-    const arts = GAMES.map((g) => {
+    // The wide feature tile goes last so it never strands a single tile below it.
+    const ordered = [...GAMES.filter((g) => g.id !== FEATURE), ...GAMES.filter((g) => g.id === FEATURE)];
+    const arts = ordered.map((g) => {
       const { tile, art } = arcadeTile(store, g, g.id === FEATURE);
       arcadeGrid.append(tile);
+      tiles.push(tile);
       return art;
     });
 
@@ -554,7 +864,7 @@ export default {
       } catch {
         /* old browsers */
       }
-      GAMES.forEach((g, i) => {
+      ordered.forEach((g, i) => {
         try {
           const size = g.id === FEATURE ? { width: 640, height: 220 } : compact ? { width: 150, height: 140 } : undefined;
           arts[i].append(gamePreview(g.id, 1000 + i * 7919, chartMod, pat, size));
@@ -566,6 +876,7 @@ export default {
 
     return () => {
       dead = true;
+      cleanups.dead = true;
       cleanups.forEach((fn) => fn());
       heroCleanup?.();
     };

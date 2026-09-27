@@ -1,4 +1,6 @@
-// Adversarial tests for supabase/functions/market-data (index.ts + providers.ts).
+// Adversarial tests for supabase/functions/market-data (index.ts + providers.ts): the exchange
+// feeds (Coinbase, Kraken). Alpha Vantage, the catalog and the feeds' default-off switch are
+// covered by market_data_av_test.ts.
 //
 // Run (from the repo root):
 //   DENO_DIR=/tmp/denotest/cache deno test --no-config --node-modules-dir=none \
@@ -71,6 +73,10 @@ function fresh(now = NOW0) {
   resetMarkets();
   clock.now = now;
   Math.random = () => 0.5; // no random prune unless a test asks for it
+  // This file covers the exchange feeds: both enabled, no Alpha Vantage key (see
+  // market_data_av_test.ts for Alpha Vantage and for the feeds being off by default).
+  Deno.env.set('MARKET_EXCHANGE_FEEDS', 'coinbase,kraken');
+  Deno.env.delete('ALPHAVANTAGE_API_KEY');
 }
 
 type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
