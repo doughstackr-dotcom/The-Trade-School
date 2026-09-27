@@ -5868,6 +5868,103 @@ figcaption {
 
 /* ---------------------------------------------------------------- playbook (stub) */
 
+/* Trade difficulty chips (Easy / Medium / Hard) — distinct from curriculum tier chips. */
+.chip--difficulty-easy {
+  background: var(--bull-soft);
+  color: var(--bull-strong);
+}
+.chip--difficulty-medium {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.chip--difficulty-hard {
+  background: var(--bear-soft);
+  color: var(--bear-strong);
+}
+
+.playbook-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.playbook-jump__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.playbook-jump__link:hover {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  color: var(--text);
+}
+
+.playbook-jump__n {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.playbook-section {
+  margin-bottom: 28px;
+  scroll-margin-top: calc(var(--topbar-h) + 12px);
+}
+
+.playbook-section__head {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.playbook-section__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.playbook-section__title {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.playbook-section__count {
+  font-size: 13px;
+}
+
+.playbook-section__blurb {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.playbook-detail__diff {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+
 .playbook__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
