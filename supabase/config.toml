@@ -11,3 +11,7 @@ verify_jwt = true
 # Stripe cannot send a Supabase JWT; the function verifies the Stripe signature instead.
 [functions.stripe-webhook]
 verify_jwt = false
+
+# Public market data: browsers call it with the publishable key (not a JWT). Inputs are allow-listed.
+[functions.market-data]
+verify_jwt = false

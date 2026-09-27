@@ -24,17 +24,47 @@ export const lowerWick = (k) => Math.min(k.o, k.c) - k.l;
 export const isBull = (k) => k.c > k.o;
 export const isBear = (k) => k.c < k.o;
 const mid = (k) => (k.o + k.c) / 2;
-const isLong = (k) => span(k) > 0 && body(k) >= 0.6 * span(k);
+
+/**
+ * Textbook thresholds shared by the generators (which stay a safe margin inside them), the
+ * geometry checks (check() / checkCandlePattern) and CANDLE_RULES, so they cannot drift apart.
+ * All fractions are of the candle's own range (high − low) unless noted.
+ */
+export const CANDLE_THRESHOLDS = Object.freeze({
+  dojiBody: 0.08, // doji: |close − open| ≤ 8% of the range
+  shadowTiny: 0.08, // dragonfly / gravestone: the short side ≤ 8% of the range
+  shadowLong: 0.6, // dragonfly / gravestone: the long wick ≥ 60% of the range
+  spinBodyMin: 0.1, // spinning top: body 10–30% of the range, both wicks longer than the body
+  spinBodyMax: 0.3,
+  marubozuBody: 0.9, // marubozu: body ≥ 90% of the range
+  longBody: 0.6, // a "long" candle (harami mother, piercing / star first candle, soldiers): body ≥ 60%
+  hammerBodyMin: 0.1, // hammer family: body ≥ 10% of the range,
+  hammerWickRatio: 2, //   the long wick ≥ 2 × the body,
+  hammerShortWick: 0.1, //   the other wick ≤ 10% of the range
+  starBody: 0.35, // morning / evening star: middle body ≤ 35% of the first body
+  soldierWick: 0.15, // soldiers / crows: the wick on the closing side ≤ 15% of the range
+  tweezerPct: 0.001, // tweezers: the same high / low within 0.1% of price …
+  tweezerRange: 0.04, //   … and within 4% of the larger candle's range
+  // CANDLE_RULES only (real-market candles): significance and context.
+  sizeLookback: 10, // average range of the 10 candles before the pattern ("typical range")
+  contextLookback: 10, // contextTrend() window
+  trendMove: 1.2, // contextTrend: regression move ≥ 1.2 typical ranges …
+  trendNet: 0.8, //   … and a net move ≥ 0.8 typical ranges in the same direction
+  extremeLookback: 8, // reversals print the lowest low / highest high of the 8 candles before them
+  extremeTol: 0.1, //   (within 0.1 typical ranges; soldiers / crows: within 0.5)
+});
+const T = CANDLE_THRESHOLDS;
+const isLong = (k) => span(k) > 0 && body(k) >= T.longBody * span(k);
 
 // Geometry-only checks for each pattern (context is checked separately).
 const CHECKS = {
-  doji: ([a]) => span(a) > 0 && body(a) <= 0.08 * span(a),
-  'dragonfly-doji': ([a]) => CHECKS.doji([a]) && upperWick(a) <= 0.08 * span(a) && lowerWick(a) >= 0.6 * span(a),
-  'gravestone-doji': ([a]) => CHECKS.doji([a]) && lowerWick(a) <= 0.08 * span(a) && upperWick(a) >= 0.6 * span(a),
+  doji: ([a]) => span(a) > 0 && body(a) <= T.dojiBody * span(a),
+  'dragonfly-doji': ([a]) => CHECKS.doji([a]) && upperWick(a) <= T.shadowTiny * span(a) && lowerWick(a) >= T.shadowLong * span(a),
+  'gravestone-doji': ([a]) => CHECKS.doji([a]) && lowerWick(a) <= T.shadowTiny * span(a) && upperWick(a) >= T.shadowLong * span(a),
   'spinning-top': ([a]) =>
-    span(a) > 0 && body(a) >= 0.1 * span(a) && body(a) <= 0.3 * span(a) && upperWick(a) > body(a) && lowerWick(a) > body(a),
-  'bullish-marubozu': ([a]) => isBull(a) && body(a) >= 0.9 * span(a),
-  'bearish-marubozu': ([a]) => isBear(a) && body(a) >= 0.9 * span(a),
+    span(a) > 0 && body(a) >= T.spinBodyMin * span(a) && body(a) <= T.spinBodyMax * span(a) && upperWick(a) > body(a) && lowerWick(a) > body(a),
+  'bullish-marubozu': ([a]) => isBull(a) && body(a) >= T.marubozuBody * span(a),
+  'bearish-marubozu': ([a]) => isBear(a) && body(a) >= T.marubozuBody * span(a),
   hammer: ([a]) => hammerShape(a),
   'hanging-man': ([a]) => hammerShape(a),
   'inverted-hammer': ([a]) => invertedShape(a),
@@ -48,28 +78,28 @@ const CHECKS = {
   'tweezer-bottom': ([a, b]) => isBear(a) && isBull(b) && Math.abs(a.l - b.l) <= tweezerTol(a, b, a.l),
   'tweezer-top': ([a, b]) => isBull(a) && isBear(b) && Math.abs(a.h - b.h) <= tweezerTol(a, b, a.h),
   'morning-star': ([a, b, c]) =>
-    isBear(a) && isLong(a) && body(b) <= 0.35 * body(a) && Math.max(b.o, b.c) < a.c && isBull(c) && c.c > mid(a),
+    isBear(a) && isLong(a) && body(b) <= T.starBody * body(a) && Math.max(b.o, b.c) < a.c && isBull(c) && c.c > mid(a),
   'evening-star': ([a, b, c]) =>
-    isBull(a) && isLong(a) && body(b) <= 0.35 * body(a) && Math.min(b.o, b.c) > a.c && isBear(c) && c.c < mid(a),
+    isBull(a) && isLong(a) && body(b) <= T.starBody * body(a) && Math.min(b.o, b.c) > a.c && isBear(c) && c.c < mid(a),
   'three-white-soldiers': (cs) =>
-    cs.every((k) => isBull(k) && isLong(k) && upperWick(k) <= 0.15 * span(k)) &&
+    cs.every((k) => isBull(k) && isLong(k) && upperWick(k) <= T.soldierWick * span(k)) &&
     cs.slice(1).every((k, i) => k.o > cs[i].o && k.o < cs[i].c && k.c > cs[i].c),
   'three-black-crows': (cs) =>
-    cs.every((k) => isBear(k) && isLong(k) && lowerWick(k) <= 0.15 * span(k)) &&
+    cs.every((k) => isBear(k) && isLong(k) && lowerWick(k) <= T.soldierWick * span(k)) &&
     cs.slice(1).every((k, i) => k.o < cs[i].o && k.o > cs[i].c && k.c < cs[i].c),
 };
 /** 'Same' high/low: within 0.1% of price and within 4% of the larger candle's range (so the
  *  rule also holds at FX scale, where 0.1% of 1.0850 is most of a candle). */
 function tweezerTol(a, b, price) {
-  return Math.min(0.001 * Math.abs(price), 0.04 * Math.max(span(a), span(b)));
+  return Math.min(T.tweezerPct * Math.abs(price), T.tweezerRange * Math.max(span(a), span(b)));
 }
 function hammerShape(a) {
   const s = span(a);
-  return s > 0 && body(a) >= 0.1 * s && lowerWick(a) >= 2 * body(a) && upperWick(a) <= 0.1 * s;
+  return s > 0 && body(a) >= T.hammerBodyMin * s && lowerWick(a) >= T.hammerWickRatio * body(a) && upperWick(a) <= T.hammerShortWick * s;
 }
 function invertedShape(a) {
   const s = span(a);
-  return s > 0 && body(a) >= 0.1 * s && upperWick(a) >= 2 * body(a) && lowerWick(a) <= 0.1 * s;
+  return s > 0 && body(a) >= T.hammerBodyMin * s && upperWick(a) >= T.hammerWickRatio * body(a) && lowerWick(a) <= T.hammerShortWick * s;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -79,7 +109,7 @@ function invertedShape(a) {
 
 function genDoji(rng, { price: P, range: R }) {
   const s = R * rng.float(1.05, 1.5);
-  const b = s * rng.float(0, 0.055);
+  const b = s * rng.float(0, T.dojiBody - 0.025);
   const rest = s - b;
   const up = rest * rng.float(0.35, 0.65);
   const o = P + rng.gauss(0, 0.04 * R);
@@ -87,14 +117,14 @@ function genDoji(rng, { price: P, range: R }) {
 }
 function genDragonfly(rng, { price: P, range: R }) {
   const s = R * rng.float(1.45, 2.0);
-  const b = s * rng.float(0, 0.045);
-  const up = s * rng.float(0, 0.05);
+  const b = s * rng.float(0, T.dojiBody - 0.035);
+  const up = s * rng.float(0, T.shadowTiny - 0.03); // long wick ≥ 1 − 0.045 − 0.05 ≫ shadowLong
   const o = P + rng.gauss(0, 0.03 * R);
   return [parts(o, o + rng.sign() * b, up, s - b - up)];
 }
 function genSpinning(rng, { price: P, range: R }) {
   const s = R * rng.float(0.8, 1.2);
-  const b = s * rng.float(0.12, 0.28);
+  const b = s * rng.float(T.spinBodyMin + 0.02, T.spinBodyMax - 0.02);
   const rest = s - b;
   const f = rng.float(0.42, 0.58);
   const o = P + rng.gauss(0, 0.05 * R);
@@ -102,16 +132,19 @@ function genSpinning(rng, { price: P, range: R }) {
 }
 function genMarubozu(rng, { price: P, range: R }) {
   const s = R * rng.float(1.6, 2.3);
-  const b = s * rng.float(0.92, 0.985);
+  const b = s * rng.float(T.marubozuBody + 0.02, 0.985);
   const rest = s - b;
   const f = rng.float(0.2, 0.8);
   return [parts(P, P + b, rest * f, rest * (1 - f))];
 }
 /** Small body at the top, long lower wick (hammer / hanging man). */
+/** Hammer-family body / short-wick bounds, a margin inside the thresholds (long wick ≥ 2 × body). */
+const HAMMER_UP_MAX = T.hammerShortWick - 0.04;
+const HAMMER_BODY = [T.hammerBodyMin + 0.05, Math.min(0.3, (1 - HAMMER_UP_MAX) / (T.hammerWickRatio + 1) - 0.01)];
 function genHammerShape(rng, { price: P, range: R }, bullProb, gap) {
   const s = R * rng.float(1.5, 2.1);
-  const b = s * rng.float(0.15, 0.3);
-  const up = s * rng.float(0, 0.06);
+  const b = s * rng.float(HAMMER_BODY[0], HAMMER_BODY[1]);
+  const up = s * rng.float(0, HAMMER_UP_MAX);
   const low = s - b - up;
   // Opens a little beyond the prior close in the trend's direction (a hanging man above it,
   // a hammer below it), so the candle prints at the extreme of the move.
@@ -122,8 +155,8 @@ function genHammerShape(rng, { price: P, range: R }, bullProb, gap) {
 /** Small body at the bottom, long upper wick (inverted hammer / shooting star). */
 function genInvertedShape(rng, { price: P, range: R }, bullProb, gap) {
   const s = R * rng.float(1.5, 2.1);
-  const b = s * rng.float(0.15, 0.3);
-  const low = s * rng.float(0, 0.06);
+  const b = s * rng.float(HAMMER_BODY[0], HAMMER_BODY[1]);
+  const low = s * rng.float(0, HAMMER_UP_MAX);
   const up = s - b - low;
   // Opens a little beyond the prior close (below it after a decline, above it after a rally)
   // so the small body prints at the extreme of the move.
@@ -172,7 +205,7 @@ function genTweezerBottom(rng, { price: P, range: R }) {
   // Second candle opens just inside the first body and closes above the first open, so the
   // pair is a pure tweezer (not also a harami, piercing line or engulfing).
   const o2 = c1 + R * rng.float(0.01, 0.06);
-  const low2 = k1.l + rng.float(-1, 1) * Math.min(0.0006 * k1.l, 0.02 * R);
+  const low2 = k1.l + rng.float(-1, 1) * Math.min(T.tweezerPct * 0.6 * k1.l, T.tweezerRange * 0.5 * R);
   const c2 = o1 + R * rng.float(0.08, 0.35);
   return [k1, K(o2, c2 + R * rng.float(0.03, 0.18), low2, c2)];
 }
@@ -182,7 +215,7 @@ function genMorningStar(rng, { price: P, range: R }) {
   const c1 = o1 - b1;
   const k1 = parts(o1, c1, R * rng.float(0.03, 0.15), R * rng.float(0.03, 0.15));
   const top2 = c1 - R * rng.float(0.08, 0.3);
-  const b2 = b1 * rng.float(0.04, 0.2);
+  const b2 = b1 * rng.float(0.04, T.starBody - 0.15);
   const [o2, c2] = rng.chance(0.5) ? [top2 - b2, top2] : [top2, top2 - b2];
   const k2 = parts(o2, c2, R * rng.float(0.1, 0.35), R * rng.float(0.1, 0.35));
   const o3 = top2 + R * rng.float(0.02, 0.15);
@@ -194,7 +227,7 @@ function genSoldiers(rng, { price: P, range: R }) {
   let o = P;
   for (let i = 0; i < 3; i++) {
     const b = R * rng.float(1.0, 1.4);
-    out.push(parts(o, o + b, b * rng.float(0.02, 0.1), b * rng.float(0.03, 0.14)));
+    out.push(parts(o, o + b, b * rng.float(0.02, T.soldierWick - 0.05), b * rng.float(0.03, 0.14)));
     o += b * rng.float(0.45, 0.8);
   }
   return out;
@@ -632,6 +665,143 @@ export function candleScenario(patternId, { seed, leadIn: nLead = 14, after = 0,
     else candles[e].v = Math.max(1, Math.round(Math.min(candles[e].v, avg * vr.float(0.75, 1.0))));
   }
   return { candles, start: s, end: e, id: patternId, bias: p.bias, context: p.context, trend, outcome: ok ? 'success' : 'fail', direction: dir, confirm };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rules for real-market candles. CANDLE_RULES[id](candles, i, ctx) is true when pattern `id`
+// COMPLETES on candle i (its last candle), judged only from candles 0..i: the textbook geometry
+// above (CHECKS, the same thresholds the generators satisfy), a pattern big enough to matter
+// next to the typical range of the preceding candles, the right trend context, and — for
+// reversals — the pattern printing the extreme of the move. Works at any price scale, with
+// gaps, zero volume (volume is never required) and flat, doji-heavy markets.
+// ---------------------------------------------------------------------------------------------
+
+const okCandle = (k) => k != null && [k.o, k.h, k.l, k.c].every(Number.isFinite) && k.h >= k.l && k.l <= Math.min(k.o, k.c) && Math.max(k.o, k.c) <= k.h;
+
+/** Average range (high − low) of the `n` candles before index `idx` (0 when there are none). */
+export function typicalRange(candles, idx, n = T.sizeLookback) {
+  const from = Math.max(0, idx - n);
+  let sum = 0;
+  let m = 0;
+  for (let j = from; j < idx; j++) {
+    const k = candles[j];
+    if (!okCandle(k)) continue;
+    sum += k.h - k.l;
+    m++;
+  }
+  return m ? sum / m : 0;
+}
+
+/**
+ * contextTrend(candles, i, lookback = 10) → 'up' | 'down' | 'range'
+ * Trend of the `lookback` candles BEFORE index i (i itself is excluded): the regression slope of
+ * the closes must move ≥ 1.2 typical ranges and the window's net move (first open → last close)
+ * ≥ 0.8 typical ranges in the same direction. Fewer than 4 candles → 'range'.
+ */
+export function contextTrend(candles, i, lookback = T.contextLookback) {
+  const to = Math.min(i, candles.length);
+  const from = Math.max(0, to - Math.max(1, Math.floor(lookback)));
+  const seg = candles.slice(from, to).filter(okCandle);
+  const n = seg.length;
+  if (n < 4) return 'range';
+  let sx = 0;
+  let sy = 0;
+  let sxy = 0;
+  let sxx = 0;
+  let sr = 0;
+  seg.forEach((k, j) => {
+    sx += j;
+    sy += k.c;
+    sxy += j * k.c;
+    sxx += j * j;
+    sr += k.h - k.l;
+  });
+  const avgR = sr / n;
+  if (!(avgR > 0)) return 'range';
+  const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx || 1);
+  const move = (slope * (n - 1)) / avgR;
+  const net = (seg[n - 1].c - seg[0].o) / avgR;
+  if (move >= T.trendMove && net >= T.trendNet) return 'up';
+  if (move <= -T.trendMove && net <= -T.trendNet) return 'down';
+  return 'range';
+}
+
+/** Minimum size of each pattern next to the typical range R of the candles before it. */
+const SIZE = {
+  doji: (cs, R) => span(cs[0]) >= 0.6 * R,
+  'dragonfly-doji': (cs, R) => span(cs[0]) >= 0.8 * R,
+  'gravestone-doji': (cs, R) => span(cs[0]) >= 0.8 * R,
+  'spinning-top': (cs, R) => span(cs[0]) >= 0.6 * R,
+  'bullish-marubozu': (cs, R) => body(cs[0]) >= 1.0 * R,
+  'bearish-marubozu': (cs, R) => body(cs[0]) >= 1.0 * R,
+  hammer: (cs, R) => span(cs[0]) >= 1.0 * R,
+  'hanging-man': (cs, R) => span(cs[0]) >= 1.0 * R,
+  'inverted-hammer': (cs, R) => span(cs[0]) >= 1.0 * R,
+  'shooting-star': (cs, R) => span(cs[0]) >= 1.0 * R,
+  'bullish-engulfing': ([a, b], R) => body(a) >= 0.25 * R && body(b) >= 0.5 * R,
+  'bearish-engulfing': ([a, b], R) => body(a) >= 0.25 * R && body(b) >= 0.5 * R,
+  'bullish-harami': ([a], R) => body(a) >= 0.8 * R,
+  'bearish-harami': ([a], R) => body(a) >= 0.8 * R,
+  'piercing-line': ([a], R) => body(a) >= 0.9 * R,
+  'dark-cloud-cover': ([a], R) => body(a) >= 0.9 * R,
+  'tweezer-bottom': ([a, b], R) => span(a) >= 0.5 * R && span(b) >= 0.5 * R,
+  'tweezer-top': ([a, b], R) => span(a) >= 0.5 * R && span(b) >= 0.5 * R,
+  'morning-star': ([a, , c], R) => body(a) >= 0.9 * R && body(c) >= 0.5 * R,
+  'evening-star': ([a, , c], R) => body(a) >= 0.9 * R && body(c) >= 0.5 * R,
+  'three-white-soldiers': (cs, R) => cs.every((k) => body(k) >= 0.6 * R),
+  'three-black-crows': (cs, R) => cs.every((k) => body(k) >= 0.6 * R),
+};
+
+/** Geometry used by the rules: CHECKS, except that an engulfing candle may open exactly AT the
+ *  prior close (24/7 markets open where the last candle closed, so a strict gap never happens). */
+const RULE_GEOMETRY = {
+  ...CHECKS,
+  'bullish-engulfing': ([a, b]) => isBear(a) && isBull(b) && b.o <= a.c && b.c > a.o && body(b) > body(a),
+  'bearish-engulfing': ([a, b]) => isBull(a) && isBear(b) && b.o >= a.c && b.c < a.o && body(b) > body(a),
+};
+
+function makeRule(id) {
+  const p = CANDLE_PATTERNS[id];
+  const n = p.candles;
+  const bull = p.bias === 'bullish';
+  const soldiers = id.startsWith('three-');
+  return (candles, i, ctx = {}) => {
+    if (!candles || !Number.isInteger(i) || i >= candles.length) return false;
+    const s = i - n + 1;
+    if (s < 3) return false; // needs a little history for size and context
+    const cs = candles.slice(s, i + 1);
+    if (!cs.every(okCandle) || !RULE_GEOMETRY[id](cs)) return false;
+    const R = ctx.avgRange > 0 ? ctx.avgRange : typicalRange(candles, s);
+    if (!(R > 0) || !SIZE[id](cs, R)) return false;
+    if (p.context !== 'any') {
+      const trend = ctx.trend ?? contextTrend(candles, s);
+      if (trend !== (p.context === 'downtrend' ? 'down' : 'up')) return false;
+    }
+    if (p.kind === 'reversal') {
+      const before = candles.slice(Math.max(0, s - (soldiers ? 10 : T.extremeLookback)), s).filter(okCandle);
+      if (!before.length) return false;
+      const tol = (soldiers ? 0.5 : T.extremeTol) * R;
+      if (bull && Math.min(...cs.map((k) => k.l)) > Math.min(...before.map((k) => k.l)) + tol) return false;
+      if (!bull && Math.max(...cs.map((k) => k.h)) < Math.max(...before.map((k) => k.h)) - tol) return false;
+    }
+    return true;
+  };
+}
+
+/**
+ * CANDLE_RULES[id](candles, i, ctx?) → boolean — pattern `id` completes on candle i.
+ * ctx (optional): { trend: 'up'|'down'|'range' — the trend of the candles BEFORE the pattern's
+ * first candle (default contextTrend(candles, i − n + 1)), avgRange — typical range before it }.
+ */
+export const CANDLE_RULES = Object.freeze(Object.fromEntries(CANDLE_PATTERN_IDS.map((id) => [id, makeRule(id)])));
+
+/**
+ * candleConfirm(id, patternCandles, dir) → price: the level the next candle must close beyond to
+ * confirm the pattern (from its howToTrade text). dir (1 | −1) picks the side for neutral patterns.
+ */
+export function candleConfirm(id, cs, dir = 1) {
+  const fn = CONFIRM[id];
+  return fn && cs && cs.length ? fn(cs, dir) : null;
 }
 
 // ---------------------------------------------------------------------------------------------

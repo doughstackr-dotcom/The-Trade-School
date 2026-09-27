@@ -84,9 +84,9 @@ function sanitize(c: Candle): Candle | null {
 
 /**
  * Fill the intervals a sparse provider left out because nothing traded: flat at the previous
- * close with zero volume (what Kraken returns for them), between the candles we got and after
- * the last one up to `until`. Otherwise a quiet market looks like a hole in the cache and is
- * re-fetched on every request. Candles must be sorted and unique.
+ * close with zero volume (the usual exchange convention; v = 0 marks them), between the candles
+ * we got and after the last one up to `until`. Otherwise a quiet market looks like a hole in the
+ * cache and is re-fetched on every request. Candles must be sorted and unique.
  */
 function fillGaps(candles: Candle[], step: number, until: number): Candle[] {
   const out: Candle[] = [];
@@ -213,6 +213,23 @@ async function saveFloor(symbol: string, interval: Interval, t: number) {
     );
 }
 
+/**
+ * An empty stretch before `t` is the listing date only if a coarser look agrees: the provider has
+ * no daily candles in the PAGE days before t's day either. A quiet spell, an exchange outage or a
+ * one-off empty answer can't empty 300 days, so none of them can hide history for good.
+ */
+async function confirmFloor(meta: SymbolMeta, source: ProviderName, t: number): Promise<boolean> {
+  const provider = PROVIDERS[source];
+  if (provider.maxBack || !provider.supports('1d')) return false;
+  const day = INTERVAL_MS['1d'];
+  const end = Math.floor(t / day) * day - 1;
+  try {
+    return (await provider.fetch(meta, '1d', end - PAGE * day, end)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
 function staleResponse(meta: SymbolMeta, symbol: string, interval: Interval, candles: Candle[]): Response {
   const provider = PROVIDERS[meta.providers[0]];
   return respond({
@@ -252,6 +269,7 @@ Deno.serve(async (req) => {
   const isLatest = now - wantEnd < step * 2;
   let source: string = meta.providers[0];
   let claimed = false;
+  let unconfirmedGap = false;
 
   try {
     // 1. Keep the newest candles fresh (one caller per TTL does the upstream request).
@@ -306,19 +324,23 @@ Deno.serve(async (req) => {
       if (fetchStart < fetchEnd) {
         const hist = await fetchUpstream(meta, interval, fetchStart, fetchEnd);
         await store(symbol, interval, hist.candles, hist.source, fetchEnd);
-        // Nothing in [fetchStart, emptyUntil): that is the listing date if the provider keeps full
-        // history and either the known floor was the start or the empty stretch is a whole page
-        // long (a few quiet minutes in a thin market are not a listing date).
+        // Nothing in [fetchStart, emptyUntil): that may be the listing date if the provider keeps
+        // full history and either the known floor was the start or the empty stretch is a whole
+        // page long (a few quiet minutes in a thin market are not a listing date) — and the daily
+        // candles agree. Otherwise the provider has a gap it may fill later: don't remember it.
         const emptyUntil = hist.candles.length ? hist.candles[0].t : fetchEnd;
         if (
           !PROVIDERS[hist.source].maxBack && emptyUntil > floor &&
           (fetchStart <= floor || emptyUntil - fetchStart >= PAGE * step)
         ) {
-          await saveFloor(symbol, interval, emptyUntil);
+          if (await confirmFloor(meta, hist.source, emptyUntil)) await saveFloor(symbol, interval, emptyUntil);
+          else unconfirmedGap = true;
         }
         candles = await load(symbol, interval, limit, endMs);
       }
     }
+    // "Nothing" for a stretch the market was trading is a provider glitch, not an answer to cache.
+    if (unconfirmedGap && !candles.length) throw new Error('provider returned no candles for a trading period');
 
     if (Math.random() < 0.01) await admin.rpc('prune_market_candles');
 
@@ -326,7 +348,7 @@ Deno.serve(async (req) => {
     return respond(
       { symbol, interval, candles, source, attribution: provider.attribution, delayed: provider.delayed },
       200,
-      isLatest ? Math.min(TTL_MS[interval], 60_000) : 3_600_000,
+      unconfirmedGap ? 0 : isLatest ? Math.min(TTL_MS[interval], 60_000) : 3_600_000,
     );
   } catch (err) {
     console.error(`market-data ${symbol} ${interval} failed: ${(err as Error).message}`);

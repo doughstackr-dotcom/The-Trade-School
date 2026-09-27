@@ -265,7 +265,7 @@ Deno.test('first latest request fetches upstream once, caches, and returns the d
 Deno.test('requests within the TTL are served from cache with no upstream call', async () => {
   fresh();
   const first = await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals(cb.calls.length, 1);
+  const n0 = cb.calls.length;
   for (const dt of [1_000, 10_000, 14_999]) {
     clock.now = NOW0 + dt;
     const again = await call({ symbol: 'BTC-USD', interval: '1m' }, 'GET');
@@ -274,7 +274,7 @@ Deno.test('requests within the TTL are served from cache with no upstream call',
     assertEquals(again.body.source, 'coinbase');
     assertEquals(again.headers.get('Cache-Control'), 'public, max-age=15');
   }
-  assertEquals(cb.calls.length, 1);
+  assertEquals(cb.calls.length, n0);
   // Longer intervals cap the browser max-age at 60 s.
   const daily = await call({ symbol: 'BTC-USD', interval: '1d' });
   assertEquals(daily.headers.get('Cache-Control'), 'public, max-age=60');
@@ -283,11 +283,11 @@ Deno.test('requests within the TTL are served from cache with no upstream call',
 Deno.test('after the TTL exactly one of N concurrent requests refreshes; the rest serve the cache', async () => {
   fresh();
   await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals(cb.calls.length, 1);
+  const n0 = cb.calls.length;
   clock.now = NOW0 + 15_001;
   cb.delayMs = 50; // the refresh is in flight while the others arrive
   const results = await Promise.all(Array.from({ length: 12 }, () => call({ symbol: 'BTC-USD', interval: '1m' })));
-  assertEquals(cb.calls.length, 2, 'one refresh for 12 concurrent requests');
+  assertEquals(cb.calls.length, n0 + 1, 'one refresh for 12 concurrent requests');
   for (const r of results) {
     assertEquals(r.status, 200);
     assertEquals(r.body.candles!.length, 300);
@@ -295,23 +295,23 @@ Deno.test('after the TTL exactly one of N concurrent requests refreshes; the res
   }
   assertEquals(db.fetchState('BTC-USD', '1m')!.fetched_at, NOW0 + 15_001);
   // The refreshed range is the recent window only.
-  const [start, end] = cbRanges()[1];
+  const [start, end] = cbRanges()[n0];
   assertEquals(end, NOW0 + 15_001);
   assertEquals(start, NOW0 + 15_001 - 120 * MIN);
   // And the next TTL window starts from the refresh.
   clock.now = NOW0 + 25_000;
   await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals(cb.calls.length, 2);
+  assertEquals(cb.calls.length, n0 + 1);
 });
 
 Deno.test('a burst after an idle period makes one upstream call, not one per request', async () => {
   fresh();
   await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals(cb.calls.length, 1);
+  const n0 = cb.calls.length;
   clock.now = NOW0 + 30 * MIN; // cache now ends 30 candles ago (> the 3-candle gap tolerance)
   cb.delayMs = 40;
   const results = await Promise.all(Array.from({ length: 6 }, () => call({ symbol: 'BTC-USD', interval: '1m' })));
-  assertEquals(cb.calls.length, 2, `burst caused ${cb.calls.length - 1} upstream calls`);
+  assertEquals(cb.calls.length - n0, 1, `burst caused ${cb.calls.length - n0} upstream calls`);
   for (const r of results) {
     assertEquals(r.status, 200);
     assertEquals(r.body.candles!.at(-1)!.t, slot(NOW0 + 30 * MIN, MIN), 'every caller sees the fresh tail');
@@ -346,10 +346,13 @@ Deno.test('after an idle period the candle that was still forming is re-fetched 
 
 Deno.test('coinbase failure falls back to kraken for the latest candles', async () => {
   fresh();
+  await call({ symbol: 'BTC-USD', interval: '1m' });
+  const n0 = cb.calls.length;
+  clock.now = NOW0 + 20_000;
   cb.faults = [429];
   const res = await call({ symbol: 'BTC-USD', interval: '1m' });
   assertEquals(res.status, 200);
-  assertEquals(cb.calls.length, 1);
+  assertEquals(cb.calls.length, n0 + 1);
   assertEquals(kr.calls.length, 1);
   assertEquals(res.body.source, 'kraken');
   assertEquals(res.body.attribution, 'Market data: Kraken');
@@ -358,15 +361,16 @@ Deno.test('coinbase failure falls back to kraken for the latest candles', async 
   const u = kr.calls[0].url;
   assertEquals(u.searchParams.get('pair'), 'XBTUSD');
   assertEquals(u.searchParams.get('interval'), '1');
+  assertEquals(Number(u.searchParams.get('since')), Math.floor((NOW0 + 20_000 - 120 * MIN) / 1000) - 1);
   // Kraken numbers arrive as strings and are parsed.
   const k = trueCandle(cb.markets['BTC-USD'], seedOf('BTC-USD'), res.body.candles![5].t, MIN)!;
   assertEquals(res.body.candles![5], k);
   assertEquals(db.fetchState('BTC-USD', '1m')!.source, 'kraken');
   // Served from cache within the TTL, still attributed to kraken.
-  clock.now = NOW0 + 5_000;
+  clock.now = NOW0 + 25_000;
   const again = await call({ symbol: 'BTC-USD', interval: '1m' });
   assertEquals(again.body.source, 'kraken');
-  assertEquals(cb.calls.length + kr.calls.length, 2);
+  assertEquals([cb.calls.length, kr.calls.length], [n0 + 1, 1]);
 });
 
 Deno.test('kraken error bodies (HTTP 200) and unsupported intervals count as failures', async () => {
@@ -387,7 +391,7 @@ Deno.test('kraken error bodies (HTTP 200) and unsupported intervals count as fai
 Deno.test('total provider failure with a cache → stale cached response; claim retried after ~5 s', async () => {
   fresh();
   const warm = await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals(cb.calls.length, 1);
+  const n0 = cb.calls.length;
   clock.now = NOW0 + 20_000;
   cb.always = 429;
   kr.always = 500;
@@ -398,15 +402,15 @@ Deno.test('total provider failure with a cache → stale cached response; claim 
   assertEquals(res.body.delayed, true);
   assertEquals(res.body.candles, warm.body.candles);
   assertEquals(res.headers.get('Cache-Control'), 'no-store');
-  assertEquals([cb.calls.length, kr.calls.length], [2, 1]);
+  assertEquals([cb.calls.length, kr.calls.length], [n0 + 1, 1]);
   // The claim was released so a retry happens ~5 s later, not a full TTL later …
   assertEquals(db.fetchState('BTC-USD', '1m')!.fetched_at, NOW0 + 20_000 - 15_000 + 5_000);
   clock.now = NOW0 + 23_000; // … but not before.
   await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals([cb.calls.length, kr.calls.length], [2, 1]);
+  assertEquals([cb.calls.length, kr.calls.length], [n0 + 1, 1]);
   clock.now = NOW0 + 26_000;
   const retry = await call({ symbol: 'BTC-USD', interval: '1m' });
-  assertEquals([cb.calls.length, kr.calls.length], [3, 2]);
+  assertEquals([cb.calls.length, kr.calls.length], [n0 + 2, 2]);
   assertEquals(retry.body.stale, true);
   // Recovery.
   cb.always = null;
@@ -415,7 +419,7 @@ Deno.test('total provider failure with a cache → stale cached response; claim 
   const ok = await call({ symbol: 'BTC-USD', interval: '1m' });
   assertEquals(ok.body.stale, undefined);
   assertEquals(ok.body.source, 'coinbase');
-  assertEquals(cb.calls.length, 4);
+  assertEquals(cb.calls.length, n0 + 3);
 });
 
 Deno.test('total failure with no cache → 502 (and DB outage → 502 without upstream calls)', async () => {
@@ -451,6 +455,7 @@ Deno.test('a failed cache write releases the claim and does not report success',
 Deno.test('slow provider: concurrent callers are not blocked by the refresh; a hung provider times out to kraken', async () => {
   fresh();
   await call({ symbol: 'BTC-USD', interval: '1m' });
+  const n0 = cb.calls.length;
   clock.now = NOW0 + 16_000;
   cb.faults = [{ delay: 300 }];
   const order: string[] = [];
@@ -462,10 +467,13 @@ Deno.test('slow provider: concurrent callers are not blocked by the refresh; a h
   await claimer;
   assertEquals(order.slice(0, 4), ['other', 'other', 'other', 'other']);
   for (const r of others) assertEquals(r.body.candles!.length, 300);
-  assertEquals(cb.calls.length, 2);
+  assertEquals(cb.calls.length, n0 + 1);
 
   // A provider that never answers: getJson aborts after 8 s (timers scaled 100× here).
   fresh();
+  await call({ symbol: 'BTC-USD', interval: '1m' });
+  const n1 = cb.calls.length;
+  clock.now = NOW0 + 16_000;
   const realSetTimeout = globalThis.setTimeout;
   // deno-lint-ignore no-explicit-any
   (globalThis as any).setTimeout = (fn: () => void, ms = 0) => realSetTimeout(fn, ms >= 1000 ? ms / 100 : ms);
@@ -476,7 +484,7 @@ Deno.test('slow provider: concurrent callers are not blocked by the refresh; a h
     assert(performance.now() - t0 < 2_000);
     assertEquals(res.status, 200);
     assertEquals(res.body.source, 'kraken');
-    assertEquals([cb.calls.length, kr.calls.length], [1, 1]);
+    assertEquals([cb.calls.length, kr.calls.length], [n1 + 1, 1]);
   } finally {
     globalThis.setTimeout = realSetTimeout;
   }
@@ -509,7 +517,9 @@ Deno.test('historical window back-fills once, then is served from cache with a l
   assertEquals(cb.calls.length, 1);
 });
 
-Deno.test('concurrent identical historical requests (cold cache) all succeed', async () => {
+// Known limit: the refresh claim only covers the latest candles, so N simultaneous cold requests
+// for the same historical window each go upstream once (afterwards the window is cached).
+Deno.test('concurrent identical historical requests (cold cache) all succeed; each goes upstream once', async () => {
   fresh();
   const end = RealDate.UTC(2026, 5, 1);
   const rs = await Promise.all(Array.from({ length: 5 }, () => call({ symbol: 'BTC-USD', interval: '1d', end, limit: 200 })));
@@ -517,7 +527,9 @@ Deno.test('concurrent identical historical requests (cold cache) all succeed', a
     assertEquals(r.status, 200);
     assertEquals(r.body.candles!.length, 200);
   }
-  assert(cb.calls.length >= 1 && cb.calls.length <= 5);
+  assertEquals(cb.calls.length, 5);
+  await call({ symbol: 'BTC-USD', interval: '1d', end, limit: 200 });
+  assertEquals(cb.calls.length, 5);
 });
 
 Deno.test('tail missing: a window ending after the cached segment re-fetches exactly that window', async () => {
@@ -573,10 +585,11 @@ Deno.test('limit 1000 pages Coinbase 4 times and returns exactly 1000 sorted uni
   const res = await call({ symbol: 'BTC-USD', interval: '1m', limit: 1000 });
   assertEquals(res.status, 200);
   assertEquals(cb.calls.length, 4, JSON.stringify(cbRanges()));
-  // Pages walk backwards and tile the range without gaps.
-  const r = cbRanges();
-  for (let i = 1; i < r.length; i++) assertEquals(r[i][1], r[i - 1][0]);
+  // Every page is within Coinbase's 300-candle limit and together they cover the window.
+  const r = cbRanges().sort((a, b) => a[0] - b[0]);
   for (const [s, e] of r) assert(e - s <= 300 * MIN);
+  assert(r[0][0] <= NOW0 - 999 * MIN && r.at(-1)![1] >= NOW0);
+  for (let i = 1; i < r.length; i++) assert(r[i][0] <= r[i - 1][1] + MIN, 'pages leave no gap');
   const candles = res.body.candles!;
   assertEquals(candles.length, 1000);
   assertEquals(new Set(candles.map((k) => k.t)).size, 1000);
@@ -593,7 +606,7 @@ Deno.test('limit 1000 pages Coinbase 4 times and returns exactly 1000 sorted uni
   assertWellFormed(hist.body.candles!, '1h');
 });
 
-Deno.test('listing date: history before it is asked for at most twice, then never again', async () => {
+Deno.test('listing date: history before it is asked for once more (plus a daily check), then never again', async () => {
   fresh();
   const L = LISTINGS['SOL-USD'];
   const e = L + 50 * DAY; // window of 300 days straddles the listing
@@ -605,7 +618,9 @@ Deno.test('listing date: history before it is asked for at most twice, then neve
     const again = await call({ symbol: 'SOL-USD', interval: '1d', end: e, limit: 300 });
     assertEquals(again.body.candles, first.body.candles);
   }
-  assert(cb.calls.length <= 2, `listing floor not remembered: ${cb.calls.length} upstream calls`);
+  // 1: the window; 2: one page before the first candle (empty); 3: the daily candles agree.
+  assertEquals(cb.calls.length, 3, `listing floor not remembered: ${cb.calls.length} upstream calls`);
+  assertEquals(cb.calls[2].url.searchParams.get('granularity'), '86400');
   assertEquals(db.fetchState('SOL-USD', '1d')?.oldest_complete, L);
   const settled = cb.calls.length;
   // Windows entirely before the listing now cost nothing.
@@ -620,7 +635,7 @@ Deno.test('listing date: history before it is asked for at most twice, then neve
   assertEquals(db.fetchState('SOL-USD', '1d')?.oldest_complete, L);
 });
 
-Deno.test('listing date: a window wholly before listing (cold) costs one upstream call, then none', async () => {
+Deno.test('listing date: a window wholly before listing (cold) costs one call + one check, then none', async () => {
   fresh();
   const L = LISTINGS['AVAX-USD'];
   for (let i = 0; i < 3; i++) {
@@ -628,7 +643,7 @@ Deno.test('listing date: a window wholly before listing (cold) costs one upstrea
     assertEquals(r.status, 200);
     assertEquals(r.body.candles, []);
   }
-  assertEquals(cb.calls.length, 1);
+  assertEquals(cb.calls.length, 2, 'the empty window + the daily confirmation');
   // The floor row was created for a symbol/interval nobody asked "latest" for, and it does not
   // block the first latest refresh.
   const st = db.fetchState('AVAX-USD', '1h')!;
@@ -636,7 +651,7 @@ Deno.test('listing date: a window wholly before listing (cold) costs one upstrea
   const latest = await call({ symbol: 'AVAX-USD', interval: '1h' });
   assertEquals(latest.status, 200);
   assertEquals(latest.body.candles!.length, 300);
-  assertEquals(cb.calls.length, 2);
+  assertEquals(cb.calls.length, 3);
 });
 
 Deno.test('kraken cannot serve old history: a coinbase outage must not poison the listing floor', async () => {
@@ -661,7 +676,10 @@ Deno.test('kraken partial history (latest window > 720 candles) never sets the l
   cb.always = 503;
   const res = await call({ symbol: 'BTC-USD', interval: '1m', limit: 1000 });
   assertEquals(res.status, 200);
-  assert(res.body.candles!.length >= 719 && res.body.candles!.length < 1000);
+  assertEquals(res.body.stale, true, 'the older part could not be fetched');
+  assertEquals(res.body.candles!.length, 720);
+  // refresh: coinbase fails → kraken (latest 720); head: coinbase fails, kraken can't reach → stale.
+  assertEquals([cb.calls.length, kr.calls.length], [2, 1]);
   assertEquals(db.fetchState('BTC-USD', '1m')!.oldest_complete, null);
   // Coinbase is back: the next request completes the window from Coinbase, then it is cached.
   cb.always = null;
@@ -669,6 +687,7 @@ Deno.test('kraken partial history (latest window > 720 candles) never sets the l
   const later = await call({ symbol: 'BTC-USD', interval: '1m', limit: 1000 });
   assertEquals(later.body.candles!.length, 1000);
   assertWellFormed(later.body.candles!, '1m');
+  assertEquals([cb.calls.length, kr.calls.length], [3, 1]);
   const n = cb.calls.length;
   clock.now = NOW0 + 2000;
   await call({ symbol: 'BTC-USD', interval: '1m', limit: 1000 });
@@ -688,6 +707,7 @@ Deno.test('thin market: a few leading minutes without trades do not hide older h
   assertEquals(older.status, 200);
   assertEquals(older.body.candles!.length, 300);
   assertEquals(older.body.candles!.at(-1)!.t, e - 10 * HOUR);
+  assertEquals(cb.calls.length, 3);
 });
 
 Deno.test('thin market: minutes without trades inside the window are not re-fetched on every request', async () => {
@@ -698,6 +718,7 @@ Deno.test('thin market: minutes without trades inside the window are not re-fetc
   const r1 = await call({ symbol: 'LINK-USD', interval: '1m', end: e, limit: 300 });
   assertEquals(r1.status, 200);
   const n = cb.calls.length;
+  assertEquals(n, 1);
   for (let i = 0; i < 3; i++) await call({ symbol: 'LINK-USD', interval: '1m', end: e, limit: 300 });
   assertEquals(cb.calls.length, n, `re-fetched ${cb.calls.length - n} times`);
   assertWellFormed(r1.body.candles!, '1m');
@@ -715,7 +736,8 @@ Deno.test('thin market: no trades in the last minutes does not defeat the latest
   const first = await call({ symbol: 'LINK-USD', interval: '1m' });
   assertEquals(first.status, 200);
   const n = cb.calls.length;
-  assert(n <= 2);
+  assertEquals(n, 1);
+  assertEquals(first.body.candles!.at(-1)!.t, slot(NOW0, MIN) - 2 * MIN, 'quiet minutes up to the last closed one are filled');
   for (const dt of [2_000, 5_000, 9_000]) {
     clock.now = NOW0 + dt;
     await call({ symbol: 'LINK-USD', interval: '1m' });
@@ -775,7 +797,122 @@ Deno.test('prune runs through the RPC when the dice say so', async () => {
   const res = await call({ symbol: 'BTC-USD', interval: '1h', end: RealDate.UTC(2026, 8, 1), limit: 10 });
   assertEquals(res.status, 200);
   assertEquals(db.rpcCalls, ['prune_market_candles']);
+  assertEquals(cb.calls.length, 1);
   assertEquals(db.candles('BTC-USD', '1m').length, 0);
   assertEquals(db.candles('BTC-USD', '1h').some((k) => k.t === NOW0 - 400 * DAY), true);
   Math.random = realRandom;
+});
+
+// ---------------------------------------------------------------------------------------
+// More adversarial cases
+// ---------------------------------------------------------------------------------------
+
+Deno.test('occasional empty window: a spurious [] from coinbase must not become the listing date', async () => {
+  fresh();
+  const e = RealDate.UTC(2026, 2, 1);
+  cb.faults = ['empty'];
+  const first = await call({ symbol: 'ETH-USD', interval: '1h', end: e, limit: 300 });
+  assert(first.status === 502 || first.body.stale === true || first.body.candles!.length === 0, JSON.stringify(first.status));
+  assertEquals(first.status, 502, 'nothing to show: the empty answer is treated as a failed fetch');
+  assertEquals(cb.calls.length, 2, 'the empty window + the daily check that shows ETH was trading');
+  assertEquals(db.fetchState('ETH-USD', '1h')?.oldest_complete ?? null, null, 'floor poisoned by one empty answer');
+  assertEquals(first.headers.get('Cache-Control') === 'public, max-age=3600' && first.body.candles?.length === 0, false,
+    'an empty answer for a trading period must not be cached by browsers for an hour');
+  const second = await call({ symbol: 'ETH-USD', interval: '1h', end: e, limit: 300 });
+  assertEquals(second.status, 200);
+  assertEquals(second.body.candles!.length, 300);
+  // Older history is still reachable.
+  const older = await call({ symbol: 'ETH-USD', interval: '1h', end: e - 40 * DAY, limit: 300 });
+  assertEquals(older.body.candles!.length, 300);
+  assertEquals(cb.calls.length, 4);
+});
+
+Deno.test('a 6-hour exchange outage at 1m is not mistaken for the listing date', async () => {
+  fresh();
+  await call({ symbol: 'LINK-USD', interval: '1m' });
+  const e = slot(NOW0, MIN) - DAY;
+  const outage: [number, number] = [e - 650 * MIN, e - 290 * MIN]; // 6 h, covers the page [e-600m, e-300m]
+  cb.markets['LINK-USD'] = { listing: LISTINGS['LINK-USD'], noTrades: [outage] };
+  kr.markets = cb.markets;
+  const n0 = cb.calls.length;
+  const r = await call({ symbol: 'LINK-USD', interval: '1m', end: e, limit: 1000 });
+  assertEquals(r.status, 200);
+  assertEquals(cb.calls.length - n0, 4, 'paging continues past the empty page');
+  assertEquals(db.fetchState('LINK-USD', '1m')!.oldest_complete, null);
+  assertEquals(r.body.candles!.length, 1000);
+  assertWellFormed(r.body.candles!, '1m');
+  const flat = r.body.candles!.filter((k) => k.t >= outage[0] && k.t < outage[1]);
+  assertEquals(flat.length, 360);
+  assert(flat.every((k) => k.v === 0 && k.o === k.c && k.h === k.l));
+  await call({ symbol: 'LINK-USD', interval: '1m', end: e, limit: 1000 });
+  assertEquals(cb.calls.length - n0, 4, 'and the window is complete in the cache');
+  const before = await call({ symbol: 'LINK-USD', interval: '1m', end: outage[0] - 60 * MIN, limit: 100 });
+  assertEquals(before.body.candles!.length, 100);
+});
+
+Deno.test('cold cache: N concurrent latest requests make one upstream call', async () => {
+  fresh();
+  cb.delayMs = 60;
+  const rs = await Promise.all(Array.from({ length: 8 }, () => call({ symbol: 'SOL-USD', interval: '5m' })));
+  for (const r of rs) {
+    assertEquals(r.status, 200);
+    assertEquals(r.body.candles!.length, 300);
+    assertWellFormed(r.body.candles!, '5m');
+  }
+  assertEquals(cb.calls.length, 1);
+});
+
+Deno.test('claimer fails while others wait: they serve the stale cache instead of hammering the provider', async () => {
+  fresh();
+  await call({ symbol: 'BTC-USD', interval: '1m' });
+  clock.now = NOW0 + 30 * MIN;
+  cb.delayMs = 100;
+  cb.always = 500;
+  kr.always = 500;
+  const t0 = performance.now();
+  const rs = await Promise.all(Array.from({ length: 5 }, () => call({ symbol: 'BTC-USD', interval: '1m' })));
+  const ms = performance.now() - t0;
+  assertEquals([cb.calls.length, kr.calls.length], [2, 1], 'only the claimer went upstream');
+  for (const r of rs) {
+    assertEquals(r.status, 200);
+    assertEquals(r.body.stale, true);
+    assertEquals(r.body.candles!.length, 300);
+  }
+  assert(ms < 4_000, `waited ${ms} ms`);
+});
+
+Deno.test('latest-ish ends: end in the future or within 2 candles of now counts as latest', async () => {
+  fresh();
+  await call({ symbol: 'BTC-USD', interval: '1h' });
+  const n0 = cb.calls.length;
+  const future = await call({ symbol: 'BTC-USD', interval: '1h', end: NOW0 + 10 * DAY });
+  assertEquals(future.status, 200);
+  assertEquals(future.headers.get('Cache-Control'), 'public, max-age=60');
+  assertEquals(future.body.candles!.at(-1)!.t, slot(NOW0, HOUR));
+  const recent = await call({ symbol: 'BTC-USD', interval: '1h', end: NOW0 - HOUR, limit: 200 });
+  assertEquals(recent.headers.get('Cache-Control'), 'public, max-age=60');
+  assertEquals(recent.body.candles!.at(-1)!.t, slot(NOW0, HOUR) - HOUR);
+  assertEquals(cb.calls.length, n0, 'both are "latest" requests served from the fresh cache');
+});
+
+Deno.test('kraken reach: used for history it still holds, skipped beyond its 720 candles', async () => {
+  fresh();
+  cb.always = 500;
+  const inside = await call({ symbol: 'BTC-USD', interval: '1h', end: slot(NOW0, HOUR) - 100 * HOUR, limit: 200 });
+  assertEquals(inside.status, 200);
+  assertEquals(inside.body.candles!.length, 200);
+  assertEquals(kr.calls.length, 1);
+  const outside = await call({ symbol: 'BTC-USD', interval: '1h', end: slot(NOW0, HOUR) - 730 * HOUR, limit: 200 });
+  assertEquals(outside.status, 502);
+  assertEquals([cb.calls.length, kr.calls.length], [2, 1]);
+});
+
+Deno.test('empty answer on a cold latest refresh: the back-fill fetches again and the caller gets data', async () => {
+  fresh();
+  cb.faults = ['empty'];
+  const r = await call({ symbol: 'ETH-USD', interval: '15m' });
+  assertEquals(r.status, 200);
+  assertEquals(r.body.candles!.length, 300);
+  assertEquals(cb.calls.length, 2);
+  assertEquals(db.fetchState('ETH-USD', '15m')!.oldest_complete, null);
 });

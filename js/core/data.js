@@ -505,3 +505,134 @@ export function reindex(candles, start = 0) {
 export function concat(...series) {
   return reindex(series.flat());
 }
+
+// ---------------------------------------------------------------------------------------------
+// realisticMarket — a stand-in for real price history (fallback when real data is unavailable,
+// and the trade simulator's market).
+// ---------------------------------------------------------------------------------------------
+
+const REGIME_KINDS = {
+  up: { volMul: 0.9, dur: 55 },
+  down: { volMul: 1.12, dur: 45 },
+  range: { volMul: 0.75, dur: 45 },
+  volatile: { volMul: 1.9, dur: 22 },
+};
+const REGIME_MIX = {
+  mixed: { up: 0.3, down: 0.25, range: 0.3, volatile: 0.15 },
+  trend: { up: 0.46, down: 0.4, range: 0.1, volatile: 0.04 },
+  range: { up: 0.1, down: 0.1, range: 0.75, volatile: 0.05 },
+  volatile: { up: 0.2, down: 0.2, range: 0.1, volatile: 0.5 },
+};
+
+/** Standardised Student-t draw (unit variance, ν = 5 → fat tails, excess kurtosis ≈ 6). */
+function studentT(rng, nu = 5) {
+  let chi = 0;
+  for (let k = 0; k < nu; k++) chi += rng.gauss() ** 2;
+  return rng.gauss() / Math.sqrt(chi / nu) / Math.sqrt(nu / (nu - 2));
+}
+
+/**
+ * realisticMarket({ seed, count = 300, start = 100, regime = 'mixed', vol = 0.012, drift = 0,
+ *                   volume = true, gaps = true, decimals = null, info = false }) → candles
+ * Price history that behaves like a real market rather than a textbook drawing:
+ *  - regime switches (Markov chain of up-trend, down-trend, range and volatile spells, each
+ *    lasting ~20–90 candles); `regime` biases the mix: 'mixed' | 'trend' | 'range' | 'volatile';
+ *  - GARCH(1,1)-style volatility clustering (calm and wild stretches) around `vol` (per-candle
+ *    fraction) scaled by the regime; fat-tailed (Student-t) returns and rare jump candles;
+ *  - trends drift 0.15–0.3 σ per candle; ranges mean-revert to the level where they began;
+ *  - opens sit at the previous close except for occasional gaps (more likely on regime changes);
+ *  - volume rises with volatility, range and gaps, and is higher on candles that move with the trend.
+ * `drift` adds a constant per-candle log-return (e.g. 0.002 for a long bull market).
+ * With `info: true` → { candles, regimes: [{ kind, from, to }] } instead of the bare array.
+ * Deterministic for a seed. Every candle satisfies l ≤ min(o, c) ≤ max(o, c) ≤ h, prices > 0.
+ */
+export function realisticMarket({ seed, count = 300, start = 100, regime = 'mixed', vol = 0.012, drift = 0, volume = true, gaps = true, decimals = null, info = false } = {}) {
+  const rng = makeRng(seed ?? 1);
+  const n = Math.max(1, Math.floor(count));
+  const mix = REGIME_MIX[regime] || REGIME_MIX.mixed;
+  const kinds = Object.keys(mix);
+  const weights = kinds.map((k) => mix[k]);
+  const sigma0 = Math.max(1e-5, Number(vol) || 0.012);
+  const A = 0.09;
+  const B = 0.88;
+
+  const regimes = [];
+  let cur = null;
+  let left = 0;
+  const nextRegime = (i) => {
+    let kind = rng.weighted(kinds, weights);
+    // Consecutive spells of the same kind merge into one; prefer a change.
+    if (cur && kind === cur.kind) kind = rng.weighted(kinds, weights);
+    const R = REGIME_KINDS[kind];
+    left = Math.max(8, Math.round(R.dur * rng.float(0.45, 1.7)));
+    const dir = kind === 'up' ? 1 : kind === 'down' ? -1 : kind === 'volatile' ? rng.sign() * rng.float(0, 0.6) : 0;
+    cur = { kind, from: i, to: i, mu: dir * rng.float(0.15, 0.3), volMul: R.volMul * rng.float(0.85, 1.2), center: null };
+    regimes.push(cur);
+  };
+
+  let p = Math.max(Number(start) || 100, MIN_PRICE * 10);
+  let h = sigma0 * sigma0;
+  let eps = 0;
+  let volLevel = 0; // slow AR(1) drift of the volume baseline
+  const out = new Array(n);
+  let prevClose = p;
+  let switched = false;
+  for (let i = 0; i < n; i++) {
+    if (left <= 0) {
+      nextRegime(i);
+      switched = i > 0;
+    }
+    left--;
+    cur.to = i;
+    if (cur.kind === 'range' && cur.center == null) cur.center = Math.log(prevClose);
+    const target = sigma0 * cur.volMul;
+    h = (1 - A - B) * target * target + A * eps * eps + B * h;
+    const sd = clamp(Math.sqrt(h), 0.3 * sigma0, 4.5 * sigma0);
+
+    // Open: at the previous close, or a gap.
+    let o = prevClose * (1 + rng.gauss(0, 0.02 * sd));
+    let gapped = false;
+    if (gaps && i > 0 && rng.chance(switched ? 0.12 : 0.015)) {
+      o = prevClose * Math.exp(studentT(rng) * sd * rng.float(0.6, 1.4));
+      gapped = true;
+    }
+    switched = false;
+
+    // Close: drift + mean reversion + fat-tailed shock (+ a rare jump).
+    let r = cur.mu * sigma0 + drift;
+    if (cur.kind === 'range') r -= 0.07 * (Math.log(o) - cur.center);
+    let z = studentT(rng);
+    if (rng.chance(0.008)) z += rng.sign() * rng.float(3, 5.5);
+    r += sd * z;
+    eps = r - cur.mu * sigma0;
+    const c = Math.max(o * Math.exp(r), MIN_PRICE * 10);
+
+    // Wicks: exponential lengths scaled by the current volatility.
+    const up = o * sd * -Math.log(1 - rng.next() * 0.985) * 0.42;
+    const dn = o * sd * -Math.log(1 - rng.next() * 0.985) * 0.42;
+    const k = fixCandle({ o, h: Math.max(o, c) + up, l: Math.max(Math.min(o, c) - dn, MIN_PRICE), c, v: 0, t: i });
+
+    if (volume) {
+      volLevel = 0.97 * volLevel + rng.gauss(0, 0.05);
+      const rel = sd / sigma0;
+      const move = Math.abs(Math.log(c / o)) / sd;
+      let v = 1000 * Math.exp(volLevel) * Math.pow(rel, 1.1) * (0.7 + 0.45 * Math.min(move, 4)) * Math.exp(rng.gauss(0, 0.28));
+      if (gapped) v *= rng.float(1.4, 2.2);
+      if (cur.mu !== 0 && Math.sign(c - o) === Math.sign(cur.mu)) v *= 1.15;
+      k.v = Math.max(1, Math.round(v));
+    }
+    out[i] = k;
+    prevClose = c;
+  }
+  if (decimals != null) {
+    for (const k of out) {
+      k.o = roundPrice(k.o, decimals);
+      k.c = roundPrice(k.c, decimals);
+      k.h = Math.max(roundPrice(k.h, decimals), k.o, k.c);
+      k.l = Math.min(roundPrice(k.l, decimals), k.o, k.c);
+      const tick = 10 ** -decimals;
+      if (k.l <= 0) k.l = Math.min(tick, k.o, k.c);
+    }
+  }
+  return info ? { candles: out, regimes: regimes.map(({ kind, from, to }) => ({ kind, from, to })) } : out;
+}

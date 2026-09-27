@@ -103,7 +103,8 @@ const coinbase: Provider = {
       for (const r of rows as number[][]) {
         out.push({ t: r[0] * 1000, l: +r[1], h: +r[2], o: +r[3], c: +r[4], v: +r[5] });
       }
-      if (rows.length === 0) break; // nothing earlier (before listing)
+      // An empty page is not the end of history (exchanges have outages); keep going to startMs.
+      // The caller works out the listing date and never asks below it again.
       end = start;
       if (end > startMs) await sleep(150); // stay well inside public rate limits
     }
@@ -119,6 +120,7 @@ const kraken: Provider = {
   attribution: 'Market data: Kraken',
   delayed: false,
   maxBack: 720,
+  sparse: true, // harmless if every interval is present
   available: () => true,
   supports: (interval) => interval in KRAKEN_MINUTES,
   async fetch(meta, interval, startMs, endMs) {

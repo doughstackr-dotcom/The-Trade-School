@@ -124,6 +124,15 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 - Add your legal pages: the site ships draft Terms and Privacy pages (`#terms`, `#privacy`)
   that you must review with a professional before charging customers. Stripe also requires a
   visible refund/cancellation policy.
+- **Clear test-mode billing rows** before switching Stripe to live keys (test customer ids
+  don't exist in live mode), in the SQL Editor:
+  `delete from public.subscriptions; delete from public.customers; delete from public.stripe_events;`
+  (only do this at launch, before any real customer has paid).
+- **Deleting a member** in Supabase does not cancel their Stripe subscription. Cancel it in
+  Stripe first (Customers → the customer → Cancel subscription), then delete the user.
+- After the first real test purchase, open Supabase → Edge Functions → `stripe-webhook` →
+  Logs and confirm events show "received" with no errors; resend any failed event from
+  Stripe → Developers → Webhooks → the event → Resend.
 
 ## 9. Scaling notes
 

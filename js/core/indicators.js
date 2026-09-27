@@ -430,3 +430,88 @@ function rolling(values, period, pick) {
     return w.length ? pick(...w) : null;
   });
 }
+
+/**
+ * heikinAshi(candles) → candles (same length, v and t kept)
+ * HA close = (o + h + l + c) / 4; HA open = (previous HA open + previous HA close) / 2 (first:
+ * (o + c) / 2); HA high / low = the extremes of h / l and the HA open and close. These are
+ * AVERAGED values, not prices that traded.
+ */
+export function heikinAshi(candles) {
+  const out = new Array(candles.length);
+  let po = 0;
+  let pc = 0;
+  for (let i = 0; i < candles.length; i++) {
+    const k = candles[i];
+    const c = (k.o + k.h + k.l + k.c) / 4;
+    const o = i === 0 ? (k.o + k.c) / 2 : (po + pc) / 2;
+    out[i] = { ...k, o, h: Math.max(k.h, o, c), l: Math.min(k.l, o, c), c };
+    po = o;
+    pc = c;
+  }
+  return out;
+}
+
+/**
+ * zigzag(candles, { atrMult = 2, period = 14, pct = 0, last = false })
+ *   → [{ idx, price, type: 'high'|'low', confirmedIdx }] ordered by idx, alternating types.
+ * A swing high is confirmed once price has fallen at least max(atrMult × ATR, pct × price) from
+ * it (lows symmetric); `confirmedIdx` is the candle on which that happened, so a pivot is only
+ * "known" from confirmedIdx on (causal — use it to avoid look-ahead). ATR is Wilder's (the mean
+ * range so far during warm-up). With last: true the still-unconfirmed extreme of the current leg
+ * is appended with confirmedIdx: null.
+ */
+export function zigzag(candles, { atrMult = 2, period = 14, pct = 0, last = false } = {}) {
+  const n = candles.length;
+  const out = [];
+  if (n < 2) return out;
+  const a = atr(candles, period);
+  let sumR = 0;
+  const thr = (i) => {
+    const k = candles[i];
+    const base = a[i] != null ? a[i] : sumR / (i + 1);
+    return Math.max(atrMult * base, pct * k.c, 1e-12);
+  };
+  let dir = 0;
+  let hiIdx = 0;
+  let loIdx = 0;
+  for (let i = 0; i < n; i++) {
+    const k = candles[i];
+    sumR += k.h - k.l;
+    if (dir === 0) {
+      if (k.h > candles[hiIdx].h) hiIdx = i;
+      if (k.l < candles[loIdx].l) loIdx = i;
+      const t = thr(i);
+      if (candles[hiIdx].h - k.l >= t && hiIdx < i) {
+        out.push({ idx: hiIdx, price: candles[hiIdx].h, type: 'high', confirmedIdx: i });
+        dir = -1;
+        loIdx = i;
+      } else if (k.h - candles[loIdx].l >= t && loIdx < i) {
+        out.push({ idx: loIdx, price: candles[loIdx].l, type: 'low', confirmedIdx: i });
+        dir = 1;
+        hiIdx = i;
+      }
+      continue;
+    }
+    if (dir === 1) {
+      if (k.h >= candles[hiIdx].h) hiIdx = i;
+      else if (candles[hiIdx].h - k.l >= thr(i)) {
+        out.push({ idx: hiIdx, price: candles[hiIdx].h, type: 'high', confirmedIdx: i });
+        dir = -1;
+        loIdx = i;
+      }
+    } else {
+      if (k.l <= candles[loIdx].l) loIdx = i;
+      else if (k.h - candles[loIdx].l >= thr(i)) {
+        out.push({ idx: loIdx, price: candles[loIdx].l, type: 'low', confirmedIdx: i });
+        dir = 1;
+        hiIdx = i;
+      }
+    }
+  }
+  if (last && dir !== 0) {
+    const i = dir === 1 ? hiIdx : loIdx;
+    out.push({ idx: i, price: dir === 1 ? candles[i].h : candles[i].l, type: dir === 1 ? 'high' : 'low', confirmedIdx: null });
+  }
+  return out;
+}
