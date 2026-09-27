@@ -1,4 +1,4 @@
-// POST (Authorization: Bearer <user access token>) → { url } of the Stripe customer
+// POST { returnTo?: string } (Authorization: Bearer <user access token>) → { url } of the Stripe customer
 // portal, where members update their card, switch plans, see invoices or cancel.
 import {
   billingConfigured,
@@ -6,7 +6,7 @@ import {
   findCustomerId,
   json,
   requireUser,
-  returnOrigin,
+  returnBase,
   stripe,
 } from '../_shared/common.ts';
 
@@ -27,9 +27,10 @@ Deno.serve(async (req) => {
       return json(req, { error: 'You have no billing history yet. Choose a plan first.' }, 404);
     }
 
+    const body = await req.json().catch(() => ({}));
     const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${returnOrigin(req)}/#account`,
+      return_url: `${returnBase(body?.returnTo)}#account`,
     });
     return json(req, { url: portal.url });
   } catch (err) {

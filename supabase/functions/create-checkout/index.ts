@@ -1,4 +1,4 @@
-// POST { plan: 'beginner' | 'advanced' }  (Authorization: Bearer <user access token>)
+// POST { plan: 'beginner' | 'advanced', returnTo?: string }  (Authorization: Bearer <user access token>)
 //
 // - No subscription yet      → creates a Stripe Checkout session, returns { url }
 // - Already on that plan     → returns { url } for the Stripe customer portal
@@ -12,7 +12,7 @@ import {
   json,
   PRICE_IDS,
   requireUser,
-  returnOrigin,
+  returnBase,
   stripe,
   type Plan,
 } from '../_shared/common.ts';
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       return json(req, { error: 'Choose the Beginner or Advanced plan.' }, 400);
     }
     const price = PRICE_IDS[plan];
-    const origin = returnOrigin(req);
+    const base = returnBase(body?.returnTo);
 
     // Existing live subscription? Switch or manage instead of creating a second one.
     const { data: current, error: subError } = await admin
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       if (current.plan === plan && customerId) {
         const portal = await stripe.billingPortal.sessions.create({
           customer: customerId,
-          return_url: `${origin}/#account`,
+          return_url: `${base}#account`,
         });
         return json(req, { url: portal.url });
       }
@@ -92,8 +92,8 @@ Deno.serve(async (req) => {
       line_items: [{ price, quantity: 1 }],
       subscription_data: { metadata: { user_id: user.id, plan } },
       allow_promotion_codes: true,
-      success_url: `${origin}/?checkout=success#account`,
-      cancel_url: `${origin}/?checkout=cancel#pricing`,
+      success_url: `${base}?checkout=success#account`,
+      cancel_url: `${base}?checkout=cancel#pricing`,
     });
 
     return json(req, { url: session.url });

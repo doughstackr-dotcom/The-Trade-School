@@ -17,13 +17,40 @@ export const PRICE_IDS: Record<Plan, string> = {
   advanced: env('STRIPE_PRICE_ADVANCED'),
 };
 
-// SITE_URL is where Stripe sends people back to. ALLOWED_ORIGINS (comma separated)
-// lets extra origins such as http://localhost:5173 use their own origin instead.
-export const SITE_URL = env('SITE_URL').replace(/\/+$/, '');
+// SITE_URL is the public site's base URL (it may include a path, e.g. a GitHub Pages
+// project site). ALLOWED_ORIGINS (comma separated) adds extra origins such as
+// http://localhost:5173 that may call the functions and receive redirects.
+export const SITE_URL = normalizeBase(env('SITE_URL'));
+const SITE_ORIGIN = originOf(SITE_URL);
 const ALLOWED_ORIGINS = env('ALLOWED_ORIGINS')
   .split(',')
-  .map((o) => o.trim().replace(/\/+$/, ''))
+  .map((o) => originOf(o.trim()))
   .filter(Boolean);
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+}
+
+/** Absolute base URL ending in '/', without query or hash. '' if invalid. */
+function normalizeBase(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    u.hash = '';
+    if (!u.pathname.endsWith('/')) u.pathname = u.pathname.replace(/\/[^/]*\.html?$/, '/') || '/';
+    if (!u.pathname.endsWith('/')) u.pathname += '/';
+    return u.toString();
+  } catch {
+    return '';
+  }
+}
+
+const isAllowedOrigin = (origin: string) =>
+  Boolean(origin) && (origin === SITE_ORIGIN || ALLOWED_ORIGINS.includes(origin));
 
 export const billingConfigured = () =>
   Boolean(STRIPE_SECRET_KEY && PRICE_IDS.beginner && PRICE_IDS.advanced && SITE_URL);
@@ -38,9 +65,8 @@ export const admin: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE
 
 export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
-  const allowed = origin && (origin === SITE_URL || ALLOWED_ORIGINS.includes(origin));
   return {
-    'Access-Control-Allow-Origin': allowed ? origin : SITE_URL || '*',
+    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : SITE_ORIGIN || '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
@@ -54,10 +80,16 @@ export function json(req: Request, body: unknown, status = 200): Response {
   });
 }
 
-/** The site origin to redirect back to: the caller's origin when allow-listed, else SITE_URL. */
-export function returnOrigin(req: Request): string {
-  const origin = (req.headers.get('Origin') ?? '').replace(/\/+$/, '');
-  if (origin && (origin === SITE_URL || ALLOWED_ORIGINS.includes(origin))) return origin;
+/**
+ * Base URL (ending in '/') to send the member back to after Stripe. The client may pass
+ * its own base (location.origin + location.pathname) as `returnTo`; it is used only when
+ * its origin is allow-listed, otherwise SITE_URL is used. Prevents open redirects.
+ */
+export function returnBase(requested: unknown): string {
+  if (typeof requested === 'string') {
+    const base = normalizeBase(requested);
+    if (base && isAllowedOrigin(originOf(base))) return base;
+  }
   return SITE_URL;
 }
 
