@@ -48,6 +48,15 @@ export const PARTNERS = [
     status: 'live',
   },
   {
+    id: 'upcomers',
+    name: 'Upcomers',
+    description: 'Upcomers is a funded trading account platform.',
+    logoText: null,
+    logoUrl: null,
+    affiliateUrl: 'https://app.upcomers.com/en/checkout?ref=gy4xupgr',
+    status: 'live',
+  },
+  {
     id: 'partner-tbd-2',
     name: 'Partner TBD',
     description: 'Coming soon — another trading platform or tool partnership will land here.',
