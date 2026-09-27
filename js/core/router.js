@@ -1,5 +1,6 @@
 // Hash router. Routes are plain tokens: #home, #beginner, #advanced, #library(.<id>),
-// #progress, #glossary, #playbook(.<setupId>), #live, #l.<lessonId>, #g.<gameId>, #dev-chart.
+// #dashboard (#progress aliases here), #glossary, #playbook(.<setupId>), #live,
+// #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
 import { h, icon } from './ui.js';
@@ -8,11 +9,12 @@ const PAGE_PATHS = {
   home: '../pages/home.js',
   track: '../pages/track.js',
   library: '../pages/library.js',
+  // progress aliases to the merged dashboard (Progress visual shell + curriculum map).
   progress: '../pages/progress.js',
   glossary: '../pages/glossary.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
-  dashboard: '../pages/dashboard.js',
+  dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
   'dev-chart': '../pages/dev-chart.js',
@@ -72,7 +74,9 @@ export function parseHash(hash) {
   if (token === 'playbook' || token.startsWith('playbook.')) {
     return { key: token, kind: 'page', page: 'playbook', param: token.slice('playbook.'.length) || null };
   }
-  if (token === 'progress' || token === 'glossary' || token === 'live' || token === 'dashboard' || token === 'account' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  // #progress is an alias of #dashboard (merged progress + curriculum page).
+  if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
+  if (token === 'glossary' || token === 'live' || token === 'dashboard' || token === 'account' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -84,7 +88,6 @@ function titleFor(route, entry) {
     case 'home': return `${SITE} — Learn to read the market`;
     case 'track': return `${entry ? entry.title : 'Track'} · ${SITE}`;
     case 'library': return `Pattern Library · ${SITE}`;
-    case 'progress': return `Your progress · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;

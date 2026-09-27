@@ -1,7 +1,10 @@
-// Progress: overall + per-unit bars, level card, stats, badges, games table, lesson checklist.
+// Dashboard (#dashboard, aliased as #progress): Progress visual shell with curriculum map,
+// overall/unit bars, level, stats, badges, games, lessons, feature CTAs, and account links.
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
-import { TIERS, LESSONS, GAMES, BADGES, STYLES, UNITS, unitsOf, stylesOf, hashFor } from '../registry.js';
+import {
+  TIERS, LESSONS, GAMES, BADGES, STYLES, UNITS, unitsOf, stylesOf, hashFor, findEntry,
+} from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
 
 /** One unit's completion from store: lesson done + games with ≥1 star (matches tierProgress). */
@@ -54,6 +57,14 @@ function courseOverview(store) {
   );
 }
 
+function quickActions() {
+  return h('div', { class: 'row progress-actions' },
+    h('a', { class: 'btn btn--primary', href: '#beginner' }, 'Start free unit', icon('arrow-right', { size: 16 })),
+    h('a', { class: 'btn btn--ghost', href: '#account' }, 'Account'),
+    h('a', { class: 'btn btn--ghost', href: '#g.daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
+  );
+}
+
 function unitBars(store) {
   return h('div', { class: 'unit-progress' },
     TIERS.map((t) => {
@@ -75,6 +86,121 @@ function unitBars(store) {
                 h('span', { class: 'faint unit-progress__meta' }, `${c.done}/${c.total} complete`)));
           })));
     }));
+}
+
+function topicChips(topics) {
+  if (!topics?.length) return null;
+  return h('ul', { class: 'dash-chips', 'aria-label': 'Topics' },
+    topics.slice(0, 5).map((t) => h('li', { class: 'chip chip--sm chip--outline' }, t)));
+}
+
+function unitBlock(unit, store) {
+  const lesson = unit.lesson ? findEntry(unit.lesson) : null;
+  const games = (unit.games || []).map((id) => findEntry(id)).filter(Boolean);
+  const done = lesson && store.isLessonDone(lesson.id);
+  return h('article', { class: ['dash-unit', 'card', done && 'is-done'] },
+    h('header', { class: 'dash-unit__head' },
+      h('h3', { class: 'dash-unit__title' }, unit.title),
+      done ? h('span', { class: 'chip chip--bull chip--sm' }, icon('check', { size: 12 }), ' Done') : null),
+    lesson ? h('a', {
+      class: 'dash-item',
+      href: `#${hashFor(lesson.id)}`,
+      'aria-label': `${lesson.title}, ${lesson.minutes} minutes${done ? ', completed' : ''}`,
+    },
+      h('span', { class: 'dash-item__kind faint' }, 'Lesson'),
+      h('span', { class: 'dash-item__title' }, lesson.title),
+      h('span', { class: 'dash-item__meta mono faint' }, `${lesson.minutes} min`),
+      topicChips(lesson.topics),
+    ) : null,
+    games.length ? h('ul', { class: 'dash-unit__games' },
+      games.map((g) => {
+        const st = store.gameStats(g.id);
+        return h('li', null,
+          h('a', {
+            class: 'dash-item dash-item--game',
+            href: `#${hashFor(g.id)}`,
+            'aria-label': `${g.title}${st?.plays ? `, best ${st.best}` : ''}`,
+          },
+            h('span', { class: 'dash-item__kind faint' }, 'Game'),
+            h('span', { class: 'dash-item__title' }, g.title),
+            st?.plays
+              ? h('span', { class: 'dash-item__score' }, starRow(st.stars || 0, { size: 12 }), h('span', { class: 'mono faint' }, fmt(st.best)))
+              : h('span', { class: 'chip chip--sm chip--outline' }, 'Play'),
+            g.skills?.length ? topicChips(g.skills) : null,
+          ));
+      })) : null,
+  );
+}
+
+function curriculumMap(store) {
+  return h('div', { class: 'dash-curriculum' },
+    TIERS.map((tier) => {
+      const units = unitsOf(tier.id);
+      return h('section', { class: 'dash-tier', 'aria-labelledby': `dash-tier-${tier.id}` },
+        h('header', { class: 'dash-tier__head' },
+          h('h3', { id: `dash-tier-${tier.id}`, class: 't-18' }, tierChip(tier.id), ' ', tier.title),
+          h('p', { class: 'muted' }, tier.blurb || tier.subtitle),
+          h('a', { class: 'link-btn', href: `#${tier.id}` }, `Open ${tier.title} track`, icon('arrow-right', { size: 14 }))),
+        h('div', { class: 'dash-units' }, units.map((u) => unitBlock(u, store))),
+      );
+    }));
+}
+
+function features() {
+  const items = [
+    { href: '#g.what-next', icon: 'gamepad', title: 'Practice · Arcade · Survival', blurb: 'Every game lets you pick a play style: learn, chase stars, or survive rising difficulty.' },
+    { href: '#g.volume-verdict', icon: 'chart', title: 'Textbook vs real market', blurb: 'Clean generated setups to learn the rules; real charts hide the ticker until you answer.' },
+    { href: '#playbook', icon: 'flag', title: 'Setup Playbook', blurb: 'Rule-based checklists with entry, stop and target for the patterns you study.' },
+    { href: '#live', icon: 'bolt', title: 'Live Market Lab', blurb: 'A live chart with indicator toggles and a plain-English read of structure.' },
+  ];
+  return h('section', { class: 'dash-features', 'aria-labelledby': 'dash-feat-h' },
+    h('div', { class: 'section-head' },
+      h('div', null, h('p', { class: 'eyebrow' }, 'Shortcuts'), h('h2', { id: 'dash-feat-h' }, 'Feature highlights'))),
+    h('ul', { class: 'dash-feature-grid' },
+      items.map((it) => h('li', null,
+        h('a', { class: 'dash-feature card', href: it.href },
+          h('span', { class: 'dash-feature__icon', 'aria-hidden': 'true' }, icon(it.icon, { size: 22 })),
+          h('strong', null, it.title),
+          h('p', { class: 'muted' }, it.blurb),
+          h('span', { class: 'dash-feature__go' }, 'Open', icon('arrow-right', { size: 14 })),
+        )))));
+}
+
+function ctaTracks() {
+  return h('section', { class: 'dash-cta card', 'aria-labelledby': 'dash-cta-h' },
+    h('h2', { id: 'dash-cta-h', class: 't-18' }, 'Pick a track'),
+    h('p', { class: 'muted' }, 'Free tier opens Markets & Orders plus Candlestick anatomy. Subscribe for the full Beginner or Advanced curriculum.'),
+    h('div', { class: 'dash-cta__row' },
+      TIERS.map((t) => h('a', { class: ['btn', t.id === 'beginner' ? 'btn--primary' : 'btn--ghost', 'btn--lg'], href: `#${t.id}` },
+        tierChip(t.id), ` ${t.title}: ${t.subtitle}`, icon('arrow-right'))),
+      h('a', { class: 'btn btn--ghost', href: '#g.daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
+    ),
+  );
+}
+
+function gamesIndex(store) {
+  return h('section', { class: 'dash-games', 'aria-labelledby': 'dash-games-h' },
+    h('div', { class: 'section-head' },
+      h('div', null, h('p', { class: 'eyebrow' }, 'Every game'), h('h2', { id: 'dash-games-h' }, 'Games map'))),
+    h('ul', { class: 'dash-game-grid' },
+      GAMES.map((g) => {
+        const st = store.gameStats(g.id);
+        return h('li', null,
+          h('a', { class: 'dash-game card', href: `#${hashFor(g.id)}`, 'aria-label': g.title },
+            h('div', { class: 'dash-game__top' },
+              tierChip(g.tier, { small: true }),
+              h('span', { class: 'chip chip--sm chip--outline' }, g.kind || 'game')),
+            h('strong', null, g.title),
+            h('p', { class: 'muted dash-game__blurb' }, g.blurb),
+            topicChips(g.skills),
+            h('div', { class: 'dash-game__foot' },
+              st?.plays
+                ? [starRow(st.stars || 0, { size: 14 }), h('span', { class: 'mono faint' }, `Best ${fmt(st.best)}`)]
+                : h('span', { class: 'faint' }, `${g.minutes} min · not played yet`),
+            ),
+          ));
+      })),
+  );
 }
 
 function levelCard(store) {
@@ -222,21 +348,31 @@ function resetZone(store, rerender) {
 }
 
 export default {
-  id: 'progress',
+  id: 'dashboard',
   mount(root, ctx) {
     const { store } = ctx;
+    try {
+      store.award?.('dashboard-visit', { silent: true });
+    } catch { /* badge may not exist yet */ }
+
     const render = () => {
       root.replaceChildren(
         h('div', { class: 'container progress-page' },
           h('header', { class: 'page-head' },
-            h('p', { class: 'eyebrow eyebrow--accent' }, 'Your progress'),
-            h('h1', null, 'Progress & badges'),
-            h('p', { class: 'lead' }, 'Overall course completion, per-unit bars, and everything you have earned. Progress is stored on this device.')),
+            h('p', { class: 'eyebrow eyebrow--accent' }, 'Dashboard'),
+            h('h1', null, 'Progress & curriculum'),
+            h('p', { class: 'lead' }, 'Overall completion, per-unit bars, the full curriculum map, badges, and everything you have earned. Progress is stored on this device.')),
+          quickActions(),
           courseOverview(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'units-h' },
             h('div', { class: 'section-head' },
               h('div', null, h('p', { class: 'eyebrow' }, 'By unit'), h('h2', { id: 'units-h' }, 'Unit progress'))),
             unitBars(store)),
+          h('section', { class: 'section section--tight', 'aria-labelledby': 'map-h' },
+            h('div', { class: 'section-head' },
+              h('div', null, h('p', { class: 'eyebrow' }, 'Curriculum map'), h('h2', { id: 'map-h' }, 'Units, lessons & games')),
+              h('p', { class: 'muted' }, 'Every unit with its lesson and games — open anything from here.')),
+            curriculumMap(store)),
           levelCard(store),
           statsRow(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'badges-h' },
@@ -248,14 +384,18 @@ export default {
               h('div', null, h('p', { class: 'eyebrow' }, 'Best runs per style'), h('h2', { id: 'games-h' }, 'Games')),
               h('p', { class: 'muted' }, 'Best score in Practice and Arcade, and the most rounds survived in Survival.')),
             gamesTable(store)),
+          gamesIndex(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'lessons-h' },
             h('div', { class: 'section-head' },
               h('div', null, h('p', { class: 'eyebrow' }, 'Checklist'), h('h2', { id: 'lessons-h' }, 'Lessons'))),
             lessonChecklist(store)),
+          features(),
+          ctaTracks(),
           resetZone(store, () => {
             render();
             root.querySelector('h1')?.focus?.();
-          })));
+          }),
+          h('p', { class: 'faint dash-disclaimer' }, 'Educational simulations only — not financial advice.')));
     };
     render();
     let queued = 0;

@@ -8,13 +8,12 @@ import { findEntry, tiersOf } from './registry.js';
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
+  { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { hash: 'beginner', label: 'Beginner', icon: 'candle' },
   { hash: 'advanced', label: 'Advanced', icon: 'target' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
-  { hash: 'dashboard', label: 'Dashboard', icon: 'grid', tab: false, wide: true },
-  { hash: 'progress', label: 'Progress', icon: 'trophy' },
   { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
 ];
 
@@ -57,7 +56,8 @@ function navKeyFor(route, entry) {
   if (!route) return null;
   if (route.kind === 'page') {
     if (route.page === 'track') return route.tier;
-    if (['library', 'progress', 'glossary', 'playbook', 'live', 'dashboard', 'account'].includes(route.page)) return route.page;
+    if (route.page === 'progress') return 'dashboard';
+    if (['library', 'glossary', 'playbook', 'live', 'dashboard', 'account'].includes(route.page)) return route.page;
     return null;
   }
   if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
@@ -95,7 +95,7 @@ function buildShell(app) {
   const lvNum = h('span', { class: 'xp-pill__lv mono' });
   const lvTitle = h('span', { class: 'xp-pill__title' });
   const lvFill = h('span', { class: 'xp-pill__fill' });
-  const xpPill = h('a', { class: 'xp-pill', href: '#progress' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
+  const xpPill = h('a', { class: 'xp-pill', href: '#dashboard' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
 
   function renderXP(bump = false) {
     const lv = store.level();
@@ -103,7 +103,7 @@ function buildShell(app) {
     lvTitle.textContent = lv.title;
     lvFill.style.width = `${Math.round(lv.progress * 100)}%`;
     const toNext = lv.next != null ? `, ${lv.next - lv.xp} XP to ${lv.nextTitle}` : '';
-    xpPill.setAttribute('aria-label', `Level ${lv.number}, ${lv.title}. ${lv.xp} XP${toNext}. View progress.`);
+    xpPill.setAttribute('aria-label', `Level ${lv.number}, ${lv.title}. ${lv.xp} XP${toNext}. View dashboard.`);
     xpPill.title = `${lv.xp.toLocaleString()} XP${lv.next != null ? ` · ${(lv.next - lv.xp).toLocaleString()} to ${lv.nextTitle}` : ''}`;
     if (bump) {
       xpPill.classList.remove('is-bump');
@@ -160,14 +160,13 @@ function buildShell(app) {
         brandMark(22),
         h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
+        h('a', { href: '#dashboard' }, 'Dashboard'),
         h('a', { href: '#beginner' }, 'Beginner'),
         h('a', { href: '#advanced' }, 'Advanced'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
-        h('a', { href: '#dashboard' }, 'Dashboard'),
-        h('a', { href: '#progress' }, 'Progress'),
         h('a', { href: '#account' }, 'Account'))));
 
   app.replaceChildren(skip, header, main, footer, tabbar);

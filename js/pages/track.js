@@ -151,8 +151,8 @@ export default {
               nextEntry
                 ? h('a', { class: 'btn btn--primary btn--lg', href: `#${hashFor(nextEntry.id)}` },
                   h('span', null, prog.done ? 'Continue: ' : 'Start: ', nextEntry.title), icon('arrow-right'))
-                : h('a', { class: 'btn btn--primary btn--lg', href: other ? `#${other.id}` : '#progress' },
-                  other ? `On to ${other.title}` : 'See your progress', icon('arrow-right')),
+                : h('a', { class: 'btn btn--primary btn--lg', href: other ? `#${other.id}` : '#dashboard' },
+                  other ? `On to ${other.title}` : 'See your dashboard', icon('arrow-right')),
               other ? h('a', { class: 'btn btn--ghost', href: `#${other.id}` }, `${other.title} track`) : null)),
           h('figure', { class: 'track-hero__route' },
             routeChart(units, doneFlags, currentIdx),

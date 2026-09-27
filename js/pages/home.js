@@ -746,7 +746,7 @@ function levelStrip(store) {
       h('div', { class: 'level-strip__badges' },
         h('span', { class: 'eyebrow' }, `Badges · ${earned.length}/${BADGES.length}`),
         h('div', { class: 'level-strip__row' }, slots)),
-      h('a', { class: 'btn', href: '#progress' }, 'View progress', icon('arrow-right'))));
+      h('a', { class: 'btn', href: '#dashboard' }, 'View dashboard', icon('arrow-right'))));
 }
 
 // ------------------------------------------------------------------ page
