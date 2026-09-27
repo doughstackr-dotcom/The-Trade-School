@@ -82,6 +82,20 @@ python3 -m http.server 5173
 Opening `index.html` straight from the file system will not work, because browsers block
 ES-module imports from `file://` URLs.
 
+## Deploy (static host)
+
+This is **vanilla JS with native `import()`** — not Vite. There is no `vite.config`, no
+`dist/` folder, and no hashed route chunks. A host that runs `vite build` or looks for
+`/assets/index-*.js` will 404 every lazy route.
+
+For Vercel (free tier): import the repo, Framework Preset **Other**, leave Build Command
+empty, Output Directory `.` (or rely on the included `vercel.json`). Deploy the feature
+branch as a static site. Do not attach a custom domain unless you intend to.
+
+Basic browsing works without env vars. Real-market charts need the Supabase `market-data`
+edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `docs/SECRETS.md`).
+
+
 ## Tests
 
 ```sh
