@@ -7,8 +7,8 @@ export const TIERS = [
     title: 'Beginner',
     subtitle: 'Read the chart',
     blurb:
-      'How markets and orders work, what every candle is telling you, how trends and levels form, and how ' +
-      'moving averages and volume confirm a move. Nine short units, each with a game to lock it in, then a capstone that puts it all together.',
+      'What every candle is telling you, how much to risk on a trade, how trends and levels form, how ' +
+      'moving averages and volume confirm a move, and how orders fill. Ten short units, each with a game to lock it in, then a capstone that puts it all together.',
   },
   {
     id: 'advanced',
@@ -24,6 +24,9 @@ export const TIERS = [
 export const UNITS = [
   { id: 'u-candle-anatomy', tier: 'beginner', title: 'Candlestick anatomy', lesson: 'candle-anatomy', games: ['candle-builder'] },
   { id: 'u-chart-basics', tier: 'beginner', title: 'Chart types, scales & timeframes', lesson: 'chart-basics', games: ['chart-match'] },
+  // Risk sits before any pattern/setup lesson so sizing is a habit before learners meet trade ideas.
+  // Risk Manager stays an Advanced-tier game (plan access unchanged); it is paired here as well.
+  { id: 'u-risk-basics', tier: 'beginner', title: 'Risk & position sizing', lesson: 'risk-basics', games: ['risk-manager'] },
   { id: 'u-candle-patterns', tier: 'beginner', title: 'Candlestick patterns', lesson: 'candle-patterns', games: ['pattern-flash'] },
   { id: 'u-trends', tier: 'beginner', title: 'Trends & market structure', lesson: 'trends', games: ['trend-spotter'] },
   { id: 'u-support-resistance', tier: 'beginner', title: 'Support & resistance', lesson: 'support-resistance', games: ['level-hunter'] },
@@ -57,6 +60,13 @@ export const LESSONS = [
     blurb: 'Line, bar and candlestick charts, linear versus log scale, and how the same market looks on a daily and a weekly chart. Pick the right view before you read it.',
     topics: ['Line vs bar vs candle', 'Linear vs log scale', 'Timeframes', 'Volume bars'],
     path: './lessons/chart-basics.js',
+  },
+  {
+    id: 'risk-basics', type: 'lesson', tier: 'beginner', minutes: 14,
+    title: 'Risk & position sizing',
+    blurb: 'Decide what you can lose before you look for trades: the 1% guideline, sizing a position from your stop, R-multiples, expectancy, drawdown math, leverage and margin, and what spreads and fees really cost.',
+    topics: ['Risk per trade', 'Position sizing', 'R-multiples & expectancy', 'Drawdown & risk of ruin', 'Leverage & margin', 'Trading costs'],
+    path: './lessons/risk-basics.js',
   },
   {
     id: 'candle-patterns', type: 'lesson', tier: 'beginner', minutes: 14,
