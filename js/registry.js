@@ -22,7 +22,6 @@ export const TIERS = [
 
 // Units pair a lesson with its game(s). Order = recommended learning order.
 export const UNITS = [
-  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
   { id: 'u-candle-anatomy', tier: 'beginner', title: 'Candlestick anatomy', lesson: 'candle-anatomy', games: ['candle-builder'] },
   { id: 'u-chart-basics', tier: 'beginner', title: 'Chart types, scales & timeframes', lesson: 'chart-basics', games: ['chart-match'] },
   { id: 'u-candle-patterns', tier: 'beginner', title: 'Candlestick patterns', lesson: 'candle-patterns', games: ['pattern-flash'] },
@@ -32,6 +31,7 @@ export const UNITS = [
   { id: 'u-moving-averages', tier: 'beginner', title: 'Moving averages', lesson: 'moving-averages', games: ['cross-catcher'] },
   { id: 'u-volume', tier: 'beginner', title: 'Volume', lesson: 'volume', games: ['volume-verdict'] },
   { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
+  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
 
   { id: 'u-chart-patterns', tier: 'advanced', title: 'Reversal & continuation chart patterns', lesson: 'chart-patterns', games: ['pattern-detective'] },
   { id: 'u-fibonacci', tier: 'advanced', title: 'Fibonacci retracements & extensions', lesson: 'fibonacci', games: ['fib-sniper'] },
