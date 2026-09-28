@@ -72,6 +72,28 @@ function navKeyFor(route, entry) {
   return null;
 }
 
+
+const RISK_DISCLAIMER =
+  'This is not financial advice. The Trade School is educational material only. Trade at your own risk.';
+
+/** Site-wide scrolling risk disclaimer (marquee). Mounted once above the top nav. */
+function riskTicker() {
+  // Even count: first half === second half so translateX(-50%) loops seamlessly.
+  // Enough copies to cover wide viewports without a visible gap.
+  const COPIES = 8;
+  const segments = Array.from({ length: COPIES }, (_, i) =>
+    h('p', {
+      class: 'risk-ticker__text',
+      ...(i === 0 ? {} : { 'aria-hidden': 'true' }),
+    }, RISK_DISCLAIMER));
+  return h('aside', {
+    class: 'risk-ticker',
+    role: 'alert',
+    'aria-label': 'Risk and educational disclaimer',
+  },
+    h('div', { class: 'risk-ticker__track' }, ...segments));
+}
+
 function buildShell(app) {
   const navLinks = [];
   const tabLinks = [];
@@ -196,7 +218,7 @@ function buildShell(app) {
         h('a', { href: '#platforms' }, 'Platforms'),
         h('a', { href: '#account' }, 'Account'))));
 
-  app.replaceChildren(skip, header, main, footer, tabbar);
+  app.replaceChildren(skip, riskTicker(), header, main, footer, tabbar);
   app.classList.add('app');
 
   renderXP();

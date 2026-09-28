@@ -222,14 +222,6 @@ export default {
     }
 
     root.append(h('div', { class: 'container affiliate' },
-      h('aside', {
-        class: 'aff-risk',
-        role: 'alert',
-        'aria-label': 'Risk and educational disclaimer',
-      },
-        h('p', { class: 'aff-risk__text' },
-          'This is not financial advice. The Trade School is educational material only. '
-          + 'Trade at your own risk.')),
       h('header', { class: 'page-head aff-intro' },
         h('p', { class: 'eyebrow eyebrow--accent' }, 'Partners'),
         h('h1', null, 'Platforms'),

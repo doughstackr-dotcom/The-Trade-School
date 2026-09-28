@@ -1,5 +1,6 @@
 /* Platforms page (file: affiliate.*)
-   Hierarchy: full-width risk banner (top) → intro → disclosure → Trading platforms rails → coming soon.
+   Hierarchy: intro → disclosure → Trading platforms rails → coming soon.
+   (Site-wide risk ticker lives in the app shell — see css/risk-ticker.css.)
    Surfaces/text/borders use design tokens so light & dark themes stay native.
    Brand logos sit on a near-white pad (official marks assume a light ground);
    no invert filter — pad keeps marks readable in both themes. */
@@ -28,47 +29,6 @@
   box-sizing: border-box;
 }
 
-/* Full-width horizontal risk banner (edge-to-edge inside .container) */
-.aff-risk {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0 0 4px;
-  padding: 20px 24px;
-  border: 2px solid #c62828;
-  border-radius: 0;
-  background: color-mix(in oklab, #c62828 10%, var(--surface));
-}
-
-.aff-risk__text {
-  margin: 0;
-  color: #c62828;
-  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.35;
-  text-align: center;
-  text-wrap: balance;
-}
-
-[data-theme="dark"] .aff-risk {
-  border-color: #ff5252;
-  background: color-mix(in oklab, #ff5252 14%, var(--surface));
-}
-
-[data-theme="dark"] .aff-risk__text {
-  color: #ff6b6b;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .aff-risk {
-    border-color: #ff5252;
-    background: color-mix(in oklab, #ff5252 14%, var(--surface));
-  }
-  :root:not([data-theme]) .aff-risk__text {
-    color: #ff6b6b;
-  }
-}
 
 .aff-disclaimer p + p {
   margin-top: 6px;
