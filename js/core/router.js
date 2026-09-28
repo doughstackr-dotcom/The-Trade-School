@@ -52,7 +52,9 @@ let gate = null;
  */
 export function setAccessGate(next) {
   gate = next || null;
-  if (outlet && started) render(currentHash());
+  // A gate swap re-renders the same route in place (e.g. once the session is known): keep
+  // focus where it is, like the initial render, so the skip link stays the first Tab stop.
+  if (outlet && started) render(currentHash(), { initial: true });
 }
 
 function accessInfo() {
