@@ -5,7 +5,7 @@ The Trade School uses **Supabase** for accounts, progress sync and access contro
 
 | plan | price | unlocks |
 |---|---|---|
-| Free account | $0 | Unit 1 (Candlestick anatomy + Candle Builder), Pattern Library, progress sync |
+| Free account | $0 | Daily Challenge + Risk & position sizing lesson (`FREE_IDS` in `js/config.js`), Pattern Library, progress sync |
 | Beginner | **$19.99 / month** | Every Beginner lesson and game |
 | Advanced | **$29.99 / month** | Everything in Beginner **plus** every Advanced lesson and game |
 
