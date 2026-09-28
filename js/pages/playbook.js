@@ -1,6 +1,5 @@
 // Setup Playbook — rule-based setups with checklist + Home-hero-style playback on detail.
-// List keeps static miniChart thumbs; detail keeps the diagram and ADDS a stepped simulation.
-// List leads with difficulty-sectioned setup cards (each embeds its pattern viz); guides follow.
+// List is difficulty-sectioned setup cards only; process guides live inside each card detail.
 import { h, icon, tierChip } from '../core/ui.js';
 import { takeaway, figure } from '../core/lesson-kit.js';
 import { mountPatternPlayback } from '../core/pattern-playback.js';
@@ -18,12 +17,12 @@ import { CANDLE_PATTERNS, CHART_PATTERNS } from '../core/patterns.js';
 import { toolsTeaser } from '../core/teaser.js';
 import * as access from '../core/access.js';
 
-const GUIDE_JUMPS = [
-  { id: 'risk', label: 'Risk' },
-  { id: 'frameworks', label: 'Entry / exit' },
-  { id: 'checklists', label: 'Checklists' },
-  { id: 'scenarios', label: 'Scenarios' },
-];
+/** Primary entry/exit framework id by trade difficulty; time-stop is always appended. */
+const FRAMEWORK_BY_DIFFICULTY = {
+  easy: 'confirm-close',
+  medium: 'break-retest',
+  hard: 'fade-trap',
+};
 
 function difficultyChip(difficulty, { small = false } = {}) {
   const meta = difficultyMeta(difficulty);
@@ -143,8 +142,9 @@ function scrollToId(id) {
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+/** Difficulty jump chips only — guide content lives inside each setup detail. */
 function jumpNav() {
-  return h('nav', { class: 'playbook-jump', 'aria-label': 'Jump to playbook section' },
+  return h('nav', { class: 'playbook-jump', 'aria-label': 'Jump to difficulty' },
     ...DIFFICULTIES.map((d) => {
       const n = SETUPS.filter((s) => s.difficulty === d.id).length;
       return h('button', {
@@ -152,122 +152,7 @@ function jumpNav() {
         class: 'playbook-jump__link',
         onClick: () => scrollToId(`playbook-diff-${d.id}`),
       }, d.label, h('span', { class: 'playbook-jump__n' }, String(n)));
-    }),
-    ...GUIDE_JUMPS.map((g) => h('button', {
-      type: 'button',
-      class: 'playbook-jump__link playbook-jump__link--guide',
-      onClick: () => scrollToId(`playbook-${g.id}`),
-    }, g.label)));
-}
-
-function riskSection() {
-  return h('section', {
-    class: 'playbook-guide playbook-guide--risk',
-    id: 'playbook-risk',
-    'aria-labelledby': 'playbook-risk-h',
-  },
-    h('header', { class: 'playbook-section__head' },
-      h('div', { class: 'playbook-section__title-row' },
-        h('span', { class: 'chip chip--outline' }, 'Process'),
-        h('h2', { id: 'playbook-risk-h', class: 'playbook-section__title' }, 'Risk management rules'),
-        h('span', { class: 'playbook-section__count muted' }, `${RISK_RULES.length} rules`)),
-      h('p', { class: 'playbook-section__blurb muted' },
-        'Survival rules that sit above any single setup. Practice them in sims before you size up.')),
-    h('div', { class: 'playbook-guide__grid' },
-      RISK_RULES.map((r, i) => h('article', { class: 'card playbook-guide-card' },
-        h('span', { class: 'playbook-guide-card__n mono' }, String(i + 1).padStart(2, '0')),
-        h('h3', { class: 'playbook-guide-card__title' }, r.title),
-        h('p', { class: 'playbook-guide-card__body' }, r.body)))),
-    h('p', { class: 'callout callout--warn playbook-disclaimer', role: 'note' },
-      icon('info', { size: 16 }),
-      h('span', null,
-        'Educational only — not financial advice. These rules are study aids for simulations, not instructions to trade real capital.')));
-}
-
-function frameworksSection() {
-  return h('section', {
-    class: 'playbook-guide playbook-guide--frameworks',
-    id: 'playbook-frameworks',
-    'aria-labelledby': 'playbook-frameworks-h',
-  },
-    h('header', { class: 'playbook-section__head' },
-      h('div', { class: 'playbook-section__title-row' },
-        h('span', { class: 'chip chip--outline' }, 'Process'),
-        h('h2', { id: 'playbook-frameworks-h', class: 'playbook-section__title' }, 'Entry / exit frameworks'),
-        h('span', { class: 'playbook-section__count muted' }, `${ENTRY_EXIT_FRAMEWORKS.length} frameworks`)),
-      h('p', { class: 'playbook-section__blurb muted' },
-        'How you pull the trigger and how you get out — reused across Easy, Medium and Hard setups.')),
-    h('div', { class: 'playbook-frameworks' },
-      ENTRY_EXIT_FRAMEWORKS.map((fw) => h('article', { class: 'card playbook-framework' },
-        h('header', { class: 'playbook-framework__head' },
-          h('h3', { class: 'playbook-framework__title' }, fw.title),
-          h('p', { class: 'muted playbook-framework__when' }, fw.when)),
-        h('dl', { class: 'playbook-plan playbook-plan--framework' },
-          h('div', null, h('dt', null, 'Entry'), h('dd', null, fw.entry)),
-          h('div', null, h('dt', null, 'Stop'), h('dd', null, fw.stop)),
-          h('div', null, h('dt', null, 'Exit'), h('dd', null, fw.exit)))))));
-}
-
-function checklistBlock(spec) {
-  return h('article', { class: 'card playbook-checklist' },
-    h('header', { class: 'playbook-checklist__head' },
-      h('h3', { class: 'playbook-checklist__title' }, spec.title),
-      h('p', { class: 'muted' }, spec.blurb)),
-    h('ol', { class: 'playbook-rules playbook-rules--check' },
-      spec.items.map((item, i) => h('li', null,
-        h('span', { class: 'playbook-rules__n mono' }, String(i + 1)),
-        h('span', null, item)))));
-}
-
-function checklistsSection() {
-  return h('section', {
-    class: 'playbook-guide playbook-guide--checklists',
-    id: 'playbook-checklists',
-    'aria-labelledby': 'playbook-checklists-h',
-  },
-    h('header', { class: 'playbook-section__head' },
-      h('div', { class: 'playbook-section__title-row' },
-        h('span', { class: 'chip chip--outline' }, 'Process'),
-        h('h2', { id: 'playbook-checklists-h', class: 'playbook-section__title' }, 'Pre-trade & post-trade'),
-        h('span', { class: 'playbook-section__count muted' }, '2 lists')),
-      h('p', { class: 'playbook-section__blurb muted' },
-        'Gate the order with the pre-trade list; close the loop with the post-trade list.')),
-    h('div', { class: 'playbook-checklists' },
-      checklistBlock(TRADE_CHECKLISTS.pre),
-      checklistBlock(TRADE_CHECKLISTS.post)));
-}
-
-function scenariosSection() {
-  return h('section', {
-    class: 'playbook-guide playbook-guide--scenarios',
-    id: 'playbook-scenarios',
-    'aria-labelledby': 'playbook-scenarios-h',
-  },
-    h('header', { class: 'playbook-section__head' },
-      h('div', { class: 'playbook-section__title-row' },
-        h('span', { class: 'chip chip--outline' }, 'Walk-through'),
-        h('h2', { id: 'playbook-scenarios-h', class: 'playbook-section__title' }, 'Scenario walkthroughs'),
-        h('span', { class: 'playbook-section__count muted' }, `${SCENARIOS.length} scenarios`)),
-      h('p', { class: 'playbook-section__blurb muted' },
-        'Short educational stories that map a tape sequence onto a playbook setup. Open the linked sim to practice.')),
-    h('div', { class: 'playbook-scenarios' },
-      SCENARIOS.map((sc) => {
-        const setup = setupById(sc.setupId);
-        return h('article', { class: 'card playbook-scenario' },
-          h('header', { class: 'playbook-scenario__head' },
-            h('div', { class: 'row row--sm' },
-              difficultyChip(sc.difficulty, { small: true }),
-              setup
-                ? h('a', { class: 'chip chip--sm chip--outline', href: `#playbook.${setup.id}` }, setup.name, icon('arrow-right', { size: 12 }))
-                : null),
-            h('h3', { class: 'playbook-scenario__title' }, sc.title)),
-          h('ol', { class: 'playbook-scenario__steps' },
-            sc.steps.map((step, i) => h('li', null,
-              h('span', { class: 'playbook-scenario__n mono' }, String(i + 1)),
-              h('span', null, step)))),
-          h('p', { class: 'playbook-scenario__lesson' },
-            h('strong', null, 'Takeaway: '), sc.lesson));
-      })));
+    }));
 }
 
 function setupSections(mods) {
@@ -295,23 +180,142 @@ function listView(root, mods) {
       h('h1', null, 'Exact setups, exact rules'),
       h('p', { class: 'lead' },
         'Each setup is a checklist you can verify on any chart, with an entry, a stop and a target decided before you trade. ',
-        'Every card embeds its pattern at the bottom — drill Easy, Medium and Hard sims, then review risk, frameworks and checklists.')),
+        'Open a card for the stepped simulation, entry/exit frameworks, checklists, risk rules and any scenario walkthrough for that setup.')),
     jumpNav(),
     h('header', { class: 'playbook-setups-head page-head' },
       h('p', { class: 'eyebrow' }, 'Setups by difficulty'),
       h('h2', { class: 't-22', id: 'playbook-setups-h' }, 'The playbook cards'),
       h('p', { class: 'muted' },
-        'Grouped by trade difficulty — Easy, Medium, Hard. Each card shows the contextual diagram up top and the clean pattern silhouette at the bottom. Open a card for the stepped simulation.')),
+        'Grouped by trade difficulty — Easy, Medium, Hard. Each card shows the contextual diagram up top and the clean pattern silhouette at the bottom. Process guides live inside each card.')),
     ...setupSections(mods),
-    riskSection(),
-    frameworksSection(),
-    checklistsSection(),
-    scenariosSection(),
     h('p', { class: 'faint playbook__note' },
       'Simulations are educational — not live signals or financial advice. ',
       'Japanese candle setups are framed for short-timeframe scalps with tight stops. ',
       'Curriculum Beginner/Advanced chips mark lesson track; Easy/Medium/Hard mark how hard the trade is to execute. ',
       'All catalog patterns appear on at least one setup card.')));
+}
+
+function checklistBlock(spec) {
+  return h('article', { class: 'card playbook-checklist' },
+    h('header', { class: 'playbook-checklist__head' },
+      h('h3', { class: 'playbook-checklist__title' }, spec.title),
+      h('p', { class: 'muted' }, spec.blurb)),
+    h('ol', { class: 'playbook-rules playbook-rules--check' },
+      spec.items.map((item, i) => h('li', null,
+        h('span', { class: 'playbook-rules__n mono' }, String(i + 1)),
+        h('span', null, item)))));
+}
+
+function frameworkCard(fw, { primary = false } = {}) {
+  return h('article', { class: ['card', 'playbook-framework', primary && 'playbook-framework--primary'] },
+    h('header', { class: 'playbook-framework__head' },
+      h('div', { class: 'row row--sm' },
+        h('h3', { class: 'playbook-framework__title' }, fw.title),
+        primary ? h('span', { class: 'chip chip--sm chip--outline' }, 'Primary for this setup') : null),
+      h('p', { class: 'muted playbook-framework__when' }, fw.when)),
+    h('dl', { class: 'playbook-plan playbook-plan--framework' },
+      h('div', null, h('dt', null, 'Entry'), h('dd', null, fw.entry)),
+      h('div', null, h('dt', null, 'Stop'), h('dd', null, fw.stop)),
+      h('div', null, h('dt', null, 'Exit'), h('dd', null, fw.exit))));
+}
+
+function accordion(summaryLabel, bodyNodes, { open = false, className = '' } = {}) {
+  const el = h('details', {
+    class: ['playbook-accordion', className].filter(Boolean).join(' '),
+    open: open || undefined,
+  },
+    h('summary', { class: 'playbook-accordion__summary' }, summaryLabel),
+    h('div', { class: 'playbook-accordion__body' }, ...bodyNodes));
+  return el;
+}
+
+function frameworksForSetup(setup) {
+  const primaryId = FRAMEWORK_BY_DIFFICULTY[setup.difficulty] || 'confirm-close';
+  const primary = ENTRY_EXIT_FRAMEWORKS.find((fw) => fw.id === primaryId);
+  const timeStop = ENTRY_EXIT_FRAMEWORKS.find((fw) => fw.id === 'time-stop');
+  const nodes = [];
+  if (primary) nodes.push(frameworkCard(primary, { primary: true }));
+  if (timeStop) {
+    nodes.push(h('p', { class: 'playbook-detail-guide__note muted' },
+      h('strong', null, `${timeStop.title}: `),
+      timeStop.stop, ' ', timeStop.exit));
+  }
+  return nodes;
+}
+
+function scenarioBlock(sc) {
+  return h('article', { class: 'card playbook-scenario' },
+    h('header', { class: 'playbook-scenario__head' },
+      h('div', { class: 'row row--sm' }, difficultyChip(sc.difficulty, { small: true })),
+      h('h3', { class: 'playbook-scenario__title' }, sc.title)),
+    h('ol', { class: 'playbook-scenario__steps' },
+      sc.steps.map((step, i) => h('li', null,
+        h('span', { class: 'playbook-scenario__n mono' }, String(i + 1)),
+        h('span', null, step)))),
+    h('p', { class: 'playbook-scenario__lesson' },
+      h('strong', null, 'Takeaway: '), sc.lesson));
+}
+
+function detailGuides(setup) {
+  const scenarios = SCENARIOS.filter((s) => s.setupId === setup.id);
+  const scenarioBody = scenarios.length
+    ? scenarios.map((sc) => scenarioBlock(sc))
+    : [h('p', { class: 'faint playbook-detail-guide__empty' }, 'No dedicated scenario yet for this setup.')];
+
+  return h('section', {
+    class: 'section--tight playbook-detail-guides',
+    'aria-label': 'Process guides for this setup',
+  },
+    h('div', { class: 'section-head' },
+      h('div', null,
+        h('p', { class: 'eyebrow' }, 'Process'),
+        h('h2', { class: 't-22' }, 'Guides for this setup')),
+      h('p', { class: 'muted' },
+        'Expand for the matching entry/exit framework, pre/post checklists, scenario walkthrough and risk reminder.')),
+    accordion(
+      h('span', null, 'Entry / exit framework', h('span', { class: 'playbook-accordion__hint muted' }, 'for this difficulty')),
+      [
+        h('p', { class: 'muted playbook-detail-guide__blurb' },
+          'Primary framework matched to this setup’s trade difficulty, plus a short time-stop note.'),
+        h('div', { class: 'playbook-frameworks playbook-frameworks--detail' }, ...frameworksForSetup(setup)),
+      ],
+      { open: false, className: 'playbook-accordion--frameworks' },
+    ),
+    accordion(
+      h('span', null, 'Pre-trade & post-trade checklists'),
+      [
+        h('p', { class: 'muted playbook-detail-guide__blurb' },
+          'Same process tools for every trade — gate the order, then close the loop.'),
+        h('div', { class: 'playbook-checklists playbook-checklists--detail' },
+          checklistBlock(TRADE_CHECKLISTS.pre),
+          checklistBlock(TRADE_CHECKLISTS.post)),
+      ],
+      { className: 'playbook-accordion--checklists' },
+    ),
+    accordion(
+      h('span', null, 'Scenario walkthrough',
+        h('span', { class: 'playbook-accordion__hint muted' },
+          scenarios.length ? `${scenarios.length}` : 'none yet')),
+      scenarioBody,
+      { className: 'playbook-accordion--scenarios' },
+    ),
+    accordion(
+      h('span', null, 'Risk rules reminder',
+        h('span', { class: 'playbook-accordion__hint muted' }, `${RISK_RULES.length} rules`)),
+      [
+        h('p', { class: 'muted playbook-detail-guide__blurb' },
+          'Survival rules that sit above any single setup. Practice them in sims before you size up.'),
+        h('ul', { class: 'playbook-risk-compact' },
+          RISK_RULES.map((r) => h('li', null,
+            h('strong', null, r.title),
+            h('span', { class: 'muted' }, r.body)))),
+        h('p', { class: 'callout callout--warn playbook-disclaimer', role: 'note' },
+          icon('info', { size: 16 }),
+          h('span', null,
+            'Educational only — not financial advice. These rules are study aids for simulations, not instructions to trade real capital.')),
+      ],
+      { className: 'playbook-accordion--risk' },
+    ));
 }
 
 function detailView(root, setup, mods) {
@@ -344,7 +348,8 @@ function detailView(root, setup, mods) {
       h('div', null, h('dt', null, 'Entry'), h('dd', null, setup.entry)),
       h('div', null, h('dt', null, 'Stop'), h('dd', null, setup.stop)),
       h('div', null, h('dt', null, 'Target'), h('dd', null, setup.target))),
-    takeaway('Only take the setup when <strong>every</strong> rule is met. A setup with a missing rule is a different, weaker trade.')));
+    takeaway('Only take the setup when <strong>every</strong> rule is met. A setup with a missing rule is a different, weaker trade.'),
+    detailGuides(setup)));
 
   let playback = null;
   try {
