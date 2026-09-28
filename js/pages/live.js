@@ -24,6 +24,7 @@ import {
   setCachedCandles,
   applyQuoteToCandles,
   subscribeLiveFeed,
+  startVisibleIntervals,
 } from '../core/live-board.js';
 
 const BOARD = [...DEFAULT_BOARD];
@@ -58,9 +59,7 @@ export default {
     let chart = null;
     let lastCandles = getCachedCandles(selected);
     let liveMaId = null;
-    let pollTimer = null;
-    let hoursTimer = null;
-    let rotateTimer = null;
+    let stopTimers = null;
     let rotateOffset = 0;
     let boardFallback = false;
     let destroyed = false;
@@ -399,27 +398,17 @@ export default {
     await refreshQuotes();
     if (!destroyed) await loadChart(selected);
     if (!destroyed) {
-      pollTimer = setInterval(() => {
-        if (typeof document !== 'undefined' && document.hidden) return;
-        refreshQuotes();
-        loadChart(selected);
-      }, POLL_MS);
-      hoursTimer = setInterval(() => {
-        if (typeof document !== 'undefined' && document.hidden) return;
-        paintHours();
-      }, HOURS_TICK_MS);
-      rotateTimer = setInterval(() => {
-        if (typeof document !== 'undefined' && document.hidden) return;
-        advanceBoardRotation();
-      }, BOARD_ROTATE_MS);
+      stopTimers = startVisibleIntervals([
+        [() => { refreshQuotes(); loadChart(selected); }, POLL_MS],
+        [paintHours, HOURS_TICK_MS],
+        [advanceBoardRotation, BOARD_ROTATE_MS],
+      ]);
     }
 
     return () => {
       destroyed = true;
       unsubFeed?.();
-      if (pollTimer) clearInterval(pollTimer);
-      if (hoursTimer) clearInterval(hoursTimer);
-      if (rotateTimer) clearInterval(rotateTimer);
+      stopTimers?.();
       try { chart?.destroy(); } catch (err) { console.error(err); }
     };
   },
