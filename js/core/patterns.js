@@ -382,7 +382,7 @@ export const CANDLE_PATTERNS = {
     psychology:
       'Selling is strong, then stalls (the star shows indecision), and finally buyers take over decisively. The mood shifts from fear to confidence over three sessions.',
     howToTrade:
-      "One of the more reliable reversal patterns when it forms at support after a downtrend. Enter on the close of the third candle or on a small pullback; the stop goes below the star's low.",
+      "Textbooks treat it as one of the clearer three-candle reversal shapes, but it still fails often — it carries the most weight at support after a downtrend. Enter on the close of the third candle or on a small pullback; the stop goes below the star's low.",
   }, genMorningStar),
   'evening-star': def('evening-star', 'Evening star', 3, 'bearish', 'reversal', 'uptrend', 3, {
     summary:
@@ -390,7 +390,7 @@ export const CANDLE_PATTERNS = {
     psychology:
       'Buying is strong, then stalls (the star shows indecision), and finally sellers take over decisively. The mood shifts from greed to caution over three sessions.',
     howToTrade:
-      "One of the more reliable reversal patterns when it forms at resistance after an uptrend. Enter on the close of the third candle or on a small bounce; the stop goes above the star's high.",
+      "Textbooks treat it as one of the clearer three-candle reversal shapes, but it still fails often — it carries the most weight at resistance after an uptrend. Enter on the close of the third candle or on a small bounce; the stop goes above the star's high.",
   }, bearTwin(genMorningStar)),
   'three-white-soldiers': def('three-white-soldiers', 'Three white soldiers', 3, 'bullish', 'reversal', 'downtrend', 3, {
     summary: 'Three long green candles in a row, each opening inside the previous body and closing near its high at a higher close.',
@@ -1166,7 +1166,7 @@ export const CHART_PATTERNS = {
   }, (rng) => tripleTop(rng, true)),
   'rising-wedge': cdef('rising-wedge', 'Rising wedge', 'bearish', 'reversal', 2, {
     summary:
-      'Price climbs between two rising trend lines that converge, with the lower line steeper than the upper one. It usually breaks down.',
+      'Price climbs between two rising trend lines that converge, with the lower line steeper than the upper one. Textbooks read it as bearish (a breakdown is the classic resolution), but it can break either way.',
     psychology:
       'Each new high is only slightly higher while dips are bought at ever higher prices: buyers are still pushing but gaining less ground each time, a sign the rally is running out of fuel.',
     howToTrade:
@@ -1175,7 +1175,7 @@ export const CHART_PATTERNS = {
   }, (rng) => risingWedge(rng, false)),
   'falling-wedge': cdef('falling-wedge', 'Falling wedge', 'bullish', 'reversal', 2, {
     summary:
-      'Price falls between two descending trend lines that converge, with the upper line steeper than the lower one. It usually breaks out upward.',
+      'Price falls between two descending trend lines that converge, with the upper line steeper than the lower one. Textbooks read it as bullish (an upside break is the classic resolution), but it can break either way.',
     psychology:
       'Each new low is only slightly lower and the drops keep shrinking: sellers are losing momentum even while price drifts down.',
     howToTrade:
@@ -1183,7 +1183,7 @@ export const CHART_PATTERNS = {
     target: "Project the wedge's height at its widest point up from the breakout; a return to where the wedge began is common.",
   }, (rng) => risingWedge(rng, true)),
   'ascending-triangle': cdef('ascending-triangle', 'Ascending triangle', 'bullish', 'continuation', 2, {
-    summary: 'A flat resistance line on top and rising lows underneath. It most often breaks upward, continuing an uptrend.',
+    summary: 'A flat resistance line on top and rising lows underneath. Textbooks read it as bullish continuation, but a downside break is always possible — wait for the close.',
     psychology:
       'Sellers defend one fixed price, but buyers keep stepping in at higher and higher prices. Eventually the supply at resistance runs out.',
     howToTrade:
@@ -1191,7 +1191,7 @@ export const CHART_PATTERNS = {
     target: "Take the triangle's height at its widest point (the start) and project it up from the breakout.",
   }, (rng) => ascendingTriangle(rng, false)),
   'descending-triangle': cdef('descending-triangle', 'Descending triangle', 'bearish', 'continuation', 2, {
-    summary: 'A flat support line underneath and falling highs above it. It most often breaks downward, continuing a downtrend.',
+    summary: 'A flat support line underneath and falling highs above it. Textbooks read it as bearish continuation, but an upside break is always possible — wait for the close.',
     psychology:
       'Buyers defend one fixed price, but sellers get more aggressive, selling at lower and lower highs. Eventually support gives way.',
     howToTrade:
@@ -1200,7 +1200,7 @@ export const CHART_PATTERNS = {
   }, (rng) => ascendingTriangle(rng, true)),
   'symmetrical-triangle': cdef('symmetrical-triangle', 'Symmetrical triangle', 'neutral', 'continuation', 2, {
     summary:
-      'Lower highs and higher lows squeeze price between two converging trend lines. It usually breaks in the direction of the trend that came before it.',
+      'Lower highs and higher lows squeeze price between two converging trend lines. Textbooks lean toward a break in the direction of the prior trend, but either side can win.',
     psychology:
       'Buyers and sellers both become less aggressive and the range contracts like a coiled spring. The breakout shows which side has won.',
     howToTrade:
@@ -1266,7 +1266,7 @@ export const CHART_PATTERNS = {
   'bull-rectangle': cdef('bull-rectangle', 'Bull rectangle', 'bullish', 'continuation', 2, {
     summary: 'After an uptrend, price consolidates between flat support and flat resistance (a trading range), then breaks upward.',
     psychology:
-      'Buyers and sellers temporarily balance inside a clear range. The prior uptrend usually resumes once price clears the top of the box.',
+      'Buyers and sellers temporarily balance inside a clear range. The textbook read is that the prior uptrend resumes once price clears the top of the box — but ranges can also break the other way.',
     howToTrade:
       'Wait for a close above resistance. Buy the break or a retest of old resistance as support, with a stop below the rectangle low.',
     target: "Project the rectangle's height (resistance minus support) up from the breakout.",
@@ -1274,7 +1274,7 @@ export const CHART_PATTERNS = {
   'bear-rectangle': cdef('bear-rectangle', 'Bear rectangle', 'bearish', 'continuation', 2, {
     summary: 'After a downtrend, price consolidates between flat support and flat resistance (a trading range), then breaks downward.',
     psychology:
-      'Buyers and sellers temporarily balance inside a clear range. The prior downtrend usually resumes once price loses the bottom of the box.',
+      'Buyers and sellers temporarily balance inside a clear range. The textbook read is that the prior downtrend resumes once price loses the bottom of the box — but ranges can also break the other way.',
     howToTrade:
       'Wait for a close below support. Sell the break or a retest of old support from below, with a stop above the rectangle high.',
     target: "Project the rectangle's height (resistance minus support) down from the breakout.",

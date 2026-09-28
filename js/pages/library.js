@@ -16,12 +16,13 @@ function biasChip(bias) {
   return h('span', { class: ['chip', 'chip--sm', `chip--${tone}`] }, bias || '—');
 }
 
-function reliabilityDots(n = 1) {
+function clarityDots(n = 1) {
   const max = 3;
   return h('span', {
     class: 'lib-reli mono',
-    title: `Textbook reliability ${n}/${max}`,
-    'aria-label': `Reliability ${n} of ${max}`,
+    // How clear-cut the textbook shape is — not a measured win rate.
+    title: `Textbook clarity ${n}/${max}: how clear-cut the textbook shape is (not a win rate)`,
+    'aria-label': `Textbook clarity ${n} of ${max}`,
   }, '●'.repeat(Math.max(1, Math.min(max, n))) + '○'.repeat(Math.max(0, max - n)));
 }
 
@@ -80,7 +81,7 @@ function patternCard(p, kind) {
       h('a', { class: 'lib-card__link', href },
         h('header', { class: 'lib-card__head' },
           h('h3', { class: 'lib-card__title' }, p.name),
-          h('div', { class: 'lib-card__meta' }, biasChip(p.bias), reliabilityDots(p.reliability))),
+          h('div', { class: 'lib-card__meta' }, biasChip(p.bias), clarityDots(p.reliability))),
         h('div', { class: 'lib-card__art' }, candleArt(p.id)),
         h('p', { class: 'faint lib-card__kind' }, `${p.candles}-candle · ${p.kind}`)),
     );
@@ -89,7 +90,7 @@ function patternCard(p, kind) {
     h('a', { class: 'lib-card__link', href },
       h('header', { class: 'lib-card__head' },
         h('h3', { class: 'lib-card__title' }, p.name),
-        h('div', { class: 'lib-card__meta' }, biasChip(p.bias), reliabilityDots(p.reliability),
+        h('div', { class: 'lib-card__meta' }, biasChip(p.bias), clarityDots(p.reliability),
           h('span', { class: 'chip chip--sm chip--outline lib-card__play' }, icon('play', { size: 11 }), ' Sim')),
       ),
       h('div', { class: 'lib-card__thumb' }, chartThumb(p.id)),
@@ -108,7 +109,7 @@ function detailView(p, kind, onBack) {
     h('header', { class: 'lib-detail__head' },
       h('p', { class: 'eyebrow' }, kind === 'candle' ? 'Candlestick pattern' : 'Chart pattern'),
       h('h2', { id: 'lib-detail-h' }, p.name),
-      h('div', { class: 'row' }, biasChip(p.bias), reliabilityDots(p.reliability),
+      h('div', { class: 'row' }, biasChip(p.bias), clarityDots(p.reliability),
         kind === 'candle' ? h('span', { class: 'chip chip--sm chip--outline' }, `${p.candles} candle${p.candles > 1 ? 's' : ''}`) : null,
         h('span', { class: 'chip chip--sm chip--outline' }, p.kind))),
     h('section', { class: 'lib-sim-section', 'aria-labelledby': 'lib-sim-h' },
@@ -264,7 +265,8 @@ export default {
             'Every candlestick and chart pattern taught in the school — annotated diagram, the psychology behind it, and how traders typically use it. Open any card for a stepped simulation. Educational only, not advice.')),
         h('p', { class: 'muted lib-count' },
           h('strong', { class: 'mono' }, String(shown)), ` of ${total} patterns`,
-          ` · ${candles.length} candlestick · ${charts.length} chart`),
+          ` · ${candles.length} candlestick · ${charts.length} chart`,
+          ' · ●●○ = textbook clarity (how clear-cut the shape is), not a success rate'),
         filterBar(state, (next) => { state = next; renderList(); }),
         cList.length ? h('section', { class: 'section section--tight', 'aria-labelledby': 'lib-c-h' },
           h('div', { class: 'section-head' },
