@@ -1535,10 +1535,11 @@ Curriculum (registry `UNITS`, recommended order; ids fixed):
 
 | Beginner unit | lesson | game(s) |
 |---|---|---|
-| `u-markets-orders` Markets, orders & the spread | `markets-orders` | `order-desk` (simulation) |
-| `u-candle-anatomy` | `candle-anatomy` | `candle-builder` |
+| `u-candle-anatomy` Candlestick anatomy | `candle-anatomy` | `candle-builder` |
 | `u-chart-basics` Chart types, scales & timeframes | `chart-basics` | `chart-match` (memory) |
-| `u-candle-patterns` · `u-trends` · `u-support-resistance` · `u-trendlines` · `u-moving-averages` | as §4 | as §4 |
+| `u-candle-patterns` Candlestick patterns | `candle-patterns` | `pattern-flash` |
+| `u-markets-orders` Markets, orders & the spread | `markets-orders` | `order-desk` (simulation) |
+| `u-trends` · `u-support-resistance` · `u-trendlines` · `u-moving-averages` | as §4 | as §4 |
 | `u-volume` Volume | `volume` | `volume-verdict` (swipe) |
 | `u-beginner-capstone` Put it together | — | `what-next`, `setup-swipe` (swipe, tier both), `daily-challenge` (quiz, tier both, daily) |
 

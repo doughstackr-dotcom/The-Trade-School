@@ -26,7 +26,7 @@ test('registry: every unit item exists, every lesson/game sits in a unit, kinds/
 
 test('registry: curriculum order and the new entries', () => {
   assert.deepEqual(reg.unitsOf('beginner').map((u) => u.id), [
-    'u-markets-orders', 'u-candle-anatomy', 'u-chart-basics', 'u-candle-patterns', 'u-trends', 'u-support-resistance',
+    'u-candle-anatomy', 'u-chart-basics', 'u-candle-patterns', 'u-markets-orders', 'u-trends', 'u-support-resistance',
     'u-trendlines', 'u-moving-averages', 'u-volume', 'u-beginner-capstone',
   ]);
   assert.deepEqual(reg.unitsOf('advanced').map((u) => u.id), [

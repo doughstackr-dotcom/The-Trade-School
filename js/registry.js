@@ -22,10 +22,10 @@ export const TIERS = [
 
 // Units pair a lesson with its game(s). Order = recommended learning order.
 export const UNITS = [
-  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
   { id: 'u-candle-anatomy', tier: 'beginner', title: 'Candlestick anatomy', lesson: 'candle-anatomy', games: ['candle-builder'] },
   { id: 'u-chart-basics', tier: 'beginner', title: 'Chart types, scales & timeframes', lesson: 'chart-basics', games: ['chart-match'] },
   { id: 'u-candle-patterns', tier: 'beginner', title: 'Candlestick patterns', lesson: 'candle-patterns', games: ['pattern-flash'] },
+  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
   { id: 'u-trends', tier: 'beginner', title: 'Trends & market structure', lesson: 'trends', games: ['trend-spotter'] },
   { id: 'u-support-resistance', tier: 'beginner', title: 'Support & resistance', lesson: 'support-resistance', games: ['level-hunter'] },
   { id: 'u-trendlines', tier: 'beginner', title: 'Trend lines & channels', lesson: 'trendlines', games: ['trendline-challenge'] },
