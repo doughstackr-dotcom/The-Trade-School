@@ -1042,6 +1042,20 @@ Deno.test('schema: webhook-written status → access_level() for every Stripe st
   }
 });
 
+Deno.test('schema: a later migration limits profile updates to display_name (column grant), RLS policy kept', () => {
+  const dir = new URL('../../migrations/', import.meta.url);
+  const files = [...Deno.readDirSync(dir)].map((e) => e.name).filter((n) => n.endsWith('.sql')).sort();
+  const base = files.indexOf('20260927180000_accounts_and_billing.sql');
+  const later = files.slice(base + 1).map((f) => Deno.readTextFileSync(new URL(f, dir))).join('\n').toLowerCase();
+  assertMatch(later, /revoke update on public\.profiles from anon, authenticated;/);
+  const grants = [...later.matchAll(/grant update \(([^)]*)\) on public\.profiles to authenticated;/g)].map((m) => m[1].trim());
+  assertEquals(grants, ['display_name']);
+  assert(!/grant (update|all)( privileges)? on (table )?public\.profiles/.test(later), 'no table-wide update grant comes back');
+  const original = Deno.readTextFileSync(new URL(files[base], dir));
+  assertStringIncludes(original, 'create policy "Users update their own profile"');
+  assert(!/drop policy[^;]*own profile/i.test(later), 'the own-row RLS policy stays');
+});
+
 Deno.test('no request escaped to the real network', async () => {
   const { blockedRequests } = await import('./billing_fakes.ts');
   assertEquals(blockedRequests, []);
