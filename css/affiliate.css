@@ -1,5 +1,5 @@
 /* Platforms page (file: affiliate.*)
-   Hierarchy: intro → Trading platforms rails → coming soon → disclosure.
+   Hierarchy: intro → disclosure → Trading platforms rails → footnote.
    (Site-wide risk ticker lives in the app shell — see css/risk-ticker.css.)
    Surfaces/text/borders use design tokens so light & dark themes stay native.
    Brand logos sit on a near-white pad (official marks assume a light ground);
@@ -27,7 +27,21 @@
   width: 100%;
   max-width: none;
   box-sizing: border-box;
-  margin-top: var(--space-6, 1.5rem);
+}
+
+.aff-disclaimer__list {
+  margin: 8px 0 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.aff-footnote {
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 
@@ -179,76 +193,6 @@
 
 .aff-row__cta {
   white-space: nowrap;
-}
-
-/* —— Coming soon strip —— */
-
-.aff-section--soon {
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-
-.aff-soon {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.aff-soon__tile {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.aff-soon__logo {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 1px dashed color-mix(in oklab, var(--line) 80%, var(--text-3));
-  background: var(--surface);
-  color: var(--text-3);
-}
-
-.aff-soon__logo--img {
-  border-style: solid;
-  background: color-mix(in oklab, #ffffff 94%, var(--surface));
-  padding: 6px;
-  box-sizing: border-box;
-}
-
-.aff-soon__logo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.aff-soon__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.aff-soon__name {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
-.aff-soon__note {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 /* —— Responsive: stack CTA under body on narrow viewports —— */

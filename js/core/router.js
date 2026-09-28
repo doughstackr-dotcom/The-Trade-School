@@ -1,7 +1,7 @@
 // Hash router. Routes are plain tokens: #home, #library(.<id>),
 // #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
 // #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #live,
-// #l.<lessonId>, #g.<gameId>, #dev-chart.
+// #privacy, #terms, #refunds (legal pages), #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
 import { h, icon } from './ui.js';
@@ -19,6 +19,9 @@ const PAGE_PATHS = {
   dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
+  privacy: '../pages/legal.js',
+  terms: '../pages/legal.js',
+  refunds: '../pages/legal.js',
   'dev-chart': '../pages/dev-chart.js',
 };
 
@@ -49,7 +52,9 @@ let gate = null;
  */
 export function setAccessGate(next) {
   gate = next || null;
-  if (outlet && started) render(currentHash());
+  // A gate swap re-renders the same route in place (e.g. once the session is known): keep
+  // focus where it is, like the initial render, so the skip link stays the first Tab stop.
+  if (outlet && started) render(currentHash(), { initial: true });
 }
 
 function accessInfo() {
@@ -89,7 +94,8 @@ export function parseHash(hash) {
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart'
+    || token === 'privacy' || token === 'terms' || token === 'refunds') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -108,6 +114,9 @@ function titleFor(route, entry) {
     case 'dashboard': return `Dashboard · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;
+    case 'privacy': return `Privacy Policy · ${SITE}`;
+    case 'terms': return `Terms of Service · ${SITE}`;
+    case 'refunds': return `Refund & Cancellation Policy · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
     default: return `Not found · ${SITE}`;
   }

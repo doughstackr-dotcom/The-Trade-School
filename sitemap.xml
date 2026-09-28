@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Site origin: https://the-trade-school.vercel.app (also in robots.txt and index.html — update all
+  three when a custom domain is set; see README "Deploy").
+  The app still uses hash routes (#privacy, #terms, …). Search engines drop the "#…" part of a URL,
+  so only the home page is a distinct crawlable URL today. When routes move to real paths, list the
+  public pages here too: /dashboard, /games, /live, /library, /playbook, /glossary, /platforms,
+  /privacy, /terms, /refunds.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://the-trade-school.vercel.app/</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

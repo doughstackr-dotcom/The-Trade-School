@@ -22,6 +22,13 @@ function goAfterAuth(ctx) {
   return false;
 }
 
+/** "By continuing you agree…" line shown with sign-up and checkout buttons. */
+function consentNote(action = 'continuing') {
+  return h('p', { class: 'consent-note' },
+    `By ${action} you agree to the `, h('a', { href: '#terms' }, 'Terms of Service'),
+    ' and ', h('a', { href: '#privacy' }, 'Privacy Policy'), '.');
+}
+
 function kids(...nodes) {
   return nodes.filter((n) => n != null && n !== false);
 }
@@ -171,6 +178,7 @@ export default {
             autocomplete: 'new-password', 'aria-label': 'Confirm password', minlength: '6',
           })),
         h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Create account'),
+        consentNote('creating an account'),
         h('p', { class: 'account__switch' },
           h('span', { class: 'muted' }, 'Already have an account?'),
           ' ',
@@ -258,6 +266,12 @@ export default {
               },
             }, 'Sign out'),
           ),
+          a.level !== 'advanced'
+            ? h('p', { class: 'consent-note' },
+              'By subscribing you agree to the ', h('a', { href: '#terms' }, 'Terms of Service'), ', ',
+              h('a', { href: '#privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '#refunds' }, 'Refund Policy'),
+              '. Renews monthly; cancel anytime in Manage billing.')
+            : null,
         ),
         h('section', { class: 'card' },
           h('h3', null, 'Free modules'),
@@ -297,6 +311,8 @@ export default {
     }
 
     root.append(h('div', { class: 'container account' }, body, formWrap));
+    // Warm up the (lazy-loaded) Supabase client so sign-in / sign-up submit without delay.
+    access.ensureLoaded();
     let unsub = null;
     access.ready.then(() => {
       paint();

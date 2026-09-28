@@ -5,7 +5,7 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/((?!js/|css/|og-image\\.png|favicon\\.ico).*)", "destination": "/index.html" }
+    { "source": "/((?!js/|css/|og-image\\.png|favicon\\.ico|robots\\.txt|sitemap\\.xml).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

@@ -6,7 +6,8 @@ import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
-// wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
+// wide: shown as its own top-nav link from 1500px; from 960–1499px it moves into the "More"
+// menu so the full wordmark always fits; below 960px it lives in the footer only.
 const NAV = [
   { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
@@ -80,9 +81,11 @@ function riskTicker() {
       class: 'risk-ticker__text',
       ...(i === 0 ? {} : { 'aria-hidden': 'true' }),
     }, RISK_DISCLAIMER));
+  // role="note" (not "alert"): the disclaimer is static, so screen readers should read it once
+  // in page order rather than announce it assertively; the duplicate copies are aria-hidden.
   return h('aside', {
     class: 'risk-ticker',
-    role: 'alert',
+    role: 'note',
     'aria-label': 'Risk and educational disclaimer',
   },
     h('div', { class: 'risk-ticker__track' }, ...segments));
@@ -92,13 +95,41 @@ function buildShell(app) {
   const navLinks = [];
   const tabLinks = [];
 
+  const moreItems = NAV.filter((n) => n.wide);
+  const moreLinks = moreItems.map((n) => {
+    const a = h('a', { class: 'nav-more__link', href: `#${n.hash}`, 'data-nav': n.hash },
+      icon(n.icon, { size: 16 }), h('span', null, n.label));
+    navLinks.push(a);
+    return a;
+  });
+  const moreSummary = h('summary', { class: 'nav__link nav-more__summary' },
+    h('span', null, 'More'), icon('chevron-down', { size: 14 }));
+  const more = moreItems.length
+    ? h('details', { class: 'nav-more' },
+      moreSummary,
+      h('div', { class: 'nav-more__menu' }, moreLinks))
+    : null;
+  const closeMore = () => { if (more) more.open = false; };
+  if (more) {
+    more.addEventListener('click', (e) => { if (e.target.closest('a')) closeMore(); });
+    more.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && more.open) {
+        closeMore();
+        moreSummary.focus();
+      }
+    });
+    document.addEventListener('click', (e) => { if (more.open && !more.contains(e.target)) closeMore(); });
+    more.addEventListener('focusout', (e) => { if (more.open && !more.contains(e.relatedTarget)) closeMore(); });
+  }
+
   const topNav = h('nav', { class: 'nav', 'aria-label': 'Primary' },
     NAV.map((n) => {
       const a = h('a', { class: ['nav__link', n.wide && 'nav__link--wide', n.live && 'nav__link--live'], href: `#${n.hash}`, 'data-nav': n.hash },
         n.live ? liveDot() : null, h('span', null, n.label));
       navLinks.push(a);
       return a;
-    }));
+    }),
+    more);
 
   const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Primary', style: { '--tabs': NAV.filter((n) => n.tab !== false).length } },
     NAV.filter((n) => n.tab !== false).map((n) => {
@@ -161,7 +192,20 @@ function buildShell(app) {
 
   const main = h('main', { id: 'main', class: 'main', tabindex: '-1' });
 
-  const skip = h('button', { type: 'button', class: 'skip-link', on: { click: () => main.focus() } }, 'Skip to content');
+  // Real link (works without JS semantics, shows in link lists). The click handler moves focus
+  // to <main> without touching location.hash, so the hash router never sees "#main".
+  const skip = h('a', {
+    class: 'skip-link',
+    href: '#main',
+    'data-no-route': '',
+    on: {
+      click: (e) => {
+        e.preventDefault();
+        main.focus({ preventScroll: true });
+        main.scrollIntoView({ block: 'start' });
+      },
+    },
+  }, 'Skip to content');
 
   // Sign in / Sign up (or Account when signed in) — always visible in the header.
   const authBtn = h('a', {
@@ -192,7 +236,10 @@ function buildShell(app) {
     h('div', { class: 'container topbar__inner' },
       h('a', { class: 'brand', href: '#home', 'aria-label': 'The Trade School — home' },
         brandMark(28),
-        h('span', { class: 'brand__word' }, 'The Trade School')),
+        // Two parts so phones can stack the full name on two lines instead of truncating it.
+        h('span', { class: 'brand__word' },
+          h('span', { class: 'brand__line' }, 'The Trade'), ' ',
+          h('span', { class: 'brand__line' }, 'School'))),
       topNav,
       h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn)));
 
@@ -209,7 +256,11 @@ function buildShell(app) {
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
         h('a', { href: '#platforms' }, 'Platforms'),
-        h('a', { href: '#account' }, 'Account'))));
+        h('a', { href: '#account' }, 'Account')),
+      h('nav', { class: 'footer__legal', 'aria-label': 'Legal' },
+        h('a', { href: '#privacy' }, 'Privacy'),
+        h('a', { href: '#terms' }, 'Terms'),
+        h('a', { href: '#refunds' }, 'Refunds'))));
 
   app.replaceChildren(skip, riskTicker(), header, main, footer, tabbar);
   app.classList.add('app');
@@ -224,6 +275,17 @@ function buildShell(app) {
     renderSound();
   });
   access.onChange(() => renderAuth());
+  // Post-login return: when a visitor signs in after being sent to #account from a paywall
+  // (access.rememberReturn), take them back to where they were headed.
+  let wasSignedIn = !!access.getAccess().user;
+  access.onChange((snap) => {
+    const now = !!snap?.user;
+    if (now && !wasSignedIn) {
+      const ret = access.consumeReturn();
+      if (ret) navigate(ret);
+    }
+    wasSignedIn = now;
+  });
   access.ready.then(() => renderAuth()).catch(() => {});
 
   function setActive(route, entry) {
@@ -235,9 +297,73 @@ function buildShell(app) {
       else a.removeAttribute('aria-current');
     }
     document.body.dataset.route = route.kind === 'page' ? route.page : route.kind;
+    moreSummary.classList.toggle('is-active', moreItems.some((n) => n.hash === key));
+    closeMore();
   }
 
   return { main, setActive };
+}
+
+// ------------------------------------------------------------------ analytics
+// Vercel Web Analytics (cookieless). Injected only on real hosts so local dev and tests do not
+// 404 on /_vercel/insights/script.js. Auto-tracking is off because it only follows
+// history.pushState; hash routes are reported from onRoute below via the documented
+// window.va('pageview', { route, path }) queue (same as @vercel/analytics' pageview()).
+function isLocalHost() {
+  try {
+    const n = location.hostname;
+    return n === 'localhost' || n === '127.0.0.1' || n === '::1' || n === '[::1]' || n === '';
+  } catch {
+    return true;
+  }
+}
+
+const analyticsOn = !isLocalHost();
+let lastTrackedPath = null; // the access gate re-renders the current route; count it once
+
+function injectAnalytics() {
+  if (!analyticsOn) return;
+  try {
+    if (!window.va) {
+      window.va = function va(...params) {
+        (window.vaq = window.vaq || []).push(params);
+      };
+    }
+    const src = '/_vercel/insights/script.js';
+    if (document.head.querySelector(`script[src="${src}"]`)) return;
+    const s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    s.dataset.disableAutoTrack = '1';
+    document.head.appendChild(s);
+  } catch {
+    /* analytics is optional */
+  }
+}
+
+/** Route pattern + path for a hash route (no ids in `route`, no query/hash noise in `path`). */
+function trackPageview(route) {
+  if (!analyticsOn || typeof window.va !== 'function' || !route) return;
+  let pattern;
+  let path;
+  if (route.kind === 'notfound') {
+    pattern = '/not-found';
+    path = '/not-found';
+  } else if (route.kind === 'lesson' || route.kind === 'game') {
+    const prefix = route.kind === 'lesson' ? 'l' : 'g';
+    pattern = `/${prefix}.[id]`;
+    path = `/${prefix}.${route.id}`;
+  } else {
+    pattern = route.page === 'home' ? '/' : `/${route.page}${route.param ? '.[param]' : ''}`;
+    path = route.key === 'home' ? '/' : `/${route.key}`;
+  }
+  if (path === lastTrackedPath) return;
+  lastTrackedPath = path;
+  try {
+    window.va('pageview', { route: pattern, path });
+  } catch {
+    /* ignore */
+  }
 }
 
 function boot() {
@@ -250,6 +376,7 @@ function boot() {
     /* old browsers */
   }
   const shell = buildShell(app);
+  injectAnalytics();
   // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
   function wireGate() {
     setAccessGate({
@@ -269,6 +396,7 @@ function boot() {
     store,
     onRoute: (route, entry) => {
       shell.setActive(route, entry || (route.id ? findEntry(route.id) : null));
+      trackPageview(route);
     },
   });
 }

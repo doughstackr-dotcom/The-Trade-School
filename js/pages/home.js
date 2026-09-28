@@ -1,6 +1,6 @@
 // Home: the one bold moment (a live teaching chart), today's Daily Challenge and Live Market Lab,
 // the two tracks, the three play styles, the arcade (filterable by kind) and your level.
-import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion, modal } from '../core/ui.js';
+import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
 import {
   TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, hashFor,
 } from '../registry.js';
@@ -10,6 +10,7 @@ import { sma } from '../core/indicators.js';
 import { styleIcon } from '../core/game-kit.js';
 import { trackCard as sharedTrackCard } from '../core/curriculum.js';
 import * as access from '../core/access.js';
+import { PLANS, FREE_IDS } from '../config.js';
 
 const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate', memory: 'Memory', swipe: 'Swipe', story: 'Story', live: 'Live' };
 
@@ -748,46 +749,86 @@ function levelStrip(store) {
 
 // ------------------------------------------------------------------ page
 
-function showWelcome(store) {
-  if (store.getSetting('welcomed')) return;
-  const body = h('div', { class: 'welcome-modal' },
-    h('p', null, 'Short visual lessons and games teach chart reading — then you can test your eye on textbook or real-market charts.'),
-    h('ol', { class: 'welcome-modal__steps' },
-      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner track; Markets, orders & the spread comes late, then Put it together (Daily Challenge stays free).'),
-      h('li', null, h('strong', null, 'Play styles:'), ' Practice, Arcade, or Survival on every game.'),
-      h('li', null, h('strong', null, 'Dashboard:'), ' See the full map anytime under Dashboard.')),
-    h('p', { class: 'faint' }, 'Educational only — not financial advice. You can skip this tour.'),
-  );
-  modal({
-    title: 'Welcome to The Trade School',
-    body,
-    dismissible: true,
-    actions: [
-      {
-        label: 'Start Beginner',
-        primary: true,
-        onClick: () => {
-          store.setSetting('welcomed', true);
-          location.hash = '#l.candle-anatomy';
-        },
-      },
-      {
-        label: 'Skip for now',
-        onClick: () => store.setSetting('welcomed', true),
-      },
-    ],
-    onClose: () => store.setSetting('welcomed', true),
-  });
+// First-visit welcome: an inline, dismissible banner under the hero (not a modal), so the
+// headline and CTAs are never covered on arrival.
+function welcomeBanner(store) {
+  if (store.getSetting('welcomed')) return null;
+  const dismiss = () => {
+    store.setSetting('welcomed', true);
+    banner.remove();
+  };
+  const banner = h('section', { class: 'container welcome-banner', 'aria-labelledby': 'welcome-h' },
+    h('div', { class: 'welcome-banner__card card' },
+      h('div', { class: 'welcome-banner__copy' },
+        h('h2', { class: 'welcome-banner__title', id: 'welcome-h' }, 'New here? Start with today’s free Daily Challenge.'),
+        h('p', { class: 'muted' },
+          'Short visual lessons and games teach chart reading. The Daily Challenge is free with an account; '
+          + 'the Beginner track starts with Candlestick anatomy. Educational only — not financial advice.')),
+      h('div', { class: 'welcome-banner__actions' },
+        h('a', { class: 'btn btn--primary btn--sm', href: '#g.daily-challenge', on: { click: () => store.setSetting('welcomed', true) } },
+          'Try it free', icon('arrow-right', { size: 14 })),
+        h('button', {
+          type: 'button', class: 'icon-btn welcome-banner__close', 'aria-label': 'Dismiss welcome message', on: { click: dismiss },
+        }, icon('x', { size: 18 })))));
+  return banner;
 }
 
+const money = (n) => `$${Number(n).toFixed(2)}`;
+
+// Pricing: Free / Beginner / Advanced, read from config PLANS + FREE_IDS.
+function pricingSection() {
+  const freeGames = FREE_IDS.map((id) => findEntry(id)?.title).filter(Boolean);
+  const perk = (text) => h('li', null, icon('check', { size: 14 }), h('span', null, text));
+  const tier = ({ id, name, price, blurb, perks, cta, href, highlight = false }) => h('article', {
+    class: ['plan-card', 'card', 'pricing__card', highlight && 'plan-card--highlight'],
+    'aria-labelledby': `price-${id}`,
+  },
+    h('p', { class: 'eyebrow' }, highlight ? 'Full curriculum' : id === 'free' ? 'No card needed' : 'Plan'),
+    h('h3', { class: 'plan-card__title', id: `price-${id}` }, name),
+    h('p', { class: 'plan-card__price' },
+      h('span', { class: 'mono' }, price),
+      h('span', { class: 'faint pricing__per' }, id === 'free' ? ' forever' : ' / month')),
+    h('p', { class: 'muted pricing__blurb' }, blurb),
+    h('ul', { class: 'plan-card__perks' }, perks.map(perk)),
+    h('a', { class: ['btn', 'btn--block', highlight ? 'btn--primary' : 'btn--ghost'], href }, cta));
+  const b = PLANS.beginner;
+  const a = PLANS.advanced;
+  return h('section', { class: 'container section pricing', id: 'pricing', 'aria-labelledby': 'pricing-h', tabindex: '-1' },
+    h('div', { class: 'section-head' },
+      h('div', null,
+        h('p', { class: 'eyebrow' }, 'Pricing'),
+        h('h2', { id: 'pricing-h' }, 'Start free, upgrade when you’re ready')),
+      h('p', { class: 'muted' }, 'Browse the school without an account. A free account opens the Daily Challenge; a monthly plan unlocks the full lessons and games.')),
+    h('div', { class: 'pricing__grid' },
+      tier({
+        id: 'free', name: 'Free', price: '$0', cta: 'Create free account', href: '#account.signup',
+        blurb: 'Look around and try a daily game.',
+        perks: [
+          'Dashboard, Live Market Lab and Platforms',
+          'Previews of the Library, Playbook, Glossary and Games',
+          freeGames.length ? `${freeGames.join(', ')} with a free account` : 'One free game with a free account',
+        ],
+      }),
+      b && tier({
+        id: b.id, name: b.name, price: money(b.price), cta: `Get ${b.name}`, href: '#account.signup',
+        blurb: 'The whole Beginner track.',
+        perks: ['Every Beginner lesson and game', 'Full Library, Playbook and Glossary', 'Practice, Arcade and Survival styles'],
+      }),
+      a && tier({
+        id: a.id, name: a.name, price: money(a.price), cta: `Get ${a.name}`, href: '#account.signup', highlight: true,
+        blurb: 'Everything, Beginner included.',
+        perks: ['Everything in Beginner', 'Every Advanced lesson and game', 'Trade Simulator and capstone drills'],
+      })),
+    h('p', { class: 'faint pricing__note' },
+      `Prices in ${b?.currency || 'USD'}, billed monthly by Stripe. Renews automatically; cancel anytime online in Manage billing and keep access to the end of the paid period. `,
+      h('a', { href: '#refunds' }, 'Refund policy'), ' · ', h('a', { href: '#terms' }, 'Terms'), '. Educational only — not financial advice.'));
+}
 
 export default {
   id: 'home',
   mount(root, ctx) {
     const { store } = ctx;
     const cleanups = [];
-    // First-visit welcome (skippable, a11y modal).
-    try { showWelcome(store); } catch (err) { console.error(err); }
     const totalLessons = UNITS.filter((u) => u.lesson).length;
 
     const chartHost = h('figure', { class: 'hero__chart' });
@@ -801,11 +842,24 @@ export default {
             h('span', { class: 'hero__line' }, h('span', { class: 'hero__em' }, 'one candle')), ' ',
             h('span', { class: 'hero__line' }, 'at a time.')),
           h('p', { class: 'hero__lead' },
-            'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
+            'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history. No real money is ever on the line.'),
           h('div', { class: 'hero__ctas' },
-            h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
-            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
+            h('a', { class: 'btn btn--primary btn--lg', href: '#g.daily-challenge' }, 'Start free', icon('arrow-right')),
+            h('button', {
+              type: 'button',
+              class: 'btn btn--lg hero__btn2',
+              on: {
+                click: () => {
+                  const el = document.getElementById('pricing');
+                  if (!el) return;
+                  el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+                  el.focus({ preventScroll: true });
+                },
+              },
+            }, 'See plans & pricing'),
             h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
+          h('p', { class: 'hero__fine faint' },
+            `Free to browse · plans from ${money(PLANS.beginner?.price ?? 0)}/month · cancel anytime`),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
             h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),
@@ -859,6 +913,7 @@ export default {
     root.append(
       h('div', { class: 'home' },
         hero,
+        welcomeBanner(store),
         continueStrip(store),
         todaySection(store, cleanups),
         h('section', { class: 'container section tracks', 'aria-labelledby': 'tracks-h' },
@@ -866,8 +921,9 @@ export default {
             h('div', null,
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
-            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible — open one to see the paywall teaser.')),
+            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible — open one to see what it needs.')),
           tracksHost),
+        pricingSection(),
         playYourWay(),
         arcade,
         levelStrip(store)));

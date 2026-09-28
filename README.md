@@ -92,6 +92,10 @@ For Vercel (free tier): import the repo, Framework Preset **Other**, leave Build
 empty, Output Directory `.` (or rely on the included `vercel.json`). Deploy the feature
 branch as a static site. Do not attach a custom domain unless you intend to.
 
+SEO files assume the origin `https://the-trade-school.vercel.app` — **update it when a custom
+domain is set**: the canonical / `og:url` / `og:image` / `twitter:image` tags and JSON-LD in
+`index.html`, the `Sitemap:` line in `robots.txt`, and `sitemap.xml`.
+
 Basic browsing works without env vars. Real-market charts need the Supabase `market-data`
 edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `docs/SECRETS.md`).
 

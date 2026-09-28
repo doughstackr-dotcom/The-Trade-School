@@ -5,28 +5,20 @@ import { h, icon } from '../core/ui.js';
 /**
  * Partner slots. Edit this array to add real affiliates later.
  * - name: display name
- * - description: short blurb (owner-editable)
+ * - description: short, neutral, factual blurb (no performance or return claims)
  * - category: grouping key matching CATEGORIES
  * - logoText / logoUrl: optional monogram or image URL (null = placeholder)
  * - affiliateUrl: exact referral href, or null / '' for TBD (CTA disabled)
- * - status: 'live' | 'coming' — coming slots show “Coming soon / Partner TBD”
+ * - status: 'live' to publish; anything else stays hidden from the public page
  */
 export const PARTNERS = [
-  {
-    id: 'pocket-option',
-    name: 'Pocket Option',
-    category: 'brokers',
-    description: 'Affiliate partner — short description coming soon. Replace this copy with an accurate product blurb.',
-    logoText: 'PO',
-    logoUrl: 'assets/affiliates/pocket-option.png',
-    affiliateUrl: 'https://pocket-friends.co/r/zs9a40s5v6',
-    status: 'live',
-  },
   {
     id: 'robinhood',
     name: 'Robinhood',
     category: 'brokers',
-    description: 'Affiliate partner — replace this placeholder with an accurate product blurb.',
+    description: 'Commission-free investing app for US stocks, ETFs, options and crypto. '
+      + 'In the US, brokerage accounts are held with Robinhood Financial LLC, a FINRA member. '
+      + 'Products and availability differ by country.',
     logoText: null,
     logoUrl: 'assets/affiliates/robinhood.svg',
     affiliateUrl: 'https://join.robinhood.com/rehnes',
@@ -36,7 +28,8 @@ export const PARTNERS = [
     id: 'public',
     name: 'Public',
     category: 'brokers',
-    description: 'Affiliate partner — replace this placeholder with an accurate product blurb.',
+    description: 'US investing platform (Public.com) for stocks, ETFs, options, bonds and crypto. '
+      + 'Brokerage services are provided by a FINRA-member broker-dealer; accounts are mainly for US residents.',
     logoText: null,
     logoUrl: 'assets/affiliates/public.svg',
     affiliateUrl: 'https://public.com/user-referral?referrer=Rehne82057',
@@ -46,7 +39,8 @@ export const PARTNERS = [
     id: 'webull',
     name: 'Webull',
     category: 'brokers',
-    description: 'Affiliate partner — replace this placeholder with an accurate product blurb.',
+    description: 'Trading app for stocks, ETFs and options with charting tools and a paper-trading mode. '
+      + 'In the US, accounts are held with Webull Financial LLC, a FINRA member; other regions use separately regulated entities.',
     logoText: null,
     logoUrl: 'assets/affiliates/webull.svg',
     affiliateUrl: 'https://www.webull.com/s/3Kh5mWpood8i1GGOz9',
@@ -56,41 +50,12 @@ export const PARTNERS = [
     id: 'upcomers',
     name: 'Upcomers',
     category: 'funded',
-    description: 'Upcomers is a funded trading account platform.',
+    description: 'Funded-account (prop trading) platform. Programs like this usually charge a fee for an evaluation '
+      + 'with strict trading rules — read the rules, fees and payout terms in full before paying.',
     logoText: null,
     logoUrl: 'assets/affiliates/upcomers.svg',
     affiliateUrl: 'https://app.upcomers.com/en/checkout?ref=gy4xupgr',
     status: 'live',
-  },
-  {
-    id: 'partner-tbd-2',
-    name: 'Partner TBD',
-    category: null,
-    description: 'Coming soon — another trading platform or tool partnership will land here.',
-    logoText: null,
-    logoUrl: null,
-    affiliateUrl: null,
-    status: 'coming',
-  },
-  {
-    id: 'partner-tbd-3',
-    name: 'Partner TBD',
-    category: null,
-    description: 'Coming soon — placeholder slot for a future affiliate link.',
-    logoText: null,
-    logoUrl: null,
-    affiliateUrl: null,
-    status: 'coming',
-  },
-  {
-    id: 'partner-tbd-4',
-    name: 'Partner TBD',
-    category: null,
-    description: 'Coming soon — placeholder slot for a future affiliate link.',
-    logoText: null,
-    logoUrl: null,
-    affiliateUrl: null,
-    status: 'coming',
   },
 ];
 
@@ -100,16 +65,16 @@ export const CATEGORIES = [
   { id: 'funded', title: 'Funded accounts', blurb: 'Prop / funded-account platforms.' },
 ];
 
-function logoSlot(p, { compact = false } = {}) {
-  const base = compact ? 'aff-soon__logo' : 'aff-row__logo';
+function logoSlot(p) {
+  const base = 'aff-row__logo';
   if (p.logoUrl) {
     return h('div', { class: `${base} ${base}--img`, 'aria-hidden': 'true' },
       h('img', {
-        class: compact ? 'aff-soon__logo-img' : 'aff-row__logo-img',
+        class: 'aff-row__logo-img',
         src: p.logoUrl,
         alt: '',
-        width: compact ? 36 : 48,
-        height: compact ? 36 : 48,
+        width: 48,
+        height: 48,
         loading: 'lazy',
         decoding: 'async',
       }));
@@ -123,7 +88,7 @@ function logoSlot(p, { compact = false } = {}) {
   return h('div', {
     class: `${base} ${base}--empty`,
     'aria-hidden': 'true',
-  }, icon('layers', { size: compact ? 16 : 20 }));
+  }, icon('layers', { size: 20 }));
 }
 
 function cta(p) {
@@ -161,18 +126,6 @@ function partnerRow(p, index) {
   h('div', { class: 'aff-row__action' }, cta(p)));
 }
 
-function comingTile(p) {
-  return h('article', {
-    class: 'aff-soon__tile',
-    id: `aff-${p.id}`,
-  },
-  logoSlot(p, { compact: true }),
-  h('div', { class: 'aff-soon__meta' },
-    h('span', { class: 'aff-soon__name' }, p.name),
-    h('span', { class: 'chip chip--sm chip--outline' }, 'Coming soon')),
-  h('p', { class: 'aff-soon__note faint' }, 'Partner TBD'));
-}
-
 function categorySection(cat, partners, startIndex) {
   let i = startIndex;
   const rows = partners.map((p) => {
@@ -193,11 +146,33 @@ function categorySection(cat, partners, startIndex) {
   };
 }
 
+/** Affiliate + risk disclosure, shown at the top of the page before any partner link. */
+function disclosure() {
+  return h('div', {
+    class: 'callout callout--warn aff-disclaimer',
+    role: 'note',
+    'aria-labelledby': 'aff-disclosure-h',
+  },
+  icon('info', { size: 18 }),
+  h('div', null,
+    h('p', { id: 'aff-disclosure-h' }, h('strong', null, 'Affiliate disclosure — please read before clicking.')),
+    h('ul', { class: 'aff-disclaimer__list' },
+      h('li', null, 'The links below are affiliate / referral links. If you sign up or pay through them, '
+        + 'The Trade School may earn a commission or other reward, at no extra cost to you.'),
+      h('li', null, 'A listing here is not a recommendation or endorsement, and nothing on this page is financial advice. '
+        + 'We have not assessed whether any provider is suitable for you.'),
+      h('li', null, 'Trading and investing involve risk of loss, including losing more than you expect. '
+        + 'Only use money you can afford to lose.'),
+      h('li', null, 'Products, fees and availability vary by country, and some providers do not accept residents of every country.'),
+      h('li', null, 'Check that a provider is authorised or regulated where you live (e.g. with your national securities regulator) '
+        + 'and read its terms, fees and risk disclosures before opening an account.'))));
+}
+
 export default {
   id: 'platforms',
   mount(root) {
+    // Only published partners render; placeholder / unfinished slots stay out of public view.
     const live = PARTNERS.filter((p) => p.status === 'live');
-    const coming = PARTNERS.filter((p) => p.status !== 'live');
 
     const sections = [];
     let index = 0;
@@ -226,8 +201,9 @@ export default {
         h('p', { class: 'eyebrow eyebrow--accent' }, 'Partners'),
         h('h1', null, 'Platforms'),
         h('p', { class: 'lead' },
-          'Platforms and tools we partner with. Some links below are affiliate / referral links — '
-          + 'if you sign up through them, The Trade School may earn a commission at no extra cost to you.')),
+          'Trading platforms and tools we have referral partnerships with. '
+          + 'Read the disclosure below first — these are commercial links, not recommendations.')),
+      disclosure(),
       h('section', {
         class: 'aff-partners',
         'aria-labelledby': 'aff-trading-platforms',
@@ -235,24 +211,8 @@ export default {
         h('header', { class: 'aff-section__head' },
           h('h2', { class: 'aff-section__title', id: 'aff-trading-platforms' }, 'Trading platforms')),
         ...sections),
-      coming.length
-        ? h('section', {
-          class: 'aff-section aff-section--soon',
-          'aria-labelledby': 'aff-cat-soon',
-        },
-        h('header', { class: 'aff-section__head' },
-          h('h2', { class: 'aff-section__title', id: 'aff-cat-soon' }, 'Coming soon'),
-          h('p', { class: 'aff-section__blurb muted' },
-            'Partner TBD — more trading platforms and tools will land here.')),
-        h('div', { class: 'aff-soon', role: 'list' },
-          coming.map((p) => h('div', { role: 'listitem' }, comingTile(p)))))
-        : null,
-      h('div', { class: 'callout callout--warn aff-disclaimer', role: 'note' },
-        icon('info', { size: 18 }),
-        h('div', null,
-          h('p', null, h('strong', null, 'Affiliate disclosure.')),
-          h('p', { class: 'muted' },
-            'These are educational partnerships, not endorsements. Always do your own research, '
-            + 'read each platform’s terms, and never risk money you cannot afford to lose.')))));
+      h('p', { class: 'faint aff-footnote' },
+        'Descriptions are short factual summaries and may be out of date — the provider’s own site and legal documents are authoritative. ',
+        'See also our ', h('a', { href: '#terms' }, 'Terms of Service'), ' and ', h('a', { href: '#privacy' }, 'Privacy Policy'), '.')));
   },
 };

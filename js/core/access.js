@@ -1,5 +1,10 @@
 // Access control (ARCHITECTURE §9): Supabase session + access_level, FREE_IDS, plan unlocks.
 // Client-side gating is UX; PREMIUM_SOURCE='storage' is the real content lock (see docs/SECRETS.md).
+//
+// The Supabase client (js/vendor/supabase.js, ~218 KB) is loaded on demand, not on every visit:
+// at boot only when a stored session or an auth callback in the URL exists; otherwise on the
+// first auth action (sign in / up / out, checkout, billing), on the account page (warm-up) or
+// when a gated lesson/game is opened. Until then a visitor is simply signed out.
 import {
   SUPABASE_URL, SUPABASE_KEY, PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE,
 } from '../config.js';
@@ -12,7 +17,8 @@ let client = null;
 let vendorP = null;
 let session = null;
 let level = null; // null = signed out; 'free' | 'beginner' | 'advanced'
-let mode = 'offline'; // 'supabase' | 'offline'
+let mode = 'idle'; // 'idle' (client not loaded yet) | 'supabase' | 'offline'
+let authSubscribed = false;
 
 function isLocalHost() {
   try {
@@ -26,6 +32,38 @@ function isLocalHost() {
 function forceEnforceLocally() {
   try {
     return globalThis.localStorage?.getItem('tts-enforce-access') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cheap check (no network, no vendor) for a persisted Supabase session: supabase-js stores it
+ * in localStorage under `sb-<project-ref>-auth-token` (older builds: `supabase.auth.token`).
+ */
+export function hasStoredSession() {
+  try {
+    const ls = globalThis.localStorage;
+    if (!ls) return false;
+    for (let i = 0; i < ls.length; i++) {
+      const k = ls.key(i);
+      if (!k) continue;
+      if (k === 'supabase.auth.token' || (k.startsWith('sb-') && k.endsWith('-auth-token'))) {
+        if (ls.getItem(k)) return true;
+      }
+    }
+  } catch {
+    /* storage blocked */
+  }
+  return false;
+}
+
+/** True when the URL carries an auth callback (PKCE ?code=, implicit #access_token, or an auth error). */
+function hasAuthCallback() {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.has('code') || q.has('error_description')) return true;
+    return /(?:^#|&)(access_token|error_description)=/.test(location.hash || '');
   } catch {
     return false;
   }
@@ -108,12 +146,24 @@ async function getClient() {
       },
     });
     mode = 'supabase';
+    subscribeAuth(client);
     return client;
   } catch (err) {
     console.warn('[access] createClient failed:', err?.message || err);
     mode = 'offline';
     return null;
   }
+}
+
+function subscribeAuth(c) {
+  if (authSubscribed || !c?.auth?.onAuthStateChange) return;
+  authSubscribed = true;
+  c.auth.onAuthStateChange(async (_event, next) => {
+    session = next || null;
+    if (session?.user) level = await fetchAccessLevel(c) || 'free';
+    else level = null;
+    emit();
+  });
 }
 
 async function fetchAccessLevel(c) {
@@ -166,18 +216,23 @@ async function refresh() {
   return snapshot();
 }
 
-/** Resolves once the first session/access check finishes. */
+let loadP = null;
+
+/**
+ * Loads the Supabase client (once) and restores the session. Safe to call often; used by
+ * auth actions, the account page (warm-up) and gated routes. Resolves to the snapshot.
+ */
+export function ensureLoaded() {
+  if (!loadP) loadP = refresh().catch(() => snapshot());
+  return loadP;
+}
+
+/**
+ * Resolves once the first session/access check finishes. Without a stored session or auth
+ * callback that is immediate (signed out) and the Supabase vendor is not downloaded.
+ */
 export const ready = ((async () => {
-  await refresh();
-  const c = client;
-  if (c?.auth?.onAuthStateChange) {
-    c.auth.onAuthStateChange(async (_event, next) => {
-      session = next || null;
-      if (session?.user) level = await fetchAccessLevel(c) || 'free';
-      else level = null;
-      emit();
-    });
-  }
+  if (hasStoredSession() || hasAuthCallback()) await ensureLoaded();
   return snapshot();
 })());
 
@@ -229,6 +284,7 @@ export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'dashboard', 'progress', // #progress aliases to dashboard
   'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
+  'privacy', 'terms', 'refunds', // legal pages
   'dev-chart',
 ]);
 
@@ -302,8 +358,12 @@ export function canOpen(entry, route = null) {
   // Do not newly lock non-curriculum pages (Playbook, Live, Library, Glossary, …).
   if (!isCurriculumGated(entry, route)) return true;
 
-  // Beginner / Advanced lessons and games: need a session first.
-  if (!session?.user) return false;
+  // Beginner / Advanced lessons and games: need a session first. Warm the client up so the
+  // paywall's sign-in (and any session restored in another tab) is ready.
+  if (!session?.user) {
+    if (mode === 'idle') ensureLoaded();
+    return false;
+  }
 
   const need = requiredPlan(entry);
   if (need === 'free') return true;
@@ -332,6 +392,7 @@ export function accessInfo() {
 }
 
 export async function signIn({ email, password }) {
+  await ensureLoaded();
   const c = await getClient();
   if (!c) return { ok: false, error: 'Subscriptions not open yet' };
   const { error } = await c.auth.signInWithPassword({ email, password });
@@ -341,6 +402,7 @@ export async function signIn({ email, password }) {
 }
 
 export async function signUp({ email, password, displayName }) {
+  await ensureLoaded();
   const c = await getClient();
   if (!c) return { ok: false, error: 'Subscriptions not open yet' };
   const { data, error } = await c.auth.signUp({
@@ -354,6 +416,7 @@ export async function signUp({ email, password, displayName }) {
 }
 
 export async function signOut() {
+  await ensureLoaded();
   const c = await getClient();
   if (c) {
     try { await c.auth.signOut(); } catch { /* ignore */ }
@@ -363,17 +426,48 @@ export async function signOut() {
   emit();
 }
 
-/** Starts Stripe Checkout via Edge Function. Returns { ok, error } or redirects. */
+/**
+ * Status + server message from a supabase-js FunctionsHttpError (non-2xx from an Edge
+ * Function). The Response sits on err.context; the body is JSON like { error: '…' }.
+ */
+async function httpErrorDetail(err) {
+  const res = err?.context;
+  if (!res || typeof res.status !== 'number') return null;
+  let message = null;
+  try {
+    const body = await (typeof res.clone === 'function' ? res.clone() : res).json();
+    const m = body?.error || body?.message;
+    if (typeof m === 'string' && m.trim()) message = m.trim();
+  } catch {
+    /* not JSON */
+  }
+  return { status: res.status, message };
+}
+
+/**
+ * Starts Stripe Checkout via Edge Function. Redirects on { url } (including a resumed open
+ * session, { url, resumed: true }). Returns { ok, error, status? } otherwise; a 409 (e.g. a
+ * payment still processing, or an incomplete subscription on the other plan) carries the
+ * server's message in `error` so the UI can show it as-is.
+ */
 export async function checkout(plan) {
+  await ensureLoaded();
   const c = await getClient();
   if (!c || !session) return { ok: false, error: 'Sign in to subscribe' };
   if (!PLANS[plan]) return { ok: false, error: 'Unknown plan' };
   try {
     const { data, error } = await c.functions.invoke('create-checkout', { body: { plan } });
-    if (error) throw error;
+    if (error) {
+      const detail = await httpErrorDetail(error);
+      if (detail?.status === 409) {
+        return { ok: false, status: 409, error: detail.message || 'A subscription change is already in progress. Please try again shortly.' };
+      }
+      if (detail?.message) return { ok: false, status: detail.status, error: detail.message };
+      throw error;
+    }
     if (data?.url) {
       location.href = data.url;
-      return { ok: true };
+      return { ok: true, resumed: !!data.resumed };
     }
     if (data?.switched) {
       await refresh();
@@ -391,6 +485,7 @@ export async function checkout(plan) {
 
 /** Opens the Stripe customer portal. */
 export async function openBillingPortal() {
+  await ensureLoaded();
   const c = await getClient();
   if (!c || !session) return { ok: false, error: 'Sign in to manage billing' };
   try {
@@ -416,5 +511,5 @@ export default {
   ready, getAccess, onChange, can, canOpen, requiredPlan, lockLabel, accessInfo,
   signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing, PUBLIC_PAGES,
   TEASER_PAGES, hasPaidAccess,
-  rememberReturn, consumeReturn, peekReturn, isCurriculumGated,
+  rememberReturn, consumeReturn, peekReturn, isCurriculumGated, ensureLoaded, hasStoredSession,
 };

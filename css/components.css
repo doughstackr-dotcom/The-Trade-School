@@ -66,8 +66,8 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  flex: 0 1 auto;
-  min-width: 0;
+  /* Never shrink: the nav and tools make room instead, so the wordmark is never cut. */
+  flex: 0 0 auto;
   margin-right: 16px;
   color: var(--text);
   text-decoration: none;
@@ -111,16 +111,82 @@
 }
 
 .brand__word {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* "More" menu: holds the wide links (Glossary, Platforms) between 960 and 1499px. */
+.nav-more {
+  position: relative;
+  display: none;
+}
+
+.nav-more__summary {
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.nav-more__summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-more__summary .icon {
+  transition: transform 0.15s;
+}
+
+.nav-more[open] > .nav-more__summary {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.nav-more[open] > .nav-more__summary .icon {
+  transform: rotate(180deg);
+}
+
+.nav-more__menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 70;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.nav-more__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.nav-more__link:hover,
+.nav-more__link.is-active {
+  color: var(--text);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.nav-more__link.is-active {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .nav__link {
@@ -293,6 +359,45 @@
   }
 }
 
+/* Header fit rules — after the base .nav__link / .xp-pill rules so they win. */
+@media (max-width: 379.98px) {
+  .topbar__inner {
+    gap: 2px;
+  }
+
+  .topbar__tools .topbar__auth {
+    padding-inline: 0.45rem;
+  }
+
+  .topbar__tools .icon-btn {
+    width: 32px;
+  }
+}
+
+/* The container caps at 1120px, so the wide links (Glossary, Platforms) always live in the
+   "More" menu on desktop (from 1080px); narrower top navs drop them (the footer keeps them). */
+.nav__link--wide {
+  display: none;
+}
+
+@media (min-width: 1080px) {
+  .nav-more {
+    display: block;
+  }
+}
+
+/* 820–1279px: the XP pill drops its title and meter (level number stays). */
+@media (min-width: 820px) and (max-width: 1279.98px) {
+  .xp-pill {
+    padding-right: 5px;
+  }
+
+  .xp-pill__title,
+  .xp-pill__meter {
+    display: none;
+  }
+}
+
 .footer {
   border-top: 1px solid var(--line);
   padding: 28px 0 32px;
@@ -333,6 +438,24 @@
 }
 
 .footer__links a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  flex-basis: 100%;
+  font-size: 13px;
+}
+
+.footer__legal a {
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.footer__legal a:hover {
   color: var(--text);
   text-decoration: underline;
 }
@@ -447,9 +570,24 @@
   }
 }
 
-@media (max-width: 359.98px) {
+/* Phones: stack the full name on two short lines rather than cutting it mid-word. */
+@media (max-width: 519.98px) {
+  .brand {
+    gap: 7px;
+  }
+
   .brand__word {
-    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    font-size: 14.5px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+  }
+}
+
+@media (max-width: 355.98px) {
+  .brand__word {
+    display: none;
   }
 }
 
@@ -2641,6 +2779,77 @@ figcaption {
   padding: 0;
 }
 
+/* ---------------------------------------------------------------- legal pages */
+
+.legal {
+  padding-bottom: 24px;
+}
+
+.legal__head {
+  padding-bottom: 12px;
+}
+
+.legal__date {
+  font-size: 14px;
+}
+
+.legal__dev-notice {
+  margin-bottom: 20px;
+}
+
+.legal__body {
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.legal__body strong {
+  color: var(--text);
+}
+
+.legal__section h2 {
+  margin-top: 1.8em;
+  margin-bottom: 0.5em;
+  color: var(--text);
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.legal__section > * + * {
+  margin-top: 0.75em;
+}
+
+.legal__section ul {
+  padding-left: 1.3em;
+}
+
+.legal__section li + li {
+  margin-top: 0.4em;
+}
+
+.legal__more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-weight: 600;
+}
+
+/* Small "By continuing you agree…" line under sign-up / checkout buttons. */
+.consent-note {
+  margin: 8px 0 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.consent-note a {
+  color: var(--text-2);
+  text-decoration: underline;
+}
+
 /* ---------------------------------------------------------------- home: hero */
 
 .hero {
@@ -2904,7 +3113,8 @@ figcaption {
     margin-top: 24px;
   }
 
-  .hero__ctas {
+  .hero__ctas,
+  .hero__fine {
     order: 4;
   }
 
@@ -2914,6 +3124,31 @@ figcaption {
 
   .hero__facts {
     order: 5;
+  }
+}
+
+/* Phones: headline, lead and the primary CTA come first (above the fold); the live
+   chart follows right after them. */
+@media (max-width: 719.98px) {
+  .hero__lead {
+    order: 2;
+    margin-top: 14px;
+    font-size: 16.5px;
+    line-height: 1.55;
+  }
+
+  .hero__ctas {
+    order: 3;
+    margin-top: 20px;
+    gap: 10px;
+  }
+
+  .hero__fine {
+    order: 3;
+  }
+
+  .hero__chart {
+    order: 4;
   }
 }
 
@@ -4455,12 +4690,6 @@ figcaption {
   margin-top: 1px;
 }
 
-/* Glossary drops out of the top nav below 1180px (it stays in the footer). */
-@media (max-width: 1179.98px) {
-  .nav__link--wide {
-    display: none;
-  }
-}
 
 @media (max-width: 819.98px) {
   .tabbar {
@@ -6386,6 +6615,19 @@ figcaption {
   }
 }
 
+/* 820–879px: the full wordmark plus five links only fit with a slightly smaller wordmark and
+   an icon-free Sign in button. */
+@media (min-width: 820px) and (max-width: 879.98px) {
+  .brand {
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .topbar__auth .icon {
+    display: none;
+  }
+}
+
 .feedback__lives {
   display: inline-flex;
   align-items: center;
@@ -6656,17 +6898,42 @@ figcaption {
   .topbar__auth { padding-inline: 0.55rem; font-size: 0.8rem; }
 }
 .risk-hud { margin-bottom: var(--space-3); }
-.welcome-modal__steps {
-  margin: var(--space-3) 0;
-  padding-left: 1.2rem;
-  display: grid;
-  gap: 0.5rem;
+/* Home: first-visit welcome banner (inline, dismissible — never covers the hero). */
+.welcome-banner {
+  margin-top: 4px;
+}
+.welcome-banner__card {
+  display: flex;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 14px 16px;
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--line));
+  background: var(--accent-soft);
+}
+.welcome-banner__copy { flex: 1 1 auto; min-width: 0; }
+.welcome-banner__title { margin: 0 0 4px; font-size: 17px; }
+.welcome-banner__copy p { margin: 0; font-size: 14px; line-height: 1.5; }
+.welcome-banner__actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+@media (max-width: 559.98px) {
+  .welcome-banner__card { flex-wrap: wrap; position: relative; padding-right: 48px; }
+  .welcome-banner__close { position: absolute; top: 8px; right: 8px; }
 }
 
-/* Phone tab bar: ensure Dashboard-wide links still reachable via footer */
-@media (max-width: 1179.98px) {
-  .nav__link--wide { display: none; }
+/* Home: pricing (reuses .plan-card from the paywall). */
+.pricing { scroll-margin-top: calc(var(--chrome-h) + 12px); }
+.pricing:focus { outline: none; }
+.pricing__grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
 }
+.pricing__per { font-size: 0.95rem; font-weight: 500; }
+.pricing__blurb { margin: 0; }
+.pricing__card .plan-card__perks { align-content: start; }
+.pricing__card { gap: 12px; }
+.pricing__note { margin-top: 16px; font-size: 13px; line-height: 1.5; }
+.hero__fine { margin-top: 12px; font-size: 13.5px; }
+
 
 /* ---------------------------------------------------------------- markets-orders visuals */
 

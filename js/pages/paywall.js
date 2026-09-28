@@ -40,6 +40,10 @@ function planCard(planId, { highlight = false, current = null, onSubscribe } = {
         'aria-label': `Subscribe to ${p.name}`,
         on: { click: () => onSubscribe?.(planId) },
       }, lockedAdvanced ? 'Upgrade to Advanced' : `Get ${p.name}`),
+    isCurrent && current === planId ? null : h('p', { class: 'consent-note' },
+      'By continuing you agree to the ', h('a', { href: '#terms' }, 'Terms'), ', ',
+      h('a', { href: '#privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '#refunds' }, 'Refund Policy'),
+      '. Renews monthly; cancel anytime.'),
   );
 }
 
@@ -53,6 +57,9 @@ export default {
       ? 'dashboard'
       : 'home';
     const routeKey = ctx.route?.key || '';
+    // Signed-out visitors heading to #account come back here after signing in.
+    const rememberHere = () => access.rememberReturn(routeKey);
+    const toAccount = { click: rememberHere };
 
     const status = h('p', { class: 'muted paywall__status', 'aria-live': 'polite' }, '');
     const plansHost = h('section', { class: 'paywall__plans', 'aria-label': 'Subscription plans' });
@@ -65,6 +72,7 @@ export default {
       await access.ready;
       const a = access.getAccess();
       if (!a.user) {
+        rememberHere();
         ctx.navigate('account');
         toast('Sign in (or create an account) to subscribe.', { type: 'info' });
         return;
@@ -72,8 +80,10 @@ export default {
       status.textContent = 'Opening checkout…';
       const res = await access.checkout(planId);
       if (!res.ok) {
+        // 409 = the server explains what is blocking checkout (e.g. a payment still processing);
+        // show its message as-is and keep it on screen longer.
         status.textContent = res.error || 'Subscriptions not open yet';
-        toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: 5000 });
+        toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: res.status === 409 ? 9000 : 5000 });
         return;
       }
       if (res.switched) {
@@ -94,7 +104,7 @@ export default {
                 ? `${title} is part of the course. Accounts are free — paid plans unlock the full tracks later.`
                 : 'Course pages need a signed-in account. Sign-up takes about a minute.'),
             h('div', { class: 'row' },
-              h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Sign in / create account'),
+              h('a', { class: 'btn btn--primary', href: '#account', on: toAccount }, icon('lock', { size: 16 }), 'Sign in / create account'),
               h('a', { class: 'btn btn--ghost', href: '#home' }, 'Back to home')),
           ),
         );
@@ -125,7 +135,7 @@ export default {
             'The Trade School keeps the landing page public. Lessons, games, tracks and labs need a free account — subscriptions unlock the full Beginner and Advanced tracks.'),
           status,
           h('div', { class: 'row paywall__actions' },
-            h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Account / sign in'),
+            h('a', { class: 'btn btn--primary', href: '#account', on: toAccount }, icon('lock', { size: 16 }), 'Account / sign in'),
             h('a', { class: 'btn btn--ghost', href: `#${back}` }, icon('arrow-left', { size: 16 }),
               back === 'home' ? 'Back home' : 'Back to Dashboard'),
           ),
