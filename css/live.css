@@ -435,3 +435,75 @@ html[data-motion="reduce"] .live-overlap.is-active .live-overlap__dot {
 html[data-motion="reduce"] .live-hours-bar__fill {
   transition: none;
 }
+
+/* —— Dashboard Live markets widget ————————————————————————————————————————— */
+
+.dash-live {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: var(--space-6, 1.5rem);
+}
+
+.dash-live__head {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dash-live__head-actions {
+  flex-shrink: 0;
+}
+
+.dash-live__lead {
+  margin: 0;
+  max-width: 72ch;
+  line-height: 1.45;
+}
+
+.dash-live__hours-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-live__bar {
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dash-live__board {
+  margin-top: 2px;
+}
+
+.dash-live__detail {
+  padding: 12px 14px 14px;
+}
+
+.dash-live__chart-title {
+  margin: 0 0 8px;
+}
+
+.dash-live__chart {
+  min-height: 240px;
+}
+
+.dash-live__footnote {
+  margin: 0;
+  max-width: 72ch;
+  line-height: 1.4;
+}
+
+.live-quote__session {
+  display: inline-flex;
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  padding: 1px 7px;
+}
+
+.live-quote.is-market-closed {
+  opacity: 0.92;
+}
+

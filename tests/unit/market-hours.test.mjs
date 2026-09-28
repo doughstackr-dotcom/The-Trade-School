@@ -13,6 +13,8 @@ import {
   formatLocalTime,
   sessionProgressBars,
   overallSessionProgress,
+  venueForSymbol,
+  assetSessionStatus,
 } from '../../js/core/market-hours.js';
 
 const byId = (id) => [...EQUITY_MARKETS, ...FOREX_SESSIONS].find((m) => m.id === id);
@@ -137,4 +139,33 @@ test('session progress is zero before open and one after close', () => {
   const after = sessionProgressBars(byId('nyse'), new Date('2026-06-15T21:00:00Z'));
   assert.equal(after[0].done, true);
   assert.equal(after[0].progress, 1);
+});
+
+
+test('venueForSymbol maps US ETFs and stocks to NASDAQ hours', () => {
+  assert.equal(venueForSymbol('SPY').id, 'nasdaq');
+  assert.equal(venueForSymbol('QQQ').id, 'nasdaq');
+  assert.equal(venueForSymbol('IWM').id, 'nasdaq');
+  assert.equal(venueForSymbol('DIA').id, 'nasdaq');
+  assert.equal(venueForSymbol('AAPL').id, 'nasdaq');
+});
+
+test('venueForSymbol maps FX and crypto', () => {
+  assert.equal(venueForSymbol('EUR-USD').kind, 'forex');
+  assert.equal(venueForSymbol('GBP-USD').kind, 'forex');
+  assert.equal(venueForSymbol('BTC-USD').alwaysOpen, true);
+});
+
+test('assetSessionStatus crypto is always open', () => {
+  const st = assetSessionStatus('BTC-USD', new Date('2026-06-13T15:00:00Z')); // Saturday
+  assert.equal(st.open, true);
+});
+
+test('assetSessionStatus SPY follows NYSE/NASDAQ hours', () => {
+  // Monday mid-session ET
+  assert.equal(assetSessionStatus('SPY', new Date('2026-06-15T15:00:00Z')).open, true);
+  // Monday pre-open ET
+  assert.equal(assetSessionStatus('SPY', new Date('2026-06-15T12:00:00Z')).open, false);
+  // Weekend
+  assert.equal(assetSessionStatus('SPY', new Date('2026-06-13T15:00:00Z')).open, false);
 });

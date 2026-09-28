@@ -10,6 +10,7 @@ import { styleIcon } from '../core/game-kit.js';
 import { trackPanels } from '../core/track-panel.js';
 import * as access from '../core/access.js';
 import { PLANS, FREE_IDS } from '../config.js';
+import { mountLiveMarketsWidget } from '../core/live-board.js';
 
 function levelLabel(level) {
   if (level === 'advanced') return 'Advanced';
@@ -270,6 +271,15 @@ export default {
       store.award?.('dashboard-visit', { silent: true });
     } catch { /* badge may not exist yet */ }
 
+    // Persistent Live markets host — same node is re-inserted on each render so
+    // quote/chart timers and chart instance survive store/access re-renders.
+    const liveHost = h('section', {
+      class: 'section card dash-live',
+      'aria-labelledby': 'dash-live-h',
+      id: 'dash-live',
+    });
+    const unmountLive = mountLiveMarketsWidget(liveHost);
+
     const render = () => {
       const snap = access.getAccess();
       root.replaceChildren(
@@ -278,8 +288,9 @@ export default {
             h('p', { class: 'eyebrow eyebrow--accent' }, 'Dashboard'),
             h('h1', null, 'Your school hub'),
             h('p', { class: 'lead' },
-              'Account status, the full Beginner and Advanced tracks (route map + unit ladder), and your progress. Locked lessons stay visible as teasers — subscribe to open them.')),
+              'Account status, live market quotes, the full Beginner and Advanced tracks (route map + unit ladder), and your progress. Locked lessons stay visible as teasers — subscribe to open them.')),
           accountOverview(store, snap),
+          liveHost,
           h('section', {
             class: 'section tracks dash-curriculum-section',
             'aria-labelledby': 'dash-curr-h',
@@ -334,6 +345,7 @@ export default {
       store.off('change', onChange);
       unsubAccess?.();
       if (queued) cancelAnimationFrame(queued);
+      try { unmountLive?.(); } catch { /* ignore */ }
     };
   },
 };

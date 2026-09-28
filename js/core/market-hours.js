@@ -394,3 +394,90 @@ export function getMarketHoursSnapshot(at = Date.now()) {
     clientTz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'local',
   };
 }
+
+/** US equity / ETF symbols → NYSE/NASDAQ regular hours (educational). */
+const US_EQUITY_SYMBOLS = new Set([
+  'SPY', 'QQQ', 'IWM', 'DIA', 'GLD',
+  'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'AMD',
+]);
+
+/** Crypto treated as always-on for session badges. */
+const CRYPTO_SYMBOLS = new Set(['BTC-USD', 'ETH-USD', 'BTC', 'ETH']);
+
+/**
+ * Map a quote symbol to a MarketDef (or a synthetic crypto venue).
+ * Equities → NASDAQ (same regular hours as NYSE); FX → London FX session as primary;
+ * crypto → always-open stub.
+ * @param {string} symbol
+ * @returns {MarketDef & { alwaysOpen?: boolean }}
+ */
+export function venueForSymbol(symbol) {
+  const id = String(symbol || '').toUpperCase().trim();
+  if (CRYPTO_SYMBOLS.has(id) || id.startsWith('BTC') || id.startsWith('ETH')) {
+    return Object.freeze({
+      id: 'crypto',
+      name: 'Crypto (24/7)',
+      short: 'Crypto',
+      kind: /** @type {MarketKind} */ ('equity'),
+      tz: 'UTC',
+      city: 'Global',
+      sessions: Object.freeze([{ open: '00:00', close: '23:59' }]),
+      note: 'Crypto trades around the clock',
+      alwaysOpen: true,
+    });
+  }
+  if (
+    id.includes('EUR') || id.includes('GBP') || id.includes('JPY')
+    || id.includes('AUD') || id.includes('CAD') || id.includes('CHF')
+    || (id.includes('-') && !US_EQUITY_SYMBOLS.has(id) && !CRYPTO_SYMBOLS.has(id))
+  ) {
+    return FOREX_SESSIONS.find((m) => m.id === 'fx-london') || FOREX_SESSIONS[0];
+  }
+  // Default: US listed equity / ETF
+  return EQUITY_MARKETS.find((m) => m.id === 'nasdaq') || EQUITY_MARKETS[0];
+}
+
+/**
+ * Open/closed (+ progress) for a quote symbol at `at`.
+ * Forex pairs are open when any major FX session is live; crypto is always open.
+ * @param {string} symbol
+ * @param {Date|number} [at]
+ */
+export function assetSessionStatus(symbol, at = Date.now()) {
+  const venue = venueForSymbol(symbol);
+  if (venue.alwaysOpen) {
+    const date = at instanceof Date ? at : new Date(at);
+    return {
+      ...marketStatus(
+        { ...venue, sessions: [{ open: '00:00', close: '23:59' }] },
+        date,
+      ),
+      open: true,
+      short: venue.short,
+      name: venue.name,
+      kind: 'crypto',
+      note: venue.note || '',
+      progress: 1,
+      sessionBars: [{
+        open: '00:00', close: '23:59', openMin: 0, closeMin: 23 * 60 + 59,
+        progress: ((zonedParts(date, 'UTC').minutes) / (24 * 60)),
+        active: true, done: false,
+      }],
+    };
+  }
+  if (venue.kind === 'forex') {
+    const snap = getMarketHoursSnapshot(at);
+    const primary = snap.forex.find((s) => s.id === venue.id) || snap.forex[0];
+    const anyOpen = snap.activeForex.length > 0;
+    return {
+      ...primary,
+      open: anyOpen,
+      short: anyOpen ? `FX · ${snap.activeForex.join('/')}` : 'FX',
+      name: 'Forex sessions',
+      note: anyOpen
+        ? `Major session(s) open: ${snap.activeForex.join(', ')}`
+        : 'No major FX session open',
+    };
+  }
+  return marketStatus(venue, at);
+}
