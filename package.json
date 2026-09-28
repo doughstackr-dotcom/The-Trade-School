@@ -9,14 +9,18 @@
     "node": ">=22"
   },
   "scripts": {
-    "serve": "npx http-server -c-1 -p 5173 .",
+    "serve": "node scripts/serve.mjs . --port=5173 --no-vercel",
+    "build": "node scripts/build.mjs",
+    "serve:dist": "node scripts/serve.mjs dist --port=4173",
     "test": "node --test tests/unit/*.test.mjs",
     "smoke": "node tests/smoke.mjs",
+    "smoke:dist": "npm run build && node tests/smoke.mjs --dist",
     "test:all": "npm test && npm run smoke",
     "lint": "eslint .",
     "test:functions": "deno test --no-config --node-modules-dir=none --allow-env --allow-read=supabase --allow-net=127.0.0.1 supabase/functions/tests/"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
     "playwright": "^1.63.0"

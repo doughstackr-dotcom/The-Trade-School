@@ -4,7 +4,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['node_modules/', 'tests/screenshots/', 'supabase/', 'js/vendor/'],
+    ignores: ['node_modules/', 'dist/', 'tests/screenshots/', 'supabase/', 'js/vendor/'],
   },
   {
     files: ['js/**/*.js'],
@@ -19,7 +19,7 @@ export default [
     },
   },
   {
-    files: ['tests/**/*.mjs', 'eslint.config.js'],
+    files: ['tests/**/*.mjs', 'scripts/**/*.mjs', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
