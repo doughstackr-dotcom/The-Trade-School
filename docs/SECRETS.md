@@ -67,8 +67,8 @@ Test with card `4242 4242 4242 4242`. Rotate to **live** keys only at launch (se
 | `ACCESS_MODE = 'auto'` | Enforce on real hosts; open on localhost (override with `localStorage['tts-enforce-access']='1'`) |
 | `ACCESS_MODE = 'enforce' \| 'open'` | Force on / off |
 | `FREE_IDS` | Modules open without a paid plan |
-| `PREMIUM_SOURCE = 'site'` | Lessons/games load from the public static site (**current**) |
-| `PREMIUM_SOURCE = 'storage'` | Paid modules load from private Storage paths `beginner/…` and `advanced/…` (see ACCOUNTS.md §10). Use when the repo is private and you run `scripts/publish-premium.mjs` with the service role. |
+| `PREMIUM_SOURCE = 'site'` | Lessons/games load from the public static site (the default build) |
+| `PREMIUM_SOURCE = 'storage'` | Set by the build, not by editing the file: `PREMIUM_SOURCE=storage npm run build` (Vercel env var). Paid modules then load from private Storage paths `beginner/…` and `advanced/…`, uploaded by `scripts/publish-premium.mjs` with `SUPABASE_SERVICE_ROLE_KEY` from the environment or the GitHub Action's repository secrets (see ACCOUNTS.md §10). |
 
 Client checks are UX. Storage + RLS is the real content lock.
 

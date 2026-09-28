@@ -120,6 +120,19 @@ Production: **https://thetradeschool.online** on Vercel, configured by `vercel.j
   external host (API, fonts, images) means updating the CSP in `vercel.json`; `npm run
   smoke:dist` fails on any CSP violation.
 
+- **Paid content** (`PREMIUM_SOURCE=storage`, docs/ACCOUNTS.md §10): with the Vercel env var
+  `PREMIUM_SOURCE=storage` the build leaves every paid lesson / game out of `dist/` and writes
+  it to `dist-premium/` for the private `premium` Supabase Storage bucket; the site loads it
+  through a 60-second signed URL only for members whose plan covers it. Without the env var
+  every module ships publicly, as before. Rollout order:
+  1. apply the Supabase migrations (they create the bucket and its read policy);
+  2. `PREMIUM_SOURCE=storage npm run build && node scripts/publish-premium.mjs` with
+     `SUPABASE_SERVICE_ROLE_KEY` in the environment (`--dry-run` prints the plan first);
+  3. set `PREMIUM_SOURCE=storage` in Vercel (Production) and redeploy the same commit. From
+     then on `.github/workflows/publish-premium.yml` publishes every push to `main` (repository
+     secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`). File names are content hashes of the
+     source, so Vercel's build and the published files of one commit always match.
+
 In Vercel → Project → Settings → Build & Deployment the Framework Preset is **Other**; leave
 the build / output / install overrides off so `vercel.json` applies. The custom domain is
 attached under Project → Domains.
@@ -172,6 +185,8 @@ node tests/smoke.mjs --fonts           # load Google Fonts (uses $HTTPS_PROXY if
 node tests/smoke.mjs --no-storage      # every localStorage call throws (private-mode check)
 node tests/smoke.mjs legacy            # only the hash-redirect / navigation checks
 node tests/smoke.mjs --dist            # test dist/ (run `npm run build` first) with vercel.json headers
+node tests/smoke.mjs --premium         # test a PREMIUM_SOURCE=storage build (npm run smoke:premium builds it):
+                                       # paid files only in dist-premium/, each paid route imported from a blob: URL
 ```
 
 Playwright is resolved from a local `node_modules` or the global npm root; it is only needed
@@ -192,9 +207,11 @@ js/
   core/               router + routes, store, ui kit, game-kit, lesson-kit, chart engine, data, indicators
   pages/              home, track, library, progress, glossary, playbook, live, dev-chart
   lessons/<id>.js     one module per lesson
-  games/<id>.js       one module per game
+  games/<id>.js       one module per game (games/banks/: question banks shared with Daily Challenge)
 scripts/
-  build.mjs           production build → dist/ (minify, content hashes, rewritten imports)
+  build.mjs           production build → dist/ (minify, content hashes, rewritten imports;
+                      PREMIUM_SOURCE=storage also writes paid modules to dist-premium/)
+  publish-premium.mjs uploads dist-premium/ to the private `premium` Storage bucket
   serve.mjs           local static server: clean-path fallback, vercel.json headers
 tests/
   unit/               node:test unit tests

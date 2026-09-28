@@ -191,15 +191,78 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 
 ## 10. Protecting paid content (recommended before launch)
 
-The subscription check in the browser controls what members see, but the lesson and game
-code is still downloadable from the public site, and this GitHub repository is **public**,
-so anyone can read it. To make paid content genuinely private:
+The subscription check in the browser controls what members see, but with the default build
+the lesson and game code is still downloadable from the public site. `PREMIUM_SOURCE=storage`
+moves the paid modules off the public site into the private `premium` Storage bucket;
+Supabase then checks `access_level()` on every download. (The repository itself is
+**public**, so also make it private — Vercel deploys private repositories — or the source
+stays readable there.)
 
-1. Make the GitHub repository private (and deploy with a host that supports private repos,
-   e.g. Cloudflare Pages, Netlify or Vercel — GitHub Pages needs a paid GitHub plan for
-   private repos).
-2. Set `PREMIUM_SOURCE = 'storage'` in `js/config.js`.
-3. Run `SUPABASE_SERVICE_ROLE_KEY=… node scripts/publish-premium.mjs` on each deploy. It
-   uploads the paid modules to the private `premium` bucket, and the deploy build leaves them
-   out of the public files. The site then downloads them only for members whose plan allows
-   it; Supabase checks `access_level()` on every download.
+### How it works
+
+- **Build.** `PREMIUM_SOURCE=storage npm run build` leaves every paid lesson / game module
+  (every lesson and game except `FREE_IDS` in `js/config.js`, plus helper files only they
+  import, such as `js/lessons/markets-orders-visuals.js`) out of `dist/` and writes it to
+  `dist-premium/<folder>/<lessons|games>/<name>.<hash>.js`; `dist-premium/premium-manifest.json`
+  lists every object. The built `js/config.js` says `PREMIUM_SOURCE = 'storage'` and the
+  registry points each paid entry at `premium:<object path>`. Shared code (`js/core/…`, and
+  the question banks in `js/games/banks/` that the free Daily Challenge uses) stays public.
+  The default build (no env var) is unchanged and ships everything publicly.
+- **Bucket layout.** The read policy in
+  `supabase/migrations/20260927180000_accounts_and_billing.sql` checks the first folder:
+
+  | object path | readable by | contents |
+  |---|---|---|
+  | `beginner/lessons/<name>.<hash>.js`, `beginner/games/…` | Beginner and Advanced members | Beginner lessons / games, and both-tier games (they need at least Beginner) |
+  | `advanced/lessons/<name>.<hash>.js`, `advanced/games/…` | Advanced members | Advanced lessons / games |
+
+- **Browser.** Opening a paid lesson (`js/core/premium-loader.js`) loads Supabase, asks
+  Storage for a signed URL valid for 60 seconds, downloads the module and imports it from a
+  `blob:` URL (the CSP in `vercel.json` allows `script-src 'self' blob:` for exactly this).
+  Each module is fetched once per page session. If Storage refuses it, the site re-checks the
+  plan and shows the paywall; if the plan does cover it (the object is not published yet) or
+  the network fails, the "This page hit a snag / Try again" card appears. Neither reloads the
+  page.
+- **Same names everywhere.** File names are content hashes of the source, so building the
+  same commit twice (Vercel, the GitHub Action, your laptop) gives identical names: the site
+  Vercel deploys and the objects you publish match. Objects that drop out of the manifest
+  stay in the bucket for another 48 hours, so open tabs of the previous deploy keep working.
+
+### Rollout
+
+1. **Apply the migrations** (`supabase db push`; the bucket and its read policy come from
+   `20260927180000_accounts_and_billing.sql`, so no new migration is needed). Check Supabase
+   → Storage: a private bucket `premium` exists.
+2. **Publish the modules** from a checkout of the commit you are about to deploy:
+
+   ```sh
+   export SUPABASE_SERVICE_ROLE_KEY=…   # Project Settings → API keys → secret (service_role) key
+   PREMIUM_SOURCE=storage npm run build
+   node scripts/publish-premium.mjs --dry-run   # prints what it would upload / delete
+   node scripts/publish-premium.mjs
+   ```
+
+   `SUPABASE_URL` defaults to the project in `js/config.js`. The key is only sent to
+   Supabase and never printed; keep it out of files and chat.
+3. **Switch the site**: Vercel → Project → Settings → Environment Variables → add
+   `PREMIUM_SOURCE` = `storage` for **Production**, then redeploy that same commit
+   (Deployments → … → Redeploy). Check a paid lesson signed in with a paid test account (it
+   loads), signed out and with a free account (paywall), and that
+   `/js/lessons/fibonacci.<hash>.js`-style URLs no longer exist on the site.
+4. **Publish on every deploy** with the GitHub Action `.github/workflows/publish-premium.yml`
+   (on every push to `main`, and on demand from the Actions tab). Add the repository secrets
+   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (GitHub → Settings → Secrets and variables
+   → Actions); without them the workflow does nothing and says so. It builds the pushed
+   commit exactly as Vercel does and uploads the result about a minute after the push. If the
+   new deployment goes live first, a member opening a lesson changed by that push during that
+   minute sees "not available right now, try again". To close that gap, publish from Vercel's
+   build instead: add `SUPABASE_SERVICE_ROLE_KEY` as a Production-only, Sensitive Vercel env
+   var and set the build command to
+   `npm run build && node scripts/publish-premium.mjs --if-configured` — objects are then in
+   the bucket before the deployment goes live.
+
+Preview deployments: leave `PREMIUM_SOURCE` unset for Preview (they build with every module
+public, behind Vercel's deployment protection), or set it and publish those commits too.
+Rolling back to a deployment older than 48 hours: publish that commit first (step 2), as its
+objects may have been pruned. To stop using Storage, remove the `PREMIUM_SOURCE` env var and
+redeploy.

@@ -841,11 +841,24 @@ auth.on('change', fn) / auth.off('change', fn)
   mounts `paywall.js` instead when blocked. `ctx.access` is passed to every module
   (`{ level, can(plan) }`); GameShell modes may declare `requires: 'advanced'` and render
   locked with an upgrade link.
-- Client-side checks are UX. Real enforcement is `PREMIUM_SOURCE = 'storage'`: paid module
-  files are uploaded to the private `premium` Storage bucket (`beginner/…`, `advanced/…`)
-  by `scripts/publish-premium.mjs`, removed from the public site build, and loaded by the
-  router through Storage (RLS checks `access_level()`), with relative imports rewritten to
-  absolute URLs. This only protects content if the source repository is private.
+- Client-side checks are UX. Real enforcement is a `PREMIUM_SOURCE=storage` build (§13):
+  paid modules (every lesson / game outside `FREE_IDS`, plus helpers only they import) are
+  left out of `dist/`, written to `dist-premium/<beginner|advanced>/<lessons|games>/<name>.<hash>.js`
+  and uploaded to the private `premium` Storage bucket by `scripts/publish-premium.mjs`
+  (RLS checks `access_level()` against the first folder: `beginner/` for Beginner, both-tier
+  and Advanced members, `advanced/` for Advanced). The built registry's `path` for such an
+  entry is `'premium:<object path>'`; the router passes it to `gate.loadPremium`
+  (`js/core/premium-loader.js`, wired in `js/main.js`): Supabase client → signed URL (60 s) →
+  fetch → imports resolved against the page origin (`'/js/core/ui.<hash>.js'`; paid → paid
+  imports are `'premium:<object path>'` markers loaded the same way) → `import()` of a
+  `blob:` URL, revoked afterwards; cached per session, failures not cached. Errors:
+  `PremiumAccessError` (signed out / Storage refused) → the router refreshes the access level
+  and re-renders (paywall) when the route is now blocked, else shows its error card;
+  `PremiumLoadError` (network) → error card. Neither triggers the stale-chunk reload. Public
+  code must not import a paid module (the build fails): data shared with the free Daily
+  Challenge lives in `js/games/banks/`. On localhost, `?premium=local` makes the loader read
+  `/__premium/<object path>` instead (smoke `--premium`). Protecting the code also needs the
+  source repository to be private.
 
 ## 10. Devices
 
@@ -995,7 +1008,7 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
 ### 11.8 Smoke test
 
 `node tests/smoke.mjs [routes…] [--desktop] [--tablet] [--phone] [--light|--dark]
-[--no-shots] [--no-interact] [--fonts] [--no-storage] [--real-market] [--concurrency=N] [--dist]`.
+[--no-shots] [--no-interact] [--fonts] [--no-storage] [--real-market] [--concurrency=N] [--dist] [--premium]`.
 Routes: every page, lesson and game in the registry plus `PAGES`, `playbook.hammer` and
 `DEV_ENTRIES`, each opened by its path (`/games/fib-sniper`). Pages open with `?market=mock`
 (§12.3) unless `--real-market`. Extra checks (filter `legacy`): old hash URLs (`/#l.risk-basics`,
@@ -1008,6 +1021,12 @@ dev-only routes are skipped and the market fixtures are served next to `dist/`. 
 tablet 820×1180 (touch), phone 390×844 (touch). Google Fonts requests are blocked unless
 `--fonts` is given. After the first screenshot it clicks Start (and one answer option) on
 games and Next on lessons, then screenshots `<route>-<viewport>-<theme>-play.png`.
+
+`--premium` (implies `--dist`) tests a `PREMIUM_SOURCE=storage` build (`npm run smoke:premium`
+builds it first): it checks that every paid module is absent from `dist/` and present in
+`dist-premium/`, that the free ones and the storage config are in `dist/`, then serves
+`dist-premium/` at `/__premium/` and opens pages with `?premium=local`, so every paid route is
+imported from a `blob:` URL under the real CSP (and must have fetched its module there).
 
 `--no-storage` runs every check with `localStorage`/`sessionStorage` methods throwing (as in
 some private modes): the app must still render and play; progress just is not remembered.
@@ -1899,13 +1918,24 @@ Production is `https://thetradeschool.online` on Vercel (static). `vercel.json` 
 - Fails on a module reference it cannot resolve, a dangling reference in the output, or an
   inline `<script>` in `index.html` (the CSP allows none; the pre-paint theme script is
   `js/theme-init.js`).
+- `PREMIUM_SOURCE=storage` (env, or `--premium-source=storage`; `npm run build:storage`)
+  splits out the paid modules (§9.3): not written to `dist/` or `asset-manifest.json`, but to
+  `dist-premium/<folder>/<lessons|games>/<name>.<hash>.js` with public imports rewritten to
+  root-relative hashed paths and paid → paid imports to `'premium:<object path>'`;
+  `dist-premium/premium-manifest.json` lists `{ objects: { <object path>: <source> } }`. The
+  registry's paid `path`s become `'premium:<object path>'` and `js/config.js` is built with
+  `PREMIUM_SOURCE = 'storage'`. Every hash in a storage build is salted with the mode, and all
+  names depend only on the source, so two builds of one commit are byte-identical (the
+  GitHub Action that publishes and Vercel agree). Fails if public code (anything outside
+  `js/lessons/` and `js/games/`, or a free entry) imports a paid module, naming the chain.
+  Without the env var the output is exactly the site-mode build.
 - Ships only `index.html`, `js/`, `css/`, `assets/`, `og-image.png`, `robots.txt`,
   `sitemap.xml` (and `favicon.ico` if added) — never `docs/`, `tests/`, `supabase/` or
   package files.
 
 **Headers (`vercel.json`)**: hashed `*.<10 hex>.js|css` → `public, max-age=31536000,
 immutable`; everything else (`index.html`, `assets/`, `robots.txt` …) → `no-cache`. On all
-routes: `Content-Security-Policy` (`default-src 'self'`; `script-src 'self'` — Vercel Web
+routes: `Content-Security-Policy` (`default-src 'self'`; `script-src 'self' blob:` — `blob:` only for paid modules the premium loader imports (§9.3); Vercel Web
 Analytics is same-origin `/_vercel/insights`; `style-src-elem 'self'
 https://fonts.googleapis.com`; `style-src-attr 'unsafe-inline'` because the chart engine
 renders SVG markup with `style="…"` attributes through `innerHTML` (`style-src` repeats both
