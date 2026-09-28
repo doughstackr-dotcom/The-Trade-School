@@ -15,6 +15,10 @@ import {
   overallSessionProgress,
   venueForSymbol,
   assetSessionStatus,
+  unifiedTimeline,
+  wallTimeToUtc,
+  zonedYmd,
+  startOfDayUtc,
 } from '../../js/core/market-hours.js';
 
 const byId = (id) => [...EQUITY_MARKETS, ...FOREX_SESSIONS].find((m) => m.id === id);
@@ -168,4 +172,77 @@ test('assetSessionStatus SPY follows NYSE/NASDAQ hours', () => {
   assert.equal(assetSessionStatus('SPY', new Date('2026-06-15T12:00:00Z')).open, false);
   // Weekend
   assert.equal(assetSessionStatus('SPY', new Date('2026-06-13T15:00:00Z')).open, false);
+});
+
+
+test('wallTimeToUtc maps NYSE open to known UTC in summer', () => {
+  // 2026-06-15 09:30 America/New_York (EDT, UTC-4) → 13:30 UTC
+  const utc = wallTimeToUtc(2026, 6, 15, '09:30', 'America/New_York');
+  assert.equal(utc.toISOString(), '2026-06-15T13:30:00.000Z');
+});
+
+test('wallTimeToUtc maps LSE open to known UTC in summer', () => {
+  // 2026-06-15 08:00 Europe/London (BST, UTC+1) → 07:00 UTC
+  const utc = wallTimeToUtc(2026, 6, 15, '08:00', 'Europe/London');
+  assert.equal(utc.toISOString(), '2026-06-15T07:00:00.000Z');
+});
+
+test('unifiedTimeline places NYSE and LSE bars on a UTC display axis', () => {
+  // Monday mid-session: 2026-06-15 15:00 UTC
+  const at = new Date('2026-06-15T15:00:00Z');
+  const tl = unifiedTimeline(at, 'UTC');
+  assert.equal(tl.displayTz, 'UTC');
+  assert.ok(tl.nowMin > 14 * 60 && tl.nowMin < 16 * 60); // ~15:00
+  assert.equal(tl.rows.length, 8);
+
+  const nyse = tl.rows.find((r) => r.id === 'nyse');
+  assert.ok(nyse);
+  assert.equal(nyse.open, true);
+  assert.equal(nyse.segments.length, 1);
+  // NYSE 09:30–16:00 EDT = 13:30–20:00 UTC
+  assert.ok(nyse.segments[0].startMin > 13 * 60 && nyse.segments[0].startMin < 14 * 60);
+  assert.ok(nyse.segments[0].endMin > 19 * 60 && nyse.segments[0].endMin < 21 * 60);
+  assert.equal(nyse.segments[0].active, true);
+
+  const lse = tl.rows.find((r) => r.id === 'lse');
+  assert.ok(lse);
+  assert.equal(lse.open, true);
+  // LSE 08:00–16:30 BST = 07:00–15:30 UTC
+  assert.ok(lse.segments[0].startMin > 6 * 60 && lse.segments[0].startMin < 8 * 60);
+  assert.ok(lse.segments[0].endMin > 15 * 60 && lse.segments[0].endMin < 16 * 60);
+  assert.equal(lse.segments[0].active, true); // 15:00 UTC still before 15:30 close
+});
+
+test('unifiedTimeline TSE lunch yields two segments on UTC axis', () => {
+  // 2026-06-16 02:00 UTC = 11:00 JST (morning session)
+  const at = new Date('2026-06-16T02:00:00Z');
+  const tl = unifiedTimeline(at, 'UTC');
+  const tse = tl.rows.find((r) => r.id === 'tse');
+  assert.ok(tse);
+  assert.equal(tse.segments.length, 2);
+  // Morning 09:00–11:30 JST = 00:00–02:30 UTC
+  assert.ok(tse.segments[0].startMin < 30);
+  assert.ok(tse.segments[0].endMin > 2 * 60 && tse.segments[0].endMin < 3 * 60);
+  assert.equal(tse.segments[0].active, true);
+  // Afternoon 12:30–15:00 JST = 03:30–06:00 UTC
+  assert.ok(tse.segments[1].startMin > 3 * 60 && tse.segments[1].startMin < 4 * 60);
+  assert.equal(tse.segments[1].active, false);
+  assert.equal(tse.segments[1].done, false);
+});
+
+test('unifiedTimeline nowMin tracks display-tz clock', () => {
+  const at = new Date('2026-06-15T18:30:00Z');
+  const tl = unifiedTimeline(at, 'America/New_York');
+  // 18:30 UTC = 14:30 EDT
+  assert.ok(tl.nowMin > 14 * 60 && tl.nowMin < 15 * 60);
+  assert.match(tl.displayTzAbbrev, /EDT|GMT-4|UTC-4/i);
+});
+
+test('zonedYmd and startOfDayUtc are consistent for New York', () => {
+  const d = new Date('2026-06-15T14:00:00Z');
+  const ymd = zonedYmd(d, 'America/New_York');
+  assert.deepEqual(ymd, { y: 2026, m: 6, d: 15 });
+  const start = startOfDayUtc(d, 'America/New_York');
+  // Midnight EDT = 04:00 UTC
+  assert.equal(start.toISOString(), '2026-06-15T04:00:00.000Z');
 });

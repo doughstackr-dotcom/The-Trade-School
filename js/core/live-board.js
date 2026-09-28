@@ -5,11 +5,15 @@ import { h, icon, svg } from './ui.js';
 import {
   getMarketHoursSnapshot,
   assetSessionStatus,
+  unifiedTimeline,
+  venueForSymbol,
 } from './market-hours.js';
 import { LIVE_QUOTE_SYMBOLS } from './market.js';
 
 export const POLL_MS = 45_000;
 export const HOURS_TICK_MS = 1_000;
+export const BOARD_ROTATE_MS = 10_000;
+export const BOARD_VISIBLE_MAX = 5;
 export const DEFAULT_BOARD = LIVE_QUOTE_SYMBOLS;
 
 export function fmtPrice(n, decimals = 2) {
@@ -277,6 +281,246 @@ export function overlapChip(o) {
     o.label,
     o.active ? h('span', { class: 'live-overlap__tag' }, 'live') : null);
 }
+
+const TIMELINE_TICK_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+function fmtAxisHour(h) {
+  if (h === 0 || h === 24) return '12a';
+  if (h === 12) return '12p';
+  if (h < 12) return `${h}a`;
+  return `${h - 12}p`;
+}
+
+/**
+ * Mount the unified 24h market-hours timeline shell into `container`.
+ * Returns the root `.live-timeline` element for subsequent paint calls.
+ * @param {HTMLElement} container
+ */
+export function mountUnifiedHoursTimeline(container) {
+  if (!container) return null;
+  const axis = h('div', {
+    class: 'live-timeline__axis',
+    'aria-hidden': 'true',
+  },
+    ...TIMELINE_TICK_HOURS.map((hr) => h('span', {
+      class: 'live-timeline__tick',
+      style: `left:${((hr / 24) * 100).toFixed(3)}%`,
+    }, fmtAxisHour(hr))));
+
+  const lanes = h('div', {
+    class: 'live-timeline__lanes',
+    role: 'list',
+    'aria-label': 'Market session lanes',
+  });
+  const now = h('div', {
+    class: 'live-timeline__now',
+    'aria-hidden': 'true',
+  });
+  const body = h('div', { class: 'live-timeline__body' }, lanes, now);
+  const context = h('p', { class: 'live-timeline__context' });
+  const overlaps = h('div', {
+    class: 'live-timeline__overlaps',
+    role: 'list',
+    'aria-label': 'Session overlaps',
+  });
+  const note = h('p', { class: 'faint live-hours__note live-timeline__note' });
+  const tzLabel = h('span', { class: 'live-timeline__tz faint' });
+
+  const root = h('div', {
+    class: 'live-timeline',
+    role: 'img',
+    'aria-label': 'Unified market hours timeline',
+  },
+    h('div', { class: 'live-timeline__head row' },
+      h('span', { class: 'live-timeline__axis-label faint' }, 'Local day'),
+      tzLabel),
+    axis,
+    body,
+    overlaps,
+    context,
+    note);
+
+  container.replaceChildren(root);
+  return root;
+}
+
+/**
+ * Paint / update a mounted unified timeline (preserves now-line CSS transition).
+ * @param {HTMLElement} el root from mountUnifiedHoursTimeline, or a wrapper
+ * @param {ReturnType<typeof unifiedTimeline>|ReturnType<typeof getMarketHoursSnapshot>|null} [snapOrData]
+ */
+export function paintUnifiedHoursTimeline(el, snapOrData) {
+  if (!el) return;
+  const root = el.classList?.contains('live-timeline')
+    ? el
+    : el.querySelector?.('.live-timeline');
+  if (!root) return;
+
+  const data = snapOrData?.rows
+    ? snapOrData
+    : unifiedTimeline(
+      snapOrData?.at ?? Date.now(),
+      snapOrData?.clientTz || snapOrData?.displayTz,
+    );
+
+  const tzLabel = root.querySelector('.live-timeline__tz');
+  if (tzLabel) {
+    tzLabel.textContent = `${data.displayTz} · ${data.displayTzAbbrev}`;
+  }
+
+  const lanesHost = root.querySelector('.live-timeline__lanes');
+  if (lanesHost) {
+    const kids = [...lanesHost.children];
+    const same =
+      kids.length === data.rows.length
+      && kids.every((node, i) => node.dataset.marketId === (data.rows[i]?.id || ''));
+
+    if (!same) {
+      lanesHost.replaceChildren(...data.rows.map((row) => timelineLaneEl(row)));
+    } else {
+      data.rows.forEach((row, i) => updateTimelineLane(kids[i], row));
+    }
+  }
+
+  const nowEl = root.querySelector('.live-timeline__now');
+  if (nowEl) {
+    const frac = Math.min(1, Math.max(0, data.nowMin / (24 * 60)));
+    nowEl.style.left =
+      `calc(var(--timeline-label-w) + (100% - var(--timeline-label-w)) * ${frac.toFixed(5)})`;
+  }
+
+  const overlapsHost = root.querySelector('.live-timeline__overlaps');
+  if (overlapsHost && Array.isArray(data.overlaps)) {
+    overlapsHost.replaceChildren(...data.overlaps.map(overlapChip));
+  }
+
+  const contextEl = root.querySelector('.live-timeline__context');
+  if (contextEl) contextEl.textContent = data.context || '';
+
+  const noteEl = root.querySelector('.live-timeline__note');
+  if (noteEl) {
+    noteEl.textContent =
+      `Shared ${data.displayTzAbbrev || 'local'} axis (DST-aware). `
+      + 'Exchange holidays not tracked — weekends closed for equities & FX sessions.';
+  }
+
+  root.setAttribute(
+    'aria-label',
+    `Market hours timeline in ${data.displayTz}. ${data.context || ''}`.trim(),
+  );
+}
+
+function timelineLaneEl(row) {
+  return h('div', {
+    class: [
+      'live-timeline__lane',
+      row.open && 'is-open',
+      row.kind === 'forex' && 'is-forex',
+    ],
+    role: 'listitem',
+    'data-market-id': row.id || '',
+    'aria-label': `${row.short}: ${row.open ? 'open' : 'closed'}`,
+  },
+    h('div', { class: 'live-timeline__label' },
+      h('span', { class: 'live-timeline__name' }, row.short),
+      h('span', {
+        class: ['live-pill', row.open ? 'live-pill--open' : 'live-pill--closed'],
+        'aria-hidden': 'true',
+      },
+        h('span', { class: 'live-pill__dot' }),
+        row.open ? 'Open' : 'Closed')),
+    h('div', { class: 'live-timeline__track' },
+      ...row.segments.map(timelineSegEl)));
+}
+
+function timelineSegEl(seg) {
+  const left = (seg.startMin / (24 * 60)) * 100;
+  const width = (Math.max(0.5, seg.endMin - seg.startMin) / (24 * 60)) * 100;
+  return h('div', {
+    class: [
+      'live-timeline__bar',
+      seg.active && 'is-active',
+      seg.done && 'is-done',
+    ],
+    style: `left:${left.toFixed(3)}%;width:${width.toFixed(3)}%`,
+    title: seg.label || '',
+  });
+}
+
+function updateTimelineLane(el, row) {
+  if (!el || !row) return;
+  el.classList.toggle('is-open', !!row.open);
+  el.classList.toggle('is-forex', row.kind === 'forex');
+  el.setAttribute('aria-label', `${row.short}: ${row.open ? 'open' : 'closed'}`);
+
+  const name = el.querySelector('.live-timeline__name');
+  if (name) name.textContent = row.short;
+
+  const pill = el.querySelector('.live-pill');
+  if (pill) {
+    pill.classList.toggle('live-pill--open', !!row.open);
+    pill.classList.toggle('live-pill--closed', !row.open);
+    const dot = pill.querySelector('.live-pill__dot');
+    pill.textContent = '';
+    if (dot) pill.append(dot);
+    else pill.append(h('span', { class: 'live-pill__dot' }));
+    pill.append(document.createTextNode(row.open ? 'Open' : 'Closed'));
+  }
+
+  const track = el.querySelector('.live-timeline__track');
+  if (!track) return;
+  const sig = row.segments.map((s) => `${s.startMin.toFixed(1)}-${s.endMin.toFixed(1)}`).join('|');
+  if (el.dataset.segSig !== sig) {
+    track.replaceChildren(...row.segments.map(timelineSegEl));
+    el.dataset.segSig = sig;
+    return;
+  }
+  const bars = [...track.querySelectorAll('.live-timeline__bar')];
+  row.segments.forEach((seg, i) => {
+    const bar = bars[i];
+    if (!bar) return;
+    bar.classList.toggle('is-active', !!seg.active);
+    bar.classList.toggle('is-done', !!seg.done);
+  });
+}
+
+/**
+ * Filter board quotes to those currently in session (crypto always open).
+ * @param {object[]} quotes
+ * @param {Date|number} [at]
+ */
+export function openBoardQuotes(quotes, at = Date.now()) {
+  return (quotes || []).filter((q) => q?.symbol && assetSessionStatus(q.symbol, at).open);
+}
+
+/**
+ * Pick the visible window of open quotes for rotating the Live board.
+ * @param {object[]} openQuotes
+ * @param {{ offset?: number, max?: number }} [opts]
+ */
+export function rotateBoardWindow(openQuotes, { offset = 0, max = BOARD_VISIBLE_MAX } = {}) {
+  const list = openQuotes || [];
+  if (list.length <= max) {
+    return { visible: list, offset: 0, rotating: false };
+  }
+  const start = ((offset % list.length) + list.length) % list.length;
+  const visible = [];
+  for (let i = 0; i < max; i++) {
+    visible.push(list[(start + i) % list.length]);
+  }
+  return { visible, offset: start, rotating: true };
+}
+
+/**
+ * Fallback set when no equity/FX floors are open — prefer 24/7 crypto, else all.
+ * @param {object[]} allQuotes
+ */
+export function fallbackBoardQuotes(allQuotes) {
+  const list = allQuotes || [];
+  const crypto = list.filter((q) => venueForSymbol(q.symbol)?.alwaysOpen);
+  return crypto.length ? crypto : list;
+}
+
 
 /**
  * Quote card with optional market open/closed badge (from assetSessionStatus).

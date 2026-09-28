@@ -481,3 +481,210 @@ export function assetSessionStatus(symbol, at = Date.now()) {
   }
   return marketStatus(venue, at);
 }
+
+/* ── Unified 24h timeline (display-tz lanes) ─────────────────────────────── */
+
+const YMD_OPTS = { year: 'numeric', month: '2-digit', day: '2-digit' };
+const ymdCache = new Map();
+
+function ymdFormatter(tz) {
+  let f = ymdCache.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, ...YMD_OPTS });
+    ymdCache.set(tz, f);
+  }
+  return f;
+}
+
+/** Calendar Y-M-D for `date` in `tz` (en-CA → YYYY-MM-DD). */
+export function zonedYmd(date, tz) {
+  const s = ymdFormatter(tz).format(date instanceof Date ? date : new Date(date));
+  const [y, m, d] = s.split('-').map(Number);
+  return { y, m, d };
+}
+
+/** Add `delta` calendar days to a Y-M-D triple (UTC arithmetic; date-only). */
+export function addCalendarDays(y, m, d, delta) {
+  const dt = new Date(Date.UTC(y, m - 1, d + delta));
+  return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+}
+
+/**
+ * Convert a wall-clock civil time in `tz` to a UTC Date (DST-aware iterative fix).
+ * @param {number} y
+ * @param {number} m 1–12
+ * @param {number} d
+ * @param {string|number} hm "HH:MM" or minutes from midnight
+ * @param {string} tz IANA
+ */
+export function wallTimeToUtc(y, m, d, hm, tz) {
+  const minutes = typeof hm === 'number' ? hm : parseHm(hm);
+  const hour = Math.floor(minutes / 60) % 24;
+  const minute = minutes % 60;
+  let utcMs = Date.UTC(y, m - 1, d, hour, minute, 0);
+  for (let i = 0; i < 4; i++) {
+    const asOf = new Date(utcMs);
+    const parts = zonedParts(asOf, tz);
+    const ymd = zonedYmd(asOf, tz);
+    const asLocalMs = Date.UTC(ymd.y, ymd.m - 1, ymd.d, parts.hour, parts.minute, parts.second || 0);
+    const desiredMs = Date.UTC(y, m - 1, d, hour, minute, 0);
+    const diff = desiredMs - asLocalMs;
+    if (diff === 0) break;
+    utcMs += diff;
+  }
+  return new Date(utcMs);
+}
+
+/** Start of the calendar day containing `date` in `tz`, as UTC Date. */
+export function startOfDayUtc(date, tz) {
+  const { y, m, d } = zonedYmd(date, tz);
+  return wallTimeToUtc(y, m, d, 0, tz);
+}
+
+/**
+ * Session windows for one market on a civil day, mapped onto a display-tz day axis.
+ * Splits lunch into separate segments; clips to [0, 1440]; handles overnight local
+ * sessions (open ≥ close) as two segments.
+ * @returns {{ startMin: number, endMin: number, active: boolean, done: boolean, label: string }[]}
+ */
+export function marketSegmentsOnDisplayDay(market, at, displayTz, dayStart, dayEnd) {
+  const date = at instanceof Date ? at : new Date(at);
+  const nowMs = date.getTime();
+  const dayStartMs = dayStart.getTime();
+  const dayEndMs = dayEnd.getTime();
+  const dayLen = dayEndMs - dayStartMs;
+  /** @type {{ startMin: number, endMin: number, active: boolean, done: boolean, label: string }[]} */
+  const out = [];
+
+  const baseYmd = zonedYmd(date, market.tz);
+  for (const delta of [-1, 0, 1]) {
+    const { y, m, d } = addCalendarDays(baseYmd.y, baseYmd.m, baseYmd.d, delta);
+    const noon = wallTimeToUtc(y, m, d, 12 * 60, market.tz);
+    const weekday = zonedParts(noon, market.tz).weekday;
+    if (!WEEKDAYS.has(weekday)) continue;
+
+    for (const s of market.sessions) {
+      const openMin = parseHm(s.open);
+      const closeMin = parseHm(s.close);
+      /** @type {{ open: number, close: number, label: string }[]} */
+      const windows = [];
+      if (closeMin > openMin) {
+        windows.push({ open: openMin, close: closeMin, label: `${s.open}–${s.close}` });
+      } else {
+        // Midnight wrap in market-local time
+        windows.push({ open: openMin, close: 24 * 60, label: `${s.open}–24:00` });
+        if (closeMin > 0) {
+          windows.push({ open: 0, close: closeMin, label: `00:00–${s.close}` });
+        }
+      }
+
+      for (const w of windows) {
+        const openUtc = wallTimeToUtc(y, m, d, w.open, market.tz);
+        let closeUtc = wallTimeToUtc(y, m, d, w.close === 24 * 60 ? 0 : w.close, market.tz);
+        if (w.close === 24 * 60) {
+          const next = addCalendarDays(y, m, d, 1);
+          closeUtc = wallTimeToUtc(next.y, next.m, next.d, 0, market.tz);
+        } else if (closeUtc <= openUtc) {
+          const next = addCalendarDays(y, m, d, 1);
+          closeUtc = wallTimeToUtc(next.y, next.m, next.d, w.close, market.tz);
+        }
+
+        const startMs = Math.max(openUtc.getTime(), dayStartMs);
+        const endMs = Math.min(closeUtc.getTime(), dayEndMs);
+        if (endMs <= startMs) continue;
+
+        const startMin = ((startMs - dayStartMs) / dayLen) * (24 * 60);
+        const endMin = ((endMs - dayStartMs) / dayLen) * (24 * 60);
+        const active = nowMs >= openUtc.getTime() && nowMs < closeUtc.getTime();
+        const done = nowMs >= closeUtc.getTime();
+        out.push({
+          startMin: Math.max(0, Math.min(1440, startMin)),
+          endMin: Math.max(0, Math.min(1440, endMin)),
+          active,
+          done,
+          label: w.label,
+        });
+      }
+    }
+  }
+
+  // Dedupe near-identical segments (float noise / overlapping day probes)
+  out.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+  const deduped = [];
+  for (const seg of out) {
+    const prev = deduped[deduped.length - 1];
+    if (
+      prev
+      && Math.abs(prev.startMin - seg.startMin) < 0.5
+      && Math.abs(prev.endMin - seg.endMin) < 0.5
+    ) {
+      prev.active = prev.active || seg.active;
+      prev.done = prev.done && seg.done;
+      continue;
+    }
+    deduped.push(seg);
+  }
+  return deduped;
+}
+
+/**
+ * Unified market-hours timeline: one lane per equity + forex venue on a shared
+ * 24h axis in `displayTz` (defaults to the viewer's local zone / clientTz).
+ *
+ * @param {Date|number} [at]
+ * @param {string} [displayTz]
+ * @returns {{
+ *   at: number,
+ *   displayTz: string,
+ *   displayTzAbbrev: string,
+ *   nowMin: number,
+ *   context: string,
+ *   overlaps: ReturnType<typeof getMarketHoursSnapshot>['overlaps'],
+ *   activeEquities: string[],
+ *   activeForex: string[],
+ *   rows: {
+ *     id: string, short: string, name: string, kind: MarketKind,
+ *     city: string, tz: string, tzAbbrev: string, open: boolean,
+ *     segments: { startMin: number, endMin: number, active: boolean, done: boolean, label: string }[]
+ *   }[]
+ * }}
+ */
+export function unifiedTimeline(at = Date.now(), displayTz) {
+  const date = at instanceof Date ? at : new Date(at);
+  const tz = displayTz
+    || (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions().timeZone)
+    || 'UTC';
+  const dayStart = startOfDayUtc(date, tz);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const dayLen = dayEnd.getTime() - dayStart.getTime();
+  const nowMin = Math.min(1440, Math.max(0, ((date.getTime() - dayStart.getTime()) / dayLen) * (24 * 60)));
+
+  const snap = getMarketHoursSnapshot(date);
+  const markets = [...EQUITY_MARKETS, ...FOREX_SESSIONS];
+  const rows = markets.map((market) => {
+    const st = marketStatus(market, date);
+    return {
+      id: market.id,
+      short: market.short,
+      name: market.name,
+      kind: market.kind,
+      city: market.city,
+      tz: market.tz,
+      tzAbbrev: st.tzAbbrev,
+      open: st.open,
+      segments: marketSegmentsOnDisplayDay(market, date, tz, dayStart, dayEnd),
+    };
+  });
+
+  return {
+    at: date.getTime(),
+    displayTz: tz,
+    displayTzAbbrev: tzAbbrev(tz, date),
+    nowMin,
+    context: snap.context,
+    overlaps: snap.overlaps,
+    activeEquities: snap.activeEquities,
+    activeForex: snap.activeForex,
+    rows,
+  };
+}

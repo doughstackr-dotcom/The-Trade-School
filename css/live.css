@@ -66,8 +66,7 @@
 
 /* —— Market hours panel ——————————————————————————————————————————————————— */
 
-.live-hours,
-.live-session {
+.live-hours {
   padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
@@ -80,8 +79,7 @@
   justify-content: space-between;
 }
 
-.live-hours__head h2,
-.live-session h2 {
+.live-hours__head h2 {
   margin: 0;
 }
 
@@ -296,32 +294,155 @@
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-/* —— Active sessions / overlaps ——————————————————————————————————————————— */
+/* —— Unified market-hours timeline ——————————————————————————————————————— */
 
-.live-session__active {
-  margin: 0;
-  font-weight: 600;
-  font-size: 0.95rem;
+.live-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.live-session__body {
+.live-timeline__head {
+  --gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.live-timeline__axis-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.live-timeline__tz {
+  font-size: 0.78rem;
+}
+
+.live-timeline__axis {
+  position: relative;
+  height: 18px;
+  margin-left: 108px;
+}
+
+.live-timeline__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+
+.live-timeline__tick:first-child {
+  transform: translateX(0);
+}
+
+.live-timeline__tick:last-child {
+  transform: translateX(-100%);
+}
+
+.live-timeline__lanes {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.live-session__label {
-  margin: 0;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
+.live-timeline__lane {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
 }
 
-.live-session__overlaps {
+.live-timeline__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.live-timeline__name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.live-timeline__label .live-pill {
+  align-self: flex-start;
+  padding: 0 6px;
+  font-size: 0.6rem;
+}
+
+.live-timeline__track {
+  position: relative;
+  height: 16px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface) 70%, var(--line));
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.live-timeline__bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-3) 28%, transparent);
+  transition: background 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
+}
+
+.live-timeline__bar.is-done {
+  background: color-mix(in oklab, var(--bull) 22%, var(--surface-2));
+}
+
+.live-timeline__bar.is-active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--bull) 55%, transparent),
+    color-mix(in oklab, var(--bull-strong, var(--bull)) 85%, var(--accent))
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--bull) 40%, transparent);
+}
+
+.live-timeline__lane.is-forex .live-timeline__bar.is-active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--accent) 45%, transparent),
+    color-mix(in oklab, var(--accent-strong, var(--accent)) 80%, var(--bull))
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent);
+}
+
+.live-timeline__body {
+  position: relative;
+  margin-left: 0;
+  --timeline-label-w: 108px; /* label col 100px + gap 8px */
+}
+
+.live-timeline__now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--timeline-label-w) + (100% - var(--timeline-label-w)) * var(--now, 0));
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent),
+    0 0 12px color-mix(in oklab, var(--accent) 40%, transparent);
+  pointer-events: none;
+  z-index: 3;
+  transition: left 0.85s linear;
+}
+
+.live-timeline__overlaps {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 2px;
 }
 
 .live-overlap {
@@ -363,11 +484,42 @@
   color: var(--accent-strong, var(--accent));
 }
 
-.live-session__context {
+.live-timeline__context {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.45;
   color: var(--text-2);
+}
+
+.live-timeline__note {
+  margin: 0;
+}
+
+/* —— Quote board rotation / open-only ————————————————————————————————————— */
+
+.live-board__note {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.live-quote.is-muted {
+  opacity: 0.72;
+}
+
+.live-quote.is-enter {
+  animation: live-quote-enter 0.4s var(--ease-out);
+}
+
+@keyframes live-quote-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* —— Quote board / chart polish ——————————————————————————————————————————— */
@@ -411,6 +563,14 @@
     transition: none;
   }
 
+  .live-timeline__now {
+    transition: none;
+  }
+
+  .live-quote.is-enter {
+    animation: none;
+  }
+
   .live-quote:hover {
     transform: none;
   }
@@ -434,6 +594,14 @@ html[data-motion="reduce"] .live-overlap.is-active .live-overlap__dot {
 
 html[data-motion="reduce"] .live-hours-bar__fill {
   transition: none;
+}
+
+html[data-motion="reduce"] .live-timeline__now {
+  transition: none;
+}
+
+html[data-motion="reduce"] .live-quote.is-enter {
+  animation: none;
 }
 
 /* —— Dashboard Live markets widget ————————————————————————————————————————— */
@@ -507,3 +675,24 @@ html[data-motion="reduce"] .live-hours-bar__fill {
   opacity: 0.92;
 }
 
+
+@media (max-width: 640px) {
+  .live-timeline__axis {
+    margin-left: 0;
+  }
+
+  .live-timeline__lane {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .live-timeline__label {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .live-timeline__body {
+    --timeline-label-w: 0px;
+  }
+}

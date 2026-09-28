@@ -1,18 +1,23 @@
 // Live Market Lab — #live. Quote board (Massive.com via market-data edge function) + detail chart
-// + market-hours clock / session strip + scrolling ticker. Auto-polls quotes (~45s); hours tick
-// every second. No manual refresh control. Educational only.
+// + unified market-hours timeline + scrolling ticker. Auto-polls quotes (~45s); hours tick
+// every second. Open-session cards rotate. No manual refresh control. Educational only.
 import { h } from '../core/ui.js';
-import { getMarketHoursSnapshot } from '../core/market-hours.js';
+import { getMarketHoursSnapshot, unifiedTimeline } from '../core/market-hours.js';
 import { sma } from '../core/indicators.js';
 import {
   POLL_MS,
   HOURS_TICK_MS,
+  BOARD_ROTATE_MS,
+  BOARD_VISIBLE_MAX,
   DEFAULT_BOARD,
   fmtPrice,
   fmtPct,
   quoteCard,
-  overlapChip,
-  paintHoursCards,
+  mountUnifiedHoursTimeline,
+  paintUnifiedHoursTimeline,
+  openBoardQuotes,
+  rotateBoardWindow,
+  fallbackBoardQuotes,
 } from '../core/live-board.js';
 
 const BOARD = [...DEFAULT_BOARD];
@@ -48,6 +53,9 @@ export default {
     let liveMaId = null;
     let pollTimer = null;
     let hoursTimer = null;
+    let rotateTimer = null;
+    let rotateOffset = 0;
+    let boardFallback = false;
     let destroyed = false;
 
     const statusEl = h('span', { class: 'live-status__text' });
@@ -55,6 +63,7 @@ export default {
     const updatedEl = h('span', { class: 'live-updated mono faint' });
     const feedEl = h('span', { class: 'live-feed-badge faint' });
     const board = h('div', { class: 'live-board', role: 'list', 'aria-label': 'Market quotes' });
+    const boardNote = h('p', { class: 'faint live-board__note', hidden: true });
     const chartHost = h('div', { class: 'chart-frame live__chart' });
     const attrib = h('p', { class: 'faint live-attrib' });
     const note = h('p', { class: 'faint live-footnote' },
@@ -62,13 +71,9 @@ export default {
       'Open, high, low and last update as Massive refreshes the daily bar. ',
       'If a refresh fails we keep the last good numbers and mark them stale. Educational use — not for trading decisions.');
 
-    // —— Market hours / sessions UI ——————————————————————————————————————————
-    const hoursEquity = h('div', { class: 'live-hours__grid', role: 'list', 'aria-label': 'Equity market hours' });
-    const hoursForex = h('div', { class: 'live-hours__grid', role: 'list', 'aria-label': 'Forex session hours' });
-    const sessionContext = h('p', { class: 'live-session__context' });
-    const overlapRow = h('div', { class: 'live-session__overlaps', role: 'list', 'aria-label': 'Session overlaps' });
-    const clientTzEl = h('p', { class: 'faint live-hours__note' });
-    const sessionActive = h('p', { class: 'live-session__active' });
+    // —— Unified market hours timeline ——————————————————————————————————————
+    const hoursHost = h('div', { class: 'live-hours__timeline-host' });
+    const timelineRoot = mountUnifiedHoursTimeline(hoursHost);
 
     const tickerTrack = h('div', { class: 'live-ticker__track', 'aria-hidden': 'true' });
     const ticker = h('div', {
@@ -96,7 +101,6 @@ export default {
       feedEl.textContent = 'Feed: Massive';
       feedEl.dataset.kind = 'live';
     };
-
 
     const cleanAttrib = (s) => String(s || '')
       .replace(/\s*\([^)]*free tier[^)]*\)/gi, '')
@@ -130,43 +134,97 @@ export default {
         ticker.classList.remove('is-running');
         return;
       }
-      // Duplicate strip for seamless CSS loop
       const items = [...list, ...list].map(tickerItem);
       tickerTrack.replaceChildren(...items);
       ticker.classList.add('is-running');
     };
 
-    const paintBoard = () => {
-      const list = lastQuotes.length
+    const allBoardQuotes = () => (
+      lastQuotes.length
         ? lastQuotes
-        : BOARD.map((id) => ({ symbol: id, name: id, price: null, change: null, changePct: null, sparkline: [], ok: false }));
-      board.replaceChildren(...list.map((q) => quoteCard(q, {
-        selected: q.symbol === selected,
-        onSelect: (id) => {
-          selected = id;
-          paintBoard();
-          loadChart(id);
-        },
-      })));
+        : BOARD.map((id) => ({
+          symbol: id, name: id, price: null, change: null, changePct: null, sparkline: [], ok: false,
+        }))
+    );
+
+    const paintBoard = ({ animate = false } = {}) => {
+      const all = allBoardQuotes();
+      let open = openBoardQuotes(all);
+      boardFallback = false;
+      if (!open.length) {
+        open = fallbackBoardQuotes(all);
+        boardFallback = true;
+      }
+
+      if (!open.some((q) => q.symbol === selected)) {
+        const next = open[0]?.symbol;
+        if (next && next !== selected) {
+          selected = next;
+          loadChart(selected);
+        }
+      }
+
+      const { visible, offset } = rotateBoardWindow(open, {
+        offset: rotateOffset,
+        max: BOARD_VISIBLE_MAX,
+      });
+      rotateOffset = offset;
+
+      board.classList.toggle('is-fallback', boardFallback);
+      boardNote.hidden = !boardFallback;
+      boardNote.textContent = boardFallback
+        ? 'No equity/FX floors open — showing 24/7 markets'
+        : '';
+
+      const cards = visible.map((q) => {
+        const card = quoteCard(q, {
+          selected: q.symbol === selected,
+          onSelect: (id) => {
+            selected = id;
+            paintBoard();
+            loadChart(id);
+          },
+        });
+        if (boardFallback) card.classList.add('is-muted');
+        if (animate) card.classList.add('is-enter');
+        return card;
+      });
+      board.replaceChildren(...cards);
+      if (animate) {
+        requestAnimationFrame(() => {
+          board.querySelectorAll('.live-quote.is-enter').forEach((el) => {
+            // force reflow then let CSS animation run; class can stay for reduced-motion no-ops
+            void el.offsetWidth;
+          });
+        });
+      }
       paintTicker();
+    };
+
+    const advanceBoardRotation = () => {
+      if (destroyed) return;
+      const open = openBoardQuotes(allBoardQuotes());
+      if (open.length <= BOARD_VISIBLE_MAX) return;
+      rotateOffset = (rotateOffset + 1) % open.length;
+      paintBoard({ animate: true });
     };
 
     const paintHours = () => {
       if (destroyed) return;
       const snap = getMarketHoursSnapshot();
-      paintHoursCards(hoursEquity, snap.equities);
-      paintHoursCards(hoursForex, snap.forex);
-      overlapRow.replaceChildren(...snap.overlaps.map(overlapChip));
-
-      const eq = snap.activeEquities.length
-        ? `Equities: ${snap.activeEquities.join(', ')}`
-        : 'Equities: none open';
-      const fx = snap.activeForex.length
-        ? `Forex: ${snap.activeForex.join(', ')}`
-        : 'Forex: no major session open';
-      sessionActive.textContent = `${eq} · ${fx}`;
-      sessionContext.textContent = snap.context;
-      clientTzEl.textContent = `Bars fill as wall-clock time advances through each session (DST-aware). Your clock: ${snap.clientTz}. Exchange holidays not tracked.`;
+      const data = unifiedTimeline(snap.at, snap.clientTz);
+      paintUnifiedHoursTimeline(timelineRoot, data);
+      // Re-check open set when hours tick (session open/close boundaries)
+      const open = openBoardQuotes(allBoardQuotes());
+      const showing = [...board.querySelectorAll('.live-quote')].map((el) => {
+        const sym = el.querySelector('.live-quote__sym')?.textContent;
+        return sym;
+      });
+      const openIds = new Set(open.map((q) => q.symbol));
+      const needRepaint = boardFallback
+        ? open.length > 0
+        : (open.length === 0 || showing.some((id) => id && !openIds.has(id)));
+      if (needRepaint) paintBoard();
     };
 
     /** Yellow SMA 20 only on real Massive-backed daily bars (not simulated fallback). */
@@ -327,34 +385,24 @@ export default {
         h('h1', null, 'Read a market as it moves'),
         h('p', { class: 'lead' },
           'Major ETFs, stocks, Bitcoin and EUR/USD with last price, daily change and a tiny sparkline. ',
-          'Tap a card to load a daily chart. Beginner-friendly — practice reading, not placing orders.')),
+          'Open-session cards rotate on the board — tap one to load a daily chart. ',
+          'Beginner-friendly — practice reading, not placing orders.')),
 
       ticker,
 
-      h('section', { class: 'live-hours card', 'aria-label': 'Market hours and sessions' },
+      h('section', { class: 'live-hours card', 'aria-label': 'Market hours timeline' },
         h('div', { class: 'live-hours__head row' },
           h('h2', { class: 't-18' }, 'Market hours'),
           h('span', { class: 'live-hours__live row' },
             h('span', { class: 'live-dot', 'data-state': 'live', 'aria-hidden': 'true' }),
             h('span', { class: 'faint' }, 'Live schedule'))),
-        h('h3', { class: 'live-hours__sub' }, 'Equity floors'),
-        hoursEquity,
-        h('h3', { class: 'live-hours__sub' }, 'Forex sessions'),
-        hoursForex,
-        clientTzEl),
-
-      h('section', { class: 'live-session card', 'aria-label': 'Active market sessions' },
-        h('h2', { class: 't-18' }, 'Active sessions'),
-        sessionActive,
-        h('div', { class: 'live-session__body' },
-          h('p', { class: 'live-session__label faint' }, 'Overlaps'),
-          overlapRow),
-        sessionContext),
+        hoursHost),
 
       h('div', { class: 'live__bar row' },
         h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
         feedEl,
         updatedEl),
+      boardNote,
       board,
       h('section', { class: 'live-detail card', 'aria-label': 'Selected market chart' },
         h('h2', { class: 't-18 live-detail__title' }, 'Daily chart'),
@@ -379,12 +427,17 @@ export default {
         if (typeof document !== 'undefined' && document.hidden) return;
         paintHours();
       }, HOURS_TICK_MS);
+      rotateTimer = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        advanceBoardRotation();
+      }, BOARD_ROTATE_MS);
     }
 
     return () => {
       destroyed = true;
       if (pollTimer) clearInterval(pollTimer);
       if (hoursTimer) clearInterval(hoursTimer);
+      if (rotateTimer) clearInterval(rotateTimer);
       try { chart?.destroy(); } catch (err) { console.error(err); }
     };
   },
