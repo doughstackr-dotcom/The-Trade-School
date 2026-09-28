@@ -583,12 +583,32 @@ function styleIcons(g) {
     ids.map((id) => h('span', { class: `style-icons__i style-icons__i--${id}` }, styleIcon(id, { size: 13 }))));
 }
 
-function arcadeTile(store, g, feature = false) {
+/** Arcade game tile (home + games hub). Third arg may be `feature` boolean or options. */
+export function arcadeTile(store, g, featureOrOpts = false) {
+  const opts = (featureOrOpts && typeof featureOrOpts === 'object')
+    ? featureOrOpts
+    : { feature: !!featureOrOpts };
+  const feature = !!opts.feature;
+  const locked = !!opts.locked;
+  const free = !!opts.free;
+  const href = opts.href || `#g.${g.id}`;
   const st = store.gameStats(g.id);
   const kind = findKind(g.kind);
   const real = sourcesOf(g).includes('real');
   const art = h('div', { class: 'game-tile__art', 'aria-hidden': 'true', 'data-art': g.id });
-  const tile = h('a', { class: ['game-tile card card--link', feature && 'game-tile--feature'], href: `#g.${g.id}`, 'data-kind': g.kind },
+  const tile = h('a', {
+    class: [
+      'game-tile', 'card', 'card--link',
+      feature && 'game-tile--feature',
+      locked && 'game-tile--locked',
+      free && 'game-tile--free',
+    ],
+    href,
+    'data-kind': g.kind,
+    'aria-label': locked
+      ? `${g.title} (locked — subscribe to play)`
+      : `${g.title}${free ? ' — free to play' : ''}`,
+  },
     art,
     h('div', { class: 'game-tile__body' },
       feature ? h('p', { class: 'eyebrow eyebrow--accent' }, 'Capstone simulation') : null,
@@ -597,6 +617,12 @@ function arcadeTile(store, g, feature = false) {
         st?.plays ? starRow(st.stars || 0, { size: 14 }) : null),
       h('p', { class: 'game-tile__blurb' }, g.blurb),
       h('div', { class: 'game-tile__meta' },
+        free
+          ? h('span', { class: 'chip chip--sm chip--accent' }, icon('spark', { size: 12 }), 'Free')
+          : null,
+        locked
+          ? h('span', { class: 'chip chip--sm chip--outline' }, icon('lock', { size: 12 }), 'Locked')
+          : null,
         tierChip(g.tier, { small: true }),
         h('span', { class: 'game-tile__kind faint' }, kind ? icon(kind.icon, { size: 13 }) : null, `${KIND_LABEL[g.kind] || 'Game'} · ${g.minutes} min`),
         g.kind === 'live'
