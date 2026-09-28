@@ -13,7 +13,7 @@
   <g transform="translate(60.00 70.50) scale(14)" fill="none" stroke-linecap="round" stroke-width="1.75">
     <path d="M9 4v5M9 21v3" stroke="#7F8DA5"/>
     <rect x="5.5" y="9" width="7" height="12" rx="1.6" stroke="#7F8DA5"/>
-    <path d="M19 2.5v4.5M19 19v5" stroke="#F2B53A"/>
-    <rect x="15.5" y="7" width="7" height="12" rx="1.6" fill="#F2B53A" stroke="#F2B53A"/>
+    <path d="M19 2.5v4.5M19 19v5" stroke="#5B8CFF"/>
+    <rect x="15.5" y="7" width="7" height="12" rx="1.6" fill="#5B8CFF" stroke="#5B8CFF"/>
   </g>
 </svg>

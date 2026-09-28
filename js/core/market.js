@@ -232,14 +232,14 @@ export function onMarketStatus(fn) {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** POST JSON to the market-data function → { kind: 'ok'|'unconfigured'|'error'|'offline', data, status }. */
-async function callFunction(body, { retries = RETRY_MS.length } = {}) {
+async function callFunction(body, { retries = RETRY_MS.length, timeoutMs } = {}) {
   const f = fetchFn();
   if (!f) return { kind: 'offline', error: 'fetch unavailable' };
   const { url, key } = await loadConfig();
   let lastErr = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = setTimeout(() => ctrl?.abort(), override.timeoutMs || TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl?.abort(), timeoutMs ?? override.timeoutMs ?? TIMEOUT_MS);
     try {
       const res = await f(`${url}/functions/v1/market-data`, {
         method: 'POST',
@@ -522,6 +522,82 @@ function onVisibility(fn) {
   const h = () => fn(!!doc.hidden);
   doc.addEventListener('visibilitychange', h);
   return { hidden: () => !!doc.hidden, off: () => doc.removeEventListener('visibilitychange', h) };
+}
+
+/** Default symbols shown on the Live Market Lab quote board. */
+export const LIVE_QUOTE_SYMBOLS = Object.freeze([
+  'SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'BTC-USD', 'EUR-USD',
+]);
+
+/**
+ * getQuotes({ symbols }?) → { quotes, stale, attribution, fetchedAt, source, error? }
+ * End-of-day last/change via the market-data Edge Function's Massive.com path.
+ * Never throws; on failure returns empty quotes (caller should keep last good data).
+ */
+export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
+  const list = (symbols || LIVE_QUOTE_SYMBOLS).map((s) => String(s).toUpperCase());
+  if (isMockMode()) {
+    const now = Date.now();
+    return {
+      quotes: list.map((id, i) => {
+        const base = 100 + i * 17.3;
+        const change = ((i % 5) - 2) * 0.42;
+        const open = base - 0.2;
+        const price = base + change;
+        const spark = Array.from({ length: 20 }, (_, k) => base + Math.sin(k / 3 + i) * 1.5 + change * (k / 20));
+        return {
+          symbol: id, providerSymbol: id, yahooSymbol: id, name: id,
+          price, open, high: Math.max(open, price) + 0.3, low: Math.min(open, price) - 0.3, prevClose: base,
+          change, changePct: (change / base) * 100, currency: 'USD', asOf: now, sparkline: spark,
+          delayed: true, live: false, ok: true,
+        };
+      }),
+      stale: false,
+      delayed: true,
+      live: false,
+      attribution: 'Test quotes (mock mode)',
+      fetchedAt: now,
+      source: 'mock',
+    };
+  }
+  const res = await callFunction({ quotes: true, symbols: list }, { retries: 1, timeoutMs: 45_000 });
+  if (res.kind === 'unconfigured') {
+    const d = res.data || {};
+    return {
+      quotes: Array.isArray(d.quotes) ? d.quotes : [],
+      stale: false,
+      delayed: true,
+      live: false,
+      unconfigured: true,
+      attribution: d.attribution || '',
+      fetchedAt: d.fetchedAt || Date.now(),
+      source: 'massive',
+      error: d.error || res.error || 'MASSIVE_API_KEY is not set',
+    };
+  }
+  if (res.kind !== 'ok' || !res.data) {
+    return {
+      quotes: [],
+      stale: false,
+      delayed: true,
+      live: false,
+      attribution: '',
+      fetchedAt: Date.now(),
+      source: 'massive',
+      error: res.error || 'Quotes unavailable',
+    };
+  }
+  const d = res.data;
+  return {
+    quotes: Array.isArray(d.quotes) ? d.quotes : [],
+    stale: !!d.stale,
+    delayed: d.delayed !== false,
+    live: !!d.live,
+    attribution: d.attribution || 'Data: Massive.com',
+    fetchedAt: d.fetchedAt || Date.now(),
+    source: d.source || 'massive',
+    error: d.error || null,
+  };
 }
 
 /**

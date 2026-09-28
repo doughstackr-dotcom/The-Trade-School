@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Renders the app icons in icons/ from one SVG design: the brand mark (a hollow bear candle and
-// a gold bull candle, as in js/main.js brandMark()) on the dark navy ground of the token palette.
+// an accent-blue bull candle, as in js/main.js brandMark()) on the dark navy ground of the token palette.
 //
 //   node scripts/render-icons.mjs
 //
@@ -22,7 +22,7 @@ const NAVY = '#0B1220';      // --bg
 const NAVY_2 = '#111A2B';    // --surface
 const GRID = '#1B2640';      // --grid
 const SLATE = '#7F8DA5';     // --text-3 (the hollow bear candle, as in the header mark)
-const GOLD = '#F2B53A';      // --accent
+const ACCENT = '#5B8CFF';    // --accent (dark theme)
 
 /**
  * The brand mark in its own 28-unit space (see brandMark() in js/main.js), scaled and centred
@@ -34,8 +34,8 @@ function mark(scale, { stroke = 1.75 } = {}) {
   return `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${scale})" fill="none" stroke-linecap="round" stroke-width="${stroke}">
     <path d="M9 4v5M9 21v3" stroke="${SLATE}"/>
     <rect x="5.5" y="9" width="7" height="12" rx="1.6" stroke="${SLATE}"/>
-    <path d="M19 2.5v4.5M19 19v5" stroke="${GOLD}"/>
-    <rect x="15.5" y="7" width="7" height="12" rx="1.6" fill="${GOLD}" stroke="${GOLD}"/>
+    <path d="M19 2.5v4.5M19 19v5" stroke="${ACCENT}"/>
+    <rect x="15.5" y="7" width="7" height="12" rx="1.6" fill="${ACCENT}" stroke="${ACCENT}"/>
   </g>`;
 }
 

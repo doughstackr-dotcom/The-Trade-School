@@ -1,412 +1,314 @@
-// #account — profile (display name), plan + billing status, Manage billing, change password,
-// progress sync status, sign out, and the ?checkout=success flow ("Payment received — unlocking
-// your plan…" while auth polls the access level, then a confirmation with a link onwards).
-import { h, icon, toast, confetti, uid } from '../core/ui.js';
-import { auth } from '../core/auth.js';
-import { getSync } from '../core/sync.js';
-import { PLAN_LABELS, planChipLabel, canOpen, describeTarget } from '../core/access.js';
-import { PLANS } from '../config.js';
-import { parseHash } from '../core/router.js';
-import { field, passwordField, formAlert, wireForm } from './auth.js';
+// Account: session status, plan, subscribe / manage billing, sign in & out.
+// Default signed-out view is Sign in; Create account swaps in via toggle or
+// #account.signup (auth-gate deep-link). Return-after-login via
+// access.rememberReturn / consumeReturn.
+import { h, icon, toast } from '../core/ui.js';
+import { PLANS, FREE_IDS } from '../config.js';
+import * as access from '../core/access.js';
 
-function fmtDate(iso) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  try {
-    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-  } catch {
-    return d.toISOString().slice(0, 10);
+function levelLabel(level) {
+  if (level === 'advanced') return 'Advanced';
+  if (level === 'beginner') return 'Beginner';
+  if (level === 'free') return 'Free';
+  return 'Signed out';
+}
+
+function goAfterAuth(ctx) {
+  const ret = access.consumeReturn();
+  if (ret) {
+    ctx.navigate(ret);
+    return true;
   }
+  return false;
 }
 
-function ago(ts) {
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 45) return 'just now';
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const hr = Math.round(m / 60);
-  if (hr < 24) return `${hr} h ago`;
-  return fmtDate(new Date(ts).toISOString());
+function kids(...nodes) {
+  return nodes.filter((n) => n != null && n !== false);
 }
-
-function avatar(name, size = 'lg') {
-  const initial = (String(name || '?').trim()[0] || '?').toUpperCase();
-  return h('span', { class: `avatar avatar--${size}`, 'aria-hidden': 'true' }, initial);
-}
-
-function planChip(level) {
-  const text = planChipLabel(level);
-  if (!text) return null;
-  return h('span', { class: ['chip', 'plan-chip', `plan-chip--${level}`] }, level === 'free' ? null : icon('star-fill', { size: 12 }), text);
-}
-
-/** Where "Continue" goes after a successful checkout: the remembered item if it is now open. */
-function continueTarget(level) {
-  const to = auth.peekReturnTo();
-  if (to) {
-    const route = parseHash(to);
-    const info = describeTarget(route);
-    if (info && canOpen(route, level)) return { hash: to, label: `Continue: ${info.title}` };
-  }
-  const tier = level === 'advanced' ? 'advanced' : 'beginner';
-  return { hash: tier, label: `Open the ${tier === 'advanced' ? 'Advanced' : 'Beginner'} track` };
-}
-
-// ---------------------------------------------------------------- checkout return panel
-
-function unlockPanel() {
-  const el = h('section', { class: 'unlock', 'aria-live': 'polite' });
-  let celebrated = false;
-  function render() {
-    const u = auth.unlock;
-    el.replaceChildren();
-    el.hidden = !u;
-    if (!u) return;
-    el.dataset.state = u.state;
-    if (u.state === 'polling') {
-      el.append(
-        h('span', { class: 'spinner spinner--lg', 'aria-hidden': 'true' }),
-        h('div', null,
-          h('h2', { class: 'unlock__title' }, u.source === 'switch' ? 'Switching your plan…' : 'Payment received — unlocking your plan…'),
-          h('p', { class: 'muted' }, 'This usually takes a few seconds. You can stay on this page.')));
-    } else if (u.state === 'done') {
-      const lv = u.level || auth.level;
-      const go = continueTarget(lv);
-      el.append(
-        h('div', { class: 'unlock__badge', 'aria-hidden': 'true' }, icon('check', { size: 30 })),
-        h('div', { class: 'unlock__body' },
-          h('h2', { class: 'unlock__title' }, `You're on the ${PLAN_LABELS[lv] || 'new plan'}!`),
-          h('p', { class: 'muted' }, lv === 'advanced'
-            ? 'Every Beginner and Advanced lesson and game is unlocked. Thank you for supporting The Trade School.'
-            : 'Every Beginner lesson and game is unlocked. Thank you for supporting The Trade School.'),
-          h('div', { class: 'row' },
-            h('a', { class: 'btn btn--primary', href: `#${go.hash}`, 'data-action': 'continue', on: { click: () => auth.takeReturnTo() } }, go.label, icon('arrow-right', { size: 16 })),
-            h('a', { class: 'btn btn--ghost', href: '#progress' }, 'Your progress'))));
-      if (!celebrated) {
-        celebrated = true;
-        requestAnimationFrame(() => confetti(el));
-      }
-    } else if (u.state === 'slow') {
-      el.append(
-        h('div', { class: 'unlock__badge unlock__badge--calm', 'aria-hidden': 'true' }, icon('clock', { size: 28 })),
-        h('div', { class: 'unlock__body' },
-          h('h2', { class: 'unlock__title' }, 'Your payment went through'),
-          h('p', { class: 'muted' }, 'Unlocking your plan is taking a little longer than usual. It normally finishes within a minute or two: refresh this page shortly. If your plan still does not show after that, contact us and we will sort it out.'),
-          h('div', { class: 'row' },
-            h('button', { type: 'button', class: 'btn', 'data-action': 'check-again', on: { click: async (e) => {
-              const b = e.currentTarget;
-              b.disabled = true;
-              await auth.refreshAccess({ force: true });
-              b.disabled = false;
-              if (auth.level === 'beginner' || auth.level === 'advanced') toast(`${PLAN_LABELS[auth.level]} unlocked.`, { type: 'good' });
-              else toast('Not yet — try again in a moment.', { type: 'info' });
-            } } }, icon('restart', { size: 16 }), 'Check again'))));
-    } else if (u.state === 'signin') {
-      el.append(
-        h('div', { class: 'unlock__badge unlock__badge--calm', 'aria-hidden': 'true' }, icon('info', { size: 28 })),
-        h('div', { class: 'unlock__body' },
-          h('h2', { class: 'unlock__title' }, 'Payment received'),
-          h('p', { class: 'muted' }, 'Sign in to finish unlocking your plan on this device.'),
-          h('a', { class: 'btn btn--primary', href: '#signin' }, 'Sign in')));
-    }
-  }
-  render();
-  return { el, render };
-}
-
-// ---------------------------------------------------------------- sections
-
-function billingSection() {
-  const body = h('div', { class: 'acct-billing', 'aria-live': 'polite' }, h('p', { class: 'muted' }, 'Loading your plan…'));
-  const alert = formAlert();
-  let data = null;
-  let loadErr = null;
-  let pending = false;
-
-  async function load() {
-    try {
-      data = await auth.getBilling();
-      loadErr = null;
-    } catch (err) {
-      loadErr = err;
-    }
-    render();
-  }
-
-  async function run(fn) {
-    if (pending) return;
-    pending = true;
-    alert.clear();
-    render();
-    try {
-      await fn();
-    } catch (err) {
-      alert.show(err?.message || 'Something went wrong. Please try again.');
-    } finally {
-      pending = false;
-      render();
-    }
-  }
-
-  function render() {
-    const lv = auth.level;
-    const sub = data?.subscription || null;
-    const grant = data?.grants?.[0] || null;
-    const busy = auth.billingBusy || pending;
-    const offline = auth.mode === 'offline';
-    body.replaceChildren();
-    body.append(h('div', { class: 'row row--sm acct-billing__plan' }, planChip(lv),
-      sub?.status === 'past_due' ? h('span', { class: 'chip chip--bear chip--sm' }, 'Payment overdue') : null));
-
-    const lines = [];
-    if (sub && ['active', 'trialing', 'past_due'].includes(sub.status)) {
-      const end = fmtDate(sub.current_period_end);
-      if (sub.status === 'trialing' && end) lines.push(`Trial ends on ${end}.`);
-      else if (sub.cancel_at_period_end && end) lines.push(`Cancels on ${end}. You keep your plan until then.`);
-      else if (end) lines.push(`Renews on ${end} at $${PLANS[sub.plan]?.price.toFixed(2)} a month.`);
-      if (sub.plan && PLANS[sub.plan] && sub.plan !== lv && lv !== 'advanced') lines.push(`Your subscription is for the ${PLANS[sub.plan].name} plan; it may take a moment to show here.`);
-    } else if (sub && sub.status === 'canceled') {
-      lines.push(`Your ${PLANS[sub.plan]?.name || ''} subscription has ended.`.replace('  ', ' '));
-    } else if (sub && (sub.status === 'incomplete' || sub.status === 'unpaid')) {
-      lines.push('Your last checkout was not completed. No plan is active.');
-    }
-    if (grant && (lv === grant.plan || lv === 'advanced')) {
-      const until = fmtDate(grant.expires_at);
-      lines.push(`Complimentary ${PLANS[grant.plan]?.name || ''} access${until ? ` until ${until}` : ''}.`.replace('  ', ' '));
-    }
-    if (!lines.length && lv === 'free') lines.push('Free plan: unit 1, the Daily Challenge, the Pattern Library and the Setup Playbook.');
-    for (const l of lines) body.append(h('p', { class: 'muted acct-billing__line' }, l));
-
-    if (sub?.status === 'past_due') {
-      body.append(h('div', { class: 'callout callout--warn', role: 'alert' }, icon('info', { size: 18 }),
-        h('p', null, h('strong', null, 'Your last payment failed. '), 'Update your card in Manage billing to keep your plan.')));
-    }
-    if (loadErr) body.append(h('p', { class: 'faint t-14' }, `Billing details are unavailable right now (${loadErr.message})`));
-
-    const actions = h('div', { class: 'row acct-billing__actions' });
-    if (sub) {
-      actions.append(h('button', {
-        type: 'button', class: ['btn', sub.status === 'past_due' && 'btn--primary'], 'data-action': 'manage-billing', disabled: busy || offline,
-        on: { click: () => run(() => auth.openBillingPortal()) },
-      }, icon('shield', { size: 16 }), pending ? 'Opening billing…' : 'Manage billing'));
-    }
-    if (lv === 'free') {
-      actions.append(h('a', { class: 'btn btn--primary', href: '#pricing' }, 'See plans', icon('arrow-right', { size: 16 })));
-    } else if (lv === 'beginner') {
-      actions.append(h('button', {
-        type: 'button', class: 'btn btn--primary', 'data-action': 'upgrade', disabled: busy || offline,
-        on: { click: () => run(async () => {
-          const r = await auth.checkout('advanced');
-          if (r?.switched) toast('Switching you to Advanced…', { type: 'info' });
-        }) },
-      }, 'Upgrade to Advanced', icon('arrow-right', { size: 16 })));
-    }
-    if (actions.childElementCount) body.append(actions);
-    if (auth.billingBusy) body.append(h('p', { class: 'faint t-14' }, 'Billing buttons are paused while your payment is confirmed.'));
-    body.append(alert.el);
-  }
-
-  const off = auth.on('change', ({ reason } = {}) => {
-    if (reason === 'billing' || reason === 'unlock' && auth.unlock?.state === 'done') load();
-    else render();
-  });
-  load();
-  return {
-    el: h('section', { class: 'acct-card card', 'aria-labelledby': 'acct-plan-h' },
-      h('h2', { class: 'acct-card__title', id: 'acct-plan-h' }, icon('star', { size: 18 }), 'Plan & billing'),
-      body),
-    destroy: off,
-  };
-}
-
-function profileSection() {
-  const alert = formAlert();
-  const name = field({ label: 'Display name', name: 'display_name', autocomplete: 'nickname', maxlength: 60, value: auth.displayName });
-  const email = h('p', { class: 'acct-email' }, h('span', { class: 'field__label' }, 'Email'), h('span', { class: 'mono acct-email__value' }, auth.user?.email || ''));
-  const submit = h('button', { type: 'submit', class: 'btn', 'data-action': 'save-name' }, 'Save name');
-  const form = h('form', { class: 'stack acct-form', 'aria-label': 'Profile' }, alert.el, name.el, h('div', { class: 'row' }, submit), email);
-  wireForm(form, submit, alert, async () => {
-    const v = name.value().trim();
-    if (!v) {
-      name.setError('Enter a display name.');
-      throw new Error('Check the highlighted field.');
-    }
-    await auth.updateProfile({ displayName: v });
-    alert.show('Saved.', 'good');
-  }, { pendingLabel: 'Saving…' });
-  return h('section', { class: 'acct-card card', 'aria-labelledby': 'acct-prof-h' },
-    h('h2', { class: 'acct-card__title', id: 'acct-prof-h' }, icon('book', { size: 18 }), 'Profile'),
-    form);
-}
-
-function syncSection() {
-  const text = h('p', { class: 'acct-sync__text' });
-  const dot = h('span', { class: 'sync-dot', 'aria-hidden': 'true' });
-  const btn = h('button', { type: 'button', class: 'btn btn--sm', 'data-action': 'sync-now' }, icon('restart', { size: 14 }), 'Sync now');
-  const sync = getSync();
-  const render = () => {
-    const st = sync?.status || { state: 'local' };
-    let msg;
-    if (!sync || !auth.user) msg = 'Saved on this device only.';
-    else if (st.state === 'synced' && st.at) msg = `Synced ${ago(st.at)}. Your progress follows you to any device you sign in on.`;
-    else if (st.state === 'syncing') msg = 'Syncing…';
-    else if (st.state === 'error') msg = `Could not sync${st.retryAt ? `, retrying in ${Math.max(1, Math.round((st.retryAt - Date.now()) / 1000))} s` : ''}. Saved on this device only for now.`;
-    else if (st.state === 'offline') msg = 'Offline: saved on this device only for now.';
-    else msg = 'Saved on this device only.';
-    text.textContent = msg;
-    dot.dataset.state = st.state;
-    btn.disabled = !sync || !auth.user || st.state === 'syncing';
-  };
-  btn.addEventListener('click', () => sync?.syncNow());
-  const off = sync?.on(render);
-  const t = setInterval(render, 15000);
-  render();
-  return {
-    el: h('section', { class: 'acct-card card', 'aria-labelledby': 'acct-sync-h' },
-      h('h2', { class: 'acct-card__title', id: 'acct-sync-h' }, icon('layers', { size: 18 }), 'Progress sync'),
-      h('div', { class: 'acct-sync', role: 'status' }, dot, text),
-      h('div', { class: 'row' }, btn, h('a', { class: 'link-btn', href: '#progress' }, 'See your progress', icon('arrow-right', { size: 14 })))),
-    destroy() {
-      off?.();
-      clearInterval(t);
-    },
-  };
-}
-
-function securitySection(ctx) {
-  const alert = formAlert();
-  const pw = passwordField({ label: 'New password', name: 'new-password', autocomplete: 'new-password', strength: true, hint: 'At least 8 characters.' });
-  const pw2 = passwordField({ label: 'Confirm new password', name: 'confirm-password', autocomplete: 'new-password' });
-  const submit = h('button', { type: 'submit', class: 'btn', 'data-action': 'change-password' }, 'Change password');
-  const form = h('form', { class: 'stack acct-form', 'aria-label': 'Change password' }, alert.el, pw.el, pw2.el, h('div', { class: 'row' }, submit));
-  const panelId = uid('pw-panel');
-  const panel = h('div', { id: panelId, hidden: true }, form);
-  const toggle = h('button', { type: 'button', class: 'btn btn--ghost acct-toggle', 'aria-expanded': 'false', 'aria-controls': panelId, on: { click: () => {
-    const open = panel.hidden;
-    panel.hidden = !open;
-    toggle.setAttribute('aria-expanded', String(open));
-    if (open) pw.input.focus();
-  } } }, icon('shield', { size: 16 }), 'Change password', icon('chevron-down', { size: 14 }));
-  wireForm(form, submit, alert, async () => {
-    if (pw.value().length < 8) {
-      pw.setError('Use at least 8 characters.');
-      throw new Error('Check the highlighted field.');
-    }
-    if (pw.value() !== pw2.value()) {
-      pw2.setError('The two passwords do not match.');
-      throw new Error('Check the highlighted field.');
-    }
-    await auth.updatePassword(pw.value());
-    pw.input.value = '';
-    pw2.input.value = '';
-    alert.show('Password changed.', 'good');
-  }, { pendingLabel: 'Saving…' });
-
-  const signOut = h('button', { type: 'button', class: 'btn btn--ghost', 'data-action': 'sign-out', on: { click: async () => {
-    signOut.disabled = true;
-    signOut.replaceChildren(h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Signing out…');
-    try {
-      await auth.signOut();
-      toast('Signed out. Your progress is saved in your account.', { type: 'info' });
-      ctx.navigate('home');
-    } catch (err) {
-      toast(err?.message || 'Could not sign out. Please try again.', { type: 'bad' });
-      signOut.disabled = false;
-    }
-  } } }, icon('arrow-left', { size: 16 }), 'Sign out');
-
-  return h('section', { class: 'acct-card card', 'aria-labelledby': 'acct-sec-h' },
-    h('h2', { class: 'acct-card__title', id: 'acct-sec-h' }, icon('shield', { size: 18 }), 'Security'),
-    h('div', { class: 'row' }, toggle, signOut),
-    panel,
-    h('p', { class: 'faint t-14' }, 'Want a copy of your data or your account deleted? See the ', h('a', { href: '#privacy' }, 'privacy policy'), '.'));
-}
-
-// ---------------------------------------------------------------- page
 
 export default {
-  id: 'account',
-  async mount(root, ctx) {
-    const wrap = h('div', { class: 'account container' }, h('p', { class: 'muted', role: 'status' }, 'Loading your account…'));
-    root.append(wrap);
-    await auth.ready;
-    const cleanups = [];
-    const panel = unlockPanel();
-    cleanups.push(auth.on('change', ({ reason } = {}) => {
-      if (reason === 'unlock' || reason === 'level') panel.render();
-    }));
+  mount(root, ctx) {
+    const body = h('div', { class: 'account-body' });
+    const formWrap = h('div', { class: 'account-forms', 'aria-live': 'polite' });
+    const msg = h('p', { class: 'muted account__msg', role: 'status' }, '');
+    const mode = (ctx.param || ctx.route?.param || '').toLowerCase(); // 'signup' | 'signin' | ''
+    const preferSignup = mode === 'signup' || mode === 'sign-up';
+    // Local view so toggle can swap without a full remount; URL stays in sync.
+    let view = preferSignup ? 'signup' : 'signin';
 
-    // Came back from an email link (confirmation / magic link) with somewhere to go? Go there.
-    if (auth.user && auth.consumeLinkSignIn()) {
-      const to = auth.takeReturnTo();
-      auth.consumeFlash();
-      toast(`Welcome, ${auth.displayName}! You are signed in.`, { type: 'good' });
-      if (to) {
-        ctx.navigate(to);
-        return () => cleanups.forEach((fn) => fn());
+    function syncHash() {
+      const target = view === 'signup' ? 'account.signup' : 'account';
+      const want = `#${target}`;
+      if (location.hash === want) return;
+      try {
+        // replaceState avoids hashchange remount while keeping deep-links shareable.
+        history.replaceState(null, '', want);
+      } catch {
+        /* ignore */
       }
     }
 
-    let drawn = [];
-    const draw = () => {
-      for (const fn of drawn.splice(0)) fn();
-      const flash = auth.consumeFlash();
-      const flashEl = flash ? h('div', { class: `form-alert__box form-alert__box--${flash.tone === 'good' ? 'good' : flash.tone === 'info' ? 'info' : 'bad'}`, role: 'status' },
-        icon(flash.tone === 'good' ? 'check' : 'info', { size: 18 }), h('p', { class: 'form-alert__text' }, flash.text)) : null;
+    function setView(next) {
+      if (next !== 'signin' && next !== 'signup') return;
+      view = next;
+      syncHash();
+      paint();
+    }
 
-      if (!auth.user) {
-        wrap.replaceChildren(
-          panel.el,
-          h('div', { class: 'auth container--read' },
-            h('div', { class: 'auth__card card card--raised' },
-              h('h1', { class: 'auth__title' }, 'Your account'),
-              flashEl,
-              auth.mode === 'offline'
-                ? h('p', { class: 'muted' }, 'Accounts are unavailable right now. The free lessons and games still work; please try again in a little while.')
-                : h('p', { class: 'muted' }, 'Sign in to see your plan, manage billing and keep your progress in sync across devices.'),
-              h('div', { class: 'row' },
-                h('a', { class: 'btn btn--primary', href: '#signin' }, 'Sign in'),
-                h('a', { class: 'btn', href: '#signup' }, 'Create free account')))));
-        return;
-      }
-      const billing = billingSection();
-      const sync = syncSection();
-      drawn.push(billing.destroy, sync.destroy);
-      const name = h('span', null, auth.displayName);
-      const chip = h('span', null, planChip(auth.level));
-      drawn.push(auth.on('change', ({ reason } = {}) => {
-        if (reason === 'profile') name.textContent = auth.displayName;
-        chip.replaceChildren(planChip(auth.level) || '');
-      }));
-      wrap.replaceChildren(
-        flashEl,
-        panel.el,
-        h('header', { class: 'account__head' },
-          avatar(auth.displayName),
-          h('div', { class: 'account__id' },
-            h('p', { class: 'eyebrow' }, 'Your account'),
-            h('h1', { class: 'account__name' }, name),
-            h('p', { class: 'account__email mono' }, auth.user.email)),
-          chip),
-        h('div', { class: 'account__grid' },
-          billing.el,
-          sync.el,
-          profileSection(),
-          securitySection(ctx)));
-    };
-    draw();
-    let who = auth.user?.id || null;
-    cleanups.push(auth.on('change', () => {
-      const now = auth.user?.id || null;
-      if (now !== who) {
-        who = now;
-        draw();
-      }
-    }));
-    return () => {
-      cleanups.forEach((fn) => fn());
-      drawn.forEach((fn) => fn());
-    };
+    function renderSignInForm() {
+      return h('form', {
+        class: 'card account-card account-card--auth',
+        id: 'account-signin',
+        on: {
+          submit: async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            msg.textContent = 'Signing in…';
+            const res = await access.signIn({
+              email: String(fd.get('email') || '').trim(),
+              password: String(fd.get('password') || ''),
+            });
+            if (!res.ok) {
+              msg.textContent = res.error || 'Could not sign in';
+              toast(res.error || 'Could not sign in', { type: 'warn' });
+              return;
+            }
+            toast('Signed in', { type: 'info' });
+            if (!goAfterAuth(ctx)) paint();
+          },
+        },
+      },
+        h('h2', { class: 'account-card__title' }, 'Sign in'),
+        h('p', { class: 'muted account-card__hint' },
+          'Use your email and password to open Beginner and Advanced lessons.'),
+        h('label', { class: 'field' },
+          h('span', null, 'Email'),
+          h('input', {
+            type: 'email', name: 'email', required: true, class: 'input',
+            autocomplete: 'email', 'aria-label': 'Email',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Password'),
+          h('input', {
+            type: 'password', name: 'password', required: true, class: 'input',
+            autocomplete: 'current-password', 'aria-label': 'Password', minlength: '6',
+          })),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Sign in'),
+        h('p', { class: 'account__switch' },
+          h('span', { class: 'muted' }, 'New here?'),
+          ' ',
+          h('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm account__switch-btn',
+            on: { click: () => setView('signup') },
+          }, 'Create account')),
+      );
+    }
+
+    function renderSignUpForm() {
+      return h('form', {
+        class: 'card account-card account-card--auth',
+        id: 'account-signup',
+        on: {
+          submit: async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const password = String(fd.get('password') || '');
+            const confirm = String(fd.get('confirm') || '');
+            if (password !== confirm) {
+              msg.textContent = 'Passwords do not match';
+              toast('Passwords do not match', { type: 'warn' });
+              return;
+            }
+            msg.textContent = 'Creating account…';
+            const res = await access.signUp({
+              email: String(fd.get('email') || '').trim(),
+              password,
+              displayName: String(fd.get('displayName') || '').trim() || undefined,
+            });
+            if (!res.ok) {
+              msg.textContent = res.error || 'Could not sign up';
+              toast(res.error || 'Could not sign up', { type: 'warn' });
+              return;
+            }
+            if (res.needsConfirmation) {
+              msg.textContent = 'Check your email to confirm, then sign in.';
+              toast('Confirm your email to finish sign-up', { type: 'info', duration: 6000 });
+              setView('signin');
+            } else {
+              toast('Account created', { type: 'info' });
+              if (!goAfterAuth(ctx)) paint();
+            }
+          },
+        },
+      },
+        h('h2', { class: 'account-card__title' }, 'Create account'),
+        h('p', { class: 'muted account-card__hint' },
+          'Free account — no card required. Beginner and Advanced tracks unlock after you sign in.'),
+        h('label', { class: 'field' },
+          h('span', null, 'Display name'),
+          h('input', {
+            type: 'text', name: 'displayName', class: 'input',
+            autocomplete: 'nickname', 'aria-label': 'Display name',
+            placeholder: 'Optional',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Email'),
+          h('input', {
+            type: 'email', name: 'email', required: true, class: 'input',
+            autocomplete: 'email', 'aria-label': 'Email',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Password'),
+          h('input', {
+            type: 'password', name: 'password', required: true, class: 'input',
+            autocomplete: 'new-password', 'aria-label': 'Password', minlength: '6',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Confirm password'),
+          h('input', {
+            type: 'password', name: 'confirm', required: true, class: 'input',
+            autocomplete: 'new-password', 'aria-label': 'Confirm password', minlength: '6',
+          })),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Create account'),
+        h('p', { class: 'account__switch' },
+          h('span', { class: 'muted' }, 'Already have an account?'),
+          ' ',
+          h('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm account__switch-btn',
+            on: { click: () => setView('signin') },
+          }, 'Sign in')),
+      );
+    }
+
+    function renderSignedOut() {
+      const pending = access.peekReturn();
+      const returnNote = pending
+        ? h('p', { class: 'account__return muted' },
+          'After you sign in we will take you back to ',
+          h('code', { class: 'mono' }, `#${pending}`),
+          '.')
+        : null;
+
+      const gateNote = view === 'signup'
+        ? h('p', { class: 'lead account__gate-note' },
+          'Create a free account to open the Beginner and Advanced tracks. Home, Dashboard and the other tools stay open without signing in.')
+        : null;
+
+      formWrap.replaceChildren(...kids(
+        returnNote,
+        gateNote,
+        h('div', { class: 'account-auth' },
+          view === 'signup' ? renderSignUpForm() : renderSignInForm()),
+        msg,
+        h('p', { class: 'faint account__footnote' },
+          'If subscribe buttons say “Subscriptions not open yet”, Stripe secrets are not configured — see docs/SECRETS.md.'),
+      ));
+
+      queueMicrotask(() => {
+        const sel = view === 'signup'
+          ? '#account-signup input[name="email"]'
+          : '#account-signin input[name="email"]';
+        formWrap.querySelector(sel)?.focus?.();
+      });
+    }
+
+    function renderSignedIn(a) {
+      const plan = a.level && PLANS[a.level];
+      formWrap.replaceChildren(
+        h('section', { class: 'card account-card' },
+          h('p', { class: 'eyebrow' }, 'Signed in'),
+          h('h2', null, a.user?.email || 'Member'),
+          h('p', { class: 'account__plan' },
+            h('span', { class: 'chip' }, levelLabel(a.level)),
+            plan ? h('span', { class: 'muted' }, ` · $${plan.price}/mo`) : h('span', { class: 'muted' }, ' · free unit + library')),
+          h('div', { class: 'row' },
+            a.level !== 'advanced'
+              ? h('button', {
+                type: 'button', class: 'btn btn--primary',
+                on: {
+                  click: async () => {
+                    const planId = a.level === 'beginner' ? 'advanced' : 'beginner';
+                    const res = await access.checkout(planId);
+                    if (!res.ok) toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: 5000 });
+                    else if (res.switched) { toast('Plan updated', { type: 'info' }); paint(); }
+                  },
+                },
+              }, a.level === 'beginner' ? 'Upgrade to Advanced' : 'Get Beginner')
+              : null,
+            h('button', {
+              type: 'button', class: 'btn btn--ghost',
+              'aria-label': 'Manage billing in Stripe portal',
+              on: {
+                click: async () => {
+                  const res = await access.openBillingPortal();
+                  if (!res.ok) toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: 5000 });
+                },
+              },
+            }, icon('compass', { size: 14 }), 'Manage billing'),
+            h('button', {
+              type: 'button', class: 'btn btn--ghost',
+              on: {
+                click: async () => {
+                  await access.signOut();
+                  toast('Signed out', { type: 'info' });
+                  paint();
+                },
+              },
+            }, 'Sign out'),
+          ),
+        ),
+        h('section', { class: 'card' },
+          h('h3', null, 'Free modules'),
+          h('ul', { class: 'lesson-list' },
+            FREE_IDS.map((id) => {
+              const e = ctx.registry?.findEntry?.(id);
+              if (!e) return null;
+              return h('li', null, h('a', { href: `#${e.type === 'game' ? 'g' : 'l'}.${e.id}` }, e.title));
+            }),
+          ),
+          h('p', { class: 'row' },
+            h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
+            h('a', { class: 'btn btn--ghost', href: '#beginner' }, 'Beginner on Dashboard')),
+        ),
+        msg,
+      );
+    }
+
+    function paint() {
+      const a = access.getAccess();
+      // Already signed in with a pending return (e.g. session restored after gate redirect).
+      if (a.user && goAfterAuth(ctx)) return;
+      const signupMode = !a.user && view === 'signup';
+      body.replaceChildren(
+        h('p', { class: 'eyebrow' }, signupMode ? 'Join The Trade School' : 'Account'),
+        h('h1', null, signupMode ? 'Create your account' : a.user ? 'Your account' : 'Sign in'),
+        h('p', { class: 'lead' },
+          signupMode
+            ? 'Beginner and Advanced lessons need a free account. Home, Dashboard and the other tools stay open without signing in. Educational use only — not financial advice.'
+            : a.user
+              ? 'Plan status and billing live here. Educational use only — not financial advice.'
+              : 'Sign in with email and password to open Beginner and Advanced lessons and games. Educational use only — not financial advice.'),
+      );
+      msg.textContent = '';
+      if (a.user) renderSignedIn(a);
+      else renderSignedOut();
+    }
+
+    root.append(h('div', { class: 'container account' }, body, formWrap));
+    let unsub = null;
+    access.ready.then(() => {
+      paint();
+      unsub = access.onChange(() => {
+        // Prefer return-to over re-painting account when a pending hash exists.
+        if (access.getAccess().user && access.peekReturn()) {
+          goAfterAuth(ctx);
+          return;
+        }
+        paint();
+      });
+    });
+    return () => { if (unsub) unsub(); };
   },
 };

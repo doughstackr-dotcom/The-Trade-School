@@ -1,0 +1,276 @@
+/* Platforms page (file: affiliate.*)
+   Hierarchy: intro → Trading platforms rails → coming soon → disclosure.
+   (Site-wide risk ticker lives in the app shell — see css/risk-ticker.css.)
+   Surfaces/text/borders use design tokens so light & dark themes stay native.
+   Brand logos sit on a near-white pad (official marks assume a light ground);
+   no invert filter — pad keeps marks readable in both themes. */
+
+.affiliate {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-top: 16px;
+  padding-bottom: 56px;
+}
+
+.aff-intro {
+  max-width: 44rem;
+}
+
+.aff-partners {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.aff-disclaimer {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  margin-top: var(--space-6, 1.5rem);
+}
+
+
+.aff-disclaimer p + p {
+  margin-top: 6px;
+}
+
+/* —— Category sections —— */
+
+.aff-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.aff-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 40rem;
+}
+
+.aff-section__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 1.8vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.aff-section__blurb {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* —— Live partner rails (horizontal rows) —— */
+
+.aff-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aff-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.aff-row:hover {
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+}
+
+.aff-row__index {
+  flex: 0 0 auto;
+  min-width: 1.75rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.aff-row__logo {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  /* Near-white pad so official brand marks (often dark ink) stay readable in dark theme. */
+  background: color-mix(in oklab, #ffffff 94%, var(--surface));
+  overflow: hidden;
+  color: var(--text-3);
+  box-sizing: border-box;
+}
+
+.aff-row__logo--mono {
+  font-family: var(--font-display, inherit);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+  padding: 0;
+}
+
+.aff-row__logo--empty {
+  border-style: dashed;
+  background: var(--surface-2);
+  color: var(--text-3);
+  padding: 0;
+}
+
+.aff-row__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.aff-row__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aff-row__titles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.aff-row__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.aff-row__desc {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.aff-row__action {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.aff-row__cta {
+  white-space: nowrap;
+}
+
+/* —— Coming soon strip —— */
+
+.aff-section--soon {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.aff-soon {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.aff-soon__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.aff-soon__logo {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in oklab, var(--line) 80%, var(--text-3));
+  background: var(--surface);
+  color: var(--text-3);
+}
+
+.aff-soon__logo--img {
+  border-style: solid;
+  background: color-mix(in oklab, #ffffff 94%, var(--surface));
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.aff-soon__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.aff-soon__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.aff-soon__name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.aff-soon__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* —— Responsive: stack CTA under body on narrow viewports —— */
+
+@media (max-width: 640px) {
+  .aff-row {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "idx logo body"
+      "cta cta cta";
+  }
+
+  .aff-row__index { grid-area: idx; }
+  .aff-row__logo { grid-area: logo; }
+  .aff-row__body { grid-area: body; }
+  .aff-row__action {
+    grid-area: cta;
+    width: 100%;
+  }
+
+  .aff-row__cta {
+    width: 100%;
+    justify-content: center;
+  }
+}

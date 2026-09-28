@@ -1027,12 +1027,14 @@ function cupAndHandle(rng) {
   return finish(items, { breakoutPoint: bo, startPoint: 3, keyStart: 3, neckline: [3, 3], direction: 1, measure: { type: 'neckline', extreme: [7] } }, false);
 }
 
-function roundingBottom(rng) {
+/** Rounding bottom (inv = rounding top). */
+function roundingBottom(rng, inv = false) {
   const L = 100;
   const D = L * rng.float(0.1, 0.15);
   const saucer = (u) => L - D * Math.pow(Math.sin(Math.PI * u), 0.65);
   const Ws = 5.0;
   const us = [0, 0.12, 0.26, 0.4, 0.5, 0.6, 0.74, 0.88, 1.0];
+  const midLabel = inv ? 'Top' : 'Bottom';
   const items = place([
     { w: 0, p: L * (1 + rng.float(0.08, 0.11)) },
     { w: 1.3, p: L * (1 - rng.float(0.015, 0.025)) },
@@ -1040,13 +1042,74 @@ function roundingBottom(rng) {
     ...us.slice(1).map((u, i) => ({
       w: (u - us[i]) * Ws,
       p: u === 1 ? L * (1 - rng.float(0.005, 0.012)) : saucer(u),
-      label: u === 0.5 ? 'Bottom' : undefined,
+      label: u === 0.5 ? midLabel : undefined,
     })),
     { w: 0.6, p: L * (1 + rng.float(0.016, 0.025)), label: 'Breakout' },
   ]);
   const bo = items.length - 1;
-  return finish(items, { breakoutPoint: bo, startPoint: 2, keyStart: 2, neckline: [2, 2], direction: 1, measure: { type: 'neckline', extreme: [6] } }, false);
+  return finish(items, { breakoutPoint: bo, startPoint: 2, keyStart: 2, neckline: [2, 2], direction: 1, measure: { type: 'neckline', extreme: [6] } }, inv);
 }
+
+/** Bull pennant (inv = bear pennant): sharp pole, then a short converging triangle. */
+function bullPennant(rng, inv) {
+  const poleStart = 100 * rng.float(0.9, 0.93);
+  const Hp = poleStart * rng.float(0.095, 0.13);
+  const top = poleStart + Hp;
+  const W0 = Hp * rng.float(0.3, 0.4);
+  const W1 = W0 * rng.float(0.2, 0.32);
+  const mid0 = top - Hp * rng.float(0.1, 0.18);
+  const drift = Hp * rng.float(0.02, 0.07);
+  const mid = (u) => mid0 - drift * u;
+  const width = (u) => W0 + (W1 - W0) * u;
+  const upper = (u) => mid(u) + width(u) / 2;
+  const lower = (u) => mid(u) - width(u) / 2;
+  const Wf = 1.35;
+  const us = [0, 0.28, 0.55, 0.78, 1.0];
+  const s = poleStart * (1 - rng.float(0.035, 0.055));
+  const items = place([
+    { w: 0, p: s },
+    { w: 1.7, p: poleStart * (1 + rng.float(0.018, 0.03)) },
+    { w: 0.75, p: poleStart, label: 'Flagpole start' },
+    { w: 0.8, p: top, label: inv ? 'Flagpole bottom' : 'Flagpole top' },
+    { w: (us[1] - us[0]) * Wf, p: lower(us[1]), label: 'Pennant' },
+    { w: (us[2] - us[1]) * Wf, p: upper(us[2]) - width(us[2]) * 0.04, label: 'Pennant' },
+    { w: (us[3] - us[2]) * Wf, p: lower(us[3]) + width(us[3]) * 0.04, label: 'Pennant' },
+    { w: (us[4] - us[3]) * Wf, p: upper(us[4]) + Hp * rng.float(0.13, 0.2), label: 'Breakout' },
+  ]);
+  return finish(items, {
+    breakoutPoint: 7, startPoint: 2, keyStart: 3,
+    boundaries: { upper: [3, 5], lower: [4, 6] },
+    direction: 1, measure: { type: 'pole', from: 2, to: 3 },
+  }, inv);
+}
+
+/** Bull rectangle / trading range (inv = bear rectangle): flat support & resistance, break with the trend. */
+function rectangle(rng, inv) {
+  const R = 100;
+  const S = R * (1 - rng.float(0.045, 0.065));
+  const Ht = R - S;
+  const Wt = 4.6;
+  const us = [0, 0.18, 0.36, 0.54, 0.72, 0.88, 1.0];
+  const res = inv ? 'Support' : 'Resistance';
+  const sup = inv ? 'Resistance' : 'Support';
+  const s = S * (1 - rng.float(0.05, 0.07));
+  const items = place([
+    ...priorTrend(rng, s, R),
+    { w: 1.0, p: R, label: res },
+    { w: (us[1] - us[0]) * Wt, p: S, label: sup },
+    { w: (us[2] - us[1]) * Wt, p: R - Ht * rng.float(0, 0.04), label: res },
+    { w: (us[3] - us[2]) * Wt, p: S + Ht * rng.float(0, 0.04), label: sup },
+    { w: (us[4] - us[3]) * Wt, p: R, label: res },
+    { w: (us[5] - us[4]) * Wt, p: S + Ht * 0.05, label: sup },
+    { w: (us[6] - us[5]) * Wt, p: R * (1 + rng.float(0.016, 0.025)), label: 'Breakout' },
+  ]);
+  return finish(items, {
+    breakoutPoint: 9, startPoint: 3, keyStart: 3,
+    boundaries: { upper: [3, 7], lower: [4, 8] },
+    direction: 1, measure: { type: 'boundaries' },
+  }, inv);
+}
+
 
 function cdef(id, name, bias, kind, reliability, text, path) {
   return { id, name, bias, kind, reliability, ...text, path };
@@ -1175,7 +1238,47 @@ export const CHART_PATTERNS = {
     howToTrade:
       'Wait for a close above the level where the saucer began (its left lip). Buy the break or a retest, with a stop below the right side of the base.',
     target: "Project the saucer's depth up from the breakout level.",
-  }, (rng) => roundingBottom(rng)),
+  }, (rng) => roundingBottom(rng, false)),
+  'rounding-top': cdef('rounding-top', 'Rounding top', 'bearish', 'reversal', 2, {
+    summary: "A long, gradual 'dome'-shaped top where an uptrend slowly flattens out and turns back down.",
+    psychology:
+      'Buying pressure fades gradually rather than suddenly. Over many sessions sentiment shifts from bullish, to neutral, to bearish.',
+    howToTrade:
+      'Wait for a close below the level where the dome began (its left lip). Sell the break or a retest, with a stop above the right side of the top.',
+    target: "Project the dome's height down from the breakout level.",
+  }, (rng) => roundingBottom(rng, true)),
+  'bull-pennant': cdef('bull-pennant', 'Bull pennant', 'bullish', 'continuation', 2, {
+    summary: 'A sharp rally (the flagpole) followed by a short, converging triangle of lower highs and higher lows (the pennant).',
+    psychology:
+      'After a burst of buying, price consolidates tightly as both sides lose aggression. The pause is brief; when it ends, buyers resume the trend.',
+    howToTrade:
+      "Buy a close above the pennant's upper line, with a stop below the pennant's low. A good pennant is short and retraces well under half of the pole.",
+    target: 'Add the length of the flagpole to the breakout point.',
+  }, (rng) => bullPennant(rng, false)),
+  'bear-pennant': cdef('bear-pennant', 'Bear pennant', 'bearish', 'continuation', 2, {
+    summary: 'A sharp drop (the flagpole) followed by a short, converging triangle of higher lows and lower highs (the pennant).',
+    psychology:
+      'After a burst of selling, price consolidates tightly. When the pause ends, sellers resume the downtrend.',
+    howToTrade:
+      "Sell a close below the pennant's lower line, with a stop above the pennant's high. A good pennant is short and retraces well under half of the pole.",
+    target: 'Subtract the length of the flagpole from the breakout point.',
+  }, (rng) => bullPennant(rng, true)),
+  'bull-rectangle': cdef('bull-rectangle', 'Bull rectangle', 'bullish', 'continuation', 2, {
+    summary: 'After an uptrend, price consolidates between flat support and flat resistance (a trading range), then breaks upward.',
+    psychology:
+      'Buyers and sellers temporarily balance inside a clear range. The prior uptrend usually resumes once price clears the top of the box.',
+    howToTrade:
+      'Wait for a close above resistance. Buy the break or a retest of old resistance as support, with a stop below the rectangle low.',
+    target: "Project the rectangle's height (resistance minus support) up from the breakout.",
+  }, (rng) => rectangle(rng, false)),
+  'bear-rectangle': cdef('bear-rectangle', 'Bear rectangle', 'bearish', 'continuation', 2, {
+    summary: 'After a downtrend, price consolidates between flat support and flat resistance (a trading range), then breaks downward.',
+    psychology:
+      'Buyers and sellers temporarily balance inside a clear range. The prior downtrend usually resumes once price loses the bottom of the box.',
+    howToTrade:
+      'Wait for a close below support. Sell the break or a retest of old support from below, with a stop above the rectangle high.',
+    target: "Project the rectangle's height (resistance minus support) down from the breakout.",
+  }, (rng) => rectangle(rng, true))
 };
 
 export const CHART_PATTERN_IDS = Object.keys(CHART_PATTERNS);
@@ -1432,10 +1535,10 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
   // Rounded bases (cup, saucer) have the textbook U-shaped volume instead: it dries up towards
   // the bottom of the base and picks up again as price climbs back to the rim; a handle is quiet.
   const span = Math.max(1, patternEnd - patternStart);
-  const rounded = patternId === 'cup-and-handle' || patternId === 'rounding-bottom';
+  const rounded = patternId === 'cup-and-handle' || patternId === 'rounding-bottom' || patternId === 'rounding-top';
   const rim = rounded ? level(patternStart) : 0;
   const bottomIdx = rounded ? A(shape.measure.extreme[0]).idx : 0;
-  const depth = rounded ? Math.max(1e-9, rim - A(shape.measure.extreme[0]).price) : 1;
+  const depth = rounded ? Math.max(1e-9, Math.abs(rim - A(shape.measure.extreme[0]).price)) : 1;
   const rightRim = Object.keys(shape.labels).find((k) => shape.labels[k] === 'Right rim');
   const handleFrom = rightRim != null ? A(Number(rightRim)).idx : Infinity;
   // A flag's volume is heavy on the pole and fades through the flag itself.
@@ -1449,7 +1552,7 @@ export function chartScenario(patternId, { seed, count = 110, start = 100, after
     else if (!rounded) f = 1 - 0.5 * ((i - patternStart) / span);
     else if (i > handleFrom) f = 0.55;
     else {
-      const d = clamp((rim - candles[i].c) / depth, 0, 1);
+      const d = clamp(Math.abs(rim - candles[i].c) / depth, 0, 1);
       f = (1 - 0.55 * d) * (i > bottomIdx ? 0.95 : 1);
     }
     candles[i].v = Math.max(1, Math.round(poleTop != null && i <= poleTop ? candles[i].v : candles[i].v ** 0.3 * (V0 * f) ** 0.7));

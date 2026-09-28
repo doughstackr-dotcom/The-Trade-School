@@ -5,20 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>The Trade School</title>
   <meta name="description" content="Learn trading fundamentals by playing: candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, moving averages, indicators, multi-timeframe analysis and risk. Beginner and Advanced tracks with interactive lessons, games and simulations.">
+
+  <!-- Social cards. og:image / og:url must be absolute once the site has a real domain —
+       swap the paths below for e.g. https://yourdomain/og-image.png at deploy time. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Trade School">
+  <meta property="og:title" content="The Trade School — learn trading by playing">
+  <meta property="og:description" content="Interactive lessons and hands-on games that teach you to read a price chart: candlesticks, support and resistance, patterns, Fibonacci, indicators and risk. Educational only, no money involved.">
+  <meta property="og:image" content="og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Trade School — learn trading by playing">
+  <meta name="twitter:description" content="Interactive lessons and hands-on games that teach you to read a price chart. Educational only, no money involved.">
+  <meta name="twitter:image" content="og-image.png">
+
   <meta name="theme-color" content="#F3F5F9" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0B1220" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
-  <!-- Installable app (ARCHITECTURE §10): manifest, icons (rendered by scripts/render-icons.mjs), home-screen metas. -->
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
-  <meta name="application-name" content="The Trade School">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Trade School">
-  <!-- "default": iOS draws an opaque status bar that follows light/dark; black-translucent would put white clock text over the light theme. -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B1220'/%3E%3Cpath d='M11 6v4M11 22v3M21 5v5M21 20v6' stroke='%230A8F6A' stroke-width='2' stroke-linecap='round'/%3E%3Crect x='8' y='10' width='6' height='12' rx='1.5' fill='none' stroke='%23A5B1C6' stroke-width='2'/%3E%3Crect x='18' y='10' width='6' height='10' rx='1.5' fill='%230A8F6A'/%3E%3C/svg%3E">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,8 +36,13 @@
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/chart.css">
+  <link rel="stylesheet" href="css/playbook.css">
+  <link rel="stylesheet" href="css/risk-ticker.css">
+  <link rel="stylesheet" href="css/live.css">
+  <link rel="stylesheet" href="css/affiliate.css">
   <link rel="stylesheet" href="css/account.css">
+  <link rel="stylesheet" href="css/chart.css">
+  <link rel="stylesheet" href="css/games.css">
 
   <script>
     // Apply a saved theme before first paint (no flash). 'system' = no attribute.

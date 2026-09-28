@@ -1,14 +1,10 @@
-// Stub game (volume-verdict) — proves the GameShell §12 contract: play styles, a hint per round,
-// and Real-market rounds via game.realRound() with a textbook fallback and game.revealSource().
-// Replaced by the full swipe game.
+// Volume Verdict — Confirm or Trap with swipe + volume chart.
 import { GameShell } from '../core/game-kit.js';
-import { h } from '../core/ui.js';
-import { CandleChart } from '../core/chart.js';
 import { chartScenario } from '../core/patterns.js';
+import { gameplayPreview, decisionChart, swipeCard, verdictFlourish } from '../core/game-ui.js';
 
 const TEXTBOOK_PATTERNS = ['ascending-triangle', 'descending-triangle', 'double-top', 'double-bottom', 'bull-flag', 'bear-flag'];
 
-/** Textbook round: a chart-pattern breakout that either holds (strong volume) or fails (thin volume). */
 function textbookRound(rng, difficulty) {
   const trap = rng.chance(0.5);
   const id = rng.pick(difficulty < 0.5 ? TEXTBOOK_PATTERNS.slice(0, 4) : TEXTBOOK_PATTERNS);
@@ -25,8 +21,9 @@ export default {
       howTo: [
         'Price has just broken a level. Check the volume under the breakout candle.',
         'Confirms: strong volume behind the move. Trap: thin volume, likely to fail.',
-        'Watch the reveal: what happened next, and on real charts, which market it was.',
+        'Swipe Confirm or Trap, then watch the reveal.',
       ],
+      preview: (el) => gameplayPreview(el, { seed: 88, direction: 'up', title: 'Volume Verdict', score: 470, streak: 3, round: '2/6', showVolume: true }),
       async onRound(g, { rng, stage, difficulty }) {
         const real = await g.realRound({
           kinds: ['breakout-up', 'breakout-down', 'fakeout-up', 'fakeout-down'],
@@ -34,8 +31,6 @@ export default {
           before: 60,
           after: 14,
         });
-        // A scanner fakeout is decided on the candle that closes back inside the range, so stop
-        // the chart at its breakout candle (meta.breakoutIdx) or the answer would be visible.
         const kind = real?.setup?.kind || '';
         const r = real
           ? {
@@ -47,34 +42,45 @@ export default {
             decimals: real.decimals,
           }
           : textbookRound(rng, difficulty);
-        const host = h('div', { class: 'chart-frame' });
-        stage.append(h('p', { class: 'quiz__q' }, `Price just broke ${r.direction < 0 ? 'down through support' : 'up through resistance'}. Does volume confirm the move?`), host);
-        const chart = new CandleChart(host, {
+        const q = `Price just broke ${r.direction < 0 ? 'down through support' : 'up through resistance'}. Does volume confirm?`;
+        const dc = decisionChart(stage, {
           candles: r.candles,
           visible: r.decisionIdx + 1,
           slots: r.candles.length,
-          height: 300,
+          height: 340,
           showVolume: true,
           decimals: r.decimals ?? 2,
-          ariaLabel: 'Breakout chart with volume. The future is hidden until you answer.',
+          question: q,
+          ariaLabel: 'Breakout chart with volume. Future hidden.',
         });
-        if (Number.isFinite(r.level)) chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
-        chart.addMarker({ idx: r.decisionIdx, position: r.direction < 0 ? 'below' : 'above', shape: 'dot', color: 'accent' });
-        g.setHint('Compare the breakout candle’s volume bar with the ten bars before it. Real breakouts usually come on clearly above-average volume.');
-        g.ask({
-          options: [
-            { label: 'Trap: thin volume', value: 'trap' },
-            { label: 'Confirms: strong volume', value: 'confirm' },
-          ],
-          answer: r.trap ? 'trap' : 'confirm',
-          explain: r.trap
+        if (Number.isFinite(r.level)) dc.chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
+        dc.chart.addMarker({ idx: r.decisionIdx, position: r.direction < 0 ? 'below' : 'above', shape: 'dot', color: 'accent' });
+        let answered = false;
+        const finish = (sayTrap) => {
+          if (answered) return;
+          answered = true;
+          const ok = sayTrap === r.trap;
+          const explain = r.trap
             ? '<strong>Trap.</strong> The break came on weak participation and price fell back inside the range.'
-            : '<strong>Confirmed.</strong> Volume expanded on the break and price followed through.',
-          onAnswer: () => {
-            chart.reveal({ to: r.candles.length, interval: 45 });
-          },
-        });
-        return () => chart.destroy();
+            : '<strong>Confirmed.</strong> Volume expanded on the break and price followed through.';
+          if (ok) g.correct(explain);
+          else g.wrong(explain);
+          dc.reveal();
+          verdictFlourish(stage, { ok, title: ok ? 'Volume read' : 'Missed the tape', detail: explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
+          g.nextButton();
+        };
+        stage.append(swipeCard({
+          title: 'Volume call',
+          body: 'Strong participation = Confirm. Thin poke = Trap.',
+          takeLabel: 'Confirm',
+          skipLabel: 'Trap',
+          takeClass: 'btn--bull',
+          skipClass: 'btn--bear',
+          onTake: () => finish(false),
+          onSkip: () => finish(true),
+        }));
+        g.setHint('Compare the breakout candle’s volume bar with the ten bars before it.');
+        return () => dc.destroy();
       },
     });
     return () => game.destroy();

@@ -1,15 +1,15 @@
 // Home: the one bold moment (a live teaching chart), today's Daily Challenge and Live Market Lab,
 // the two tracks, the three play styles, the arcade (filterable by kind) and your level.
-import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
+import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion, modal } from '../core/ui.js';
 import {
-  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, unitsOf, hashFor, learningPath,
+  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, hashFor,
 } from '../registry.js';
 import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
 import { sma } from '../core/indicators.js';
 import { styleIcon } from '../core/game-kit.js';
-import { accessChip } from './track.js';
-import { PLANS } from '../config.js';
+import { trackCard as sharedTrackCard } from '../core/curriculum.js';
+import * as access from '../core/access.js';
 
 const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate', memory: 'Memory', swipe: 'Swipe', story: 'Story', live: 'Live' };
 
@@ -572,42 +572,8 @@ function continueStrip(store) {
       h('span', { class: 'continue__go' }, 'Resume', icon('arrow-right'))));
 }
 
-function unitStatus(store, unit) {
-  const bits = [];
-  if (unit.lesson) {
-    bits.push(store.isLessonDone(unit.lesson)
-      ? h('span', { class: 'unit-row__check', title: 'Lesson complete' }, icon('check', { size: 14, label: 'Lesson complete' }))
-      : h('span', { class: 'unit-row__check is-empty', title: 'Lesson not done', 'aria-label': 'Lesson not done' }));
-  }
-  const best = Math.max(0, ...unit.games.map((g) => store.gameStats(g)?.stars || 0));
-  bits.push(starRow(best, { size: 13 }));
-  return h('span', { class: 'unit-row__status' }, bits);
-}
-
-function trackCard(store, tier, access) {
-  const p = store.tierProgress(tier.id);
-  const units = unitsOf(tier.id);
-  return h('article', { class: `track-card track-card--${tier.id}` },
-    h('header', { class: 'track-card__head' },
-      h('div', { class: 'row row--between' },
-        tierChip(tier.id),
-        h('span', { class: 'track-card__count mono' }, `${p.done}/${p.total}`)),
-      h('h3', { class: 'track-card__title' }, tier.title, h('span', { class: 'track-card__sub' }, ` — ${tier.subtitle}`)),
-      h('p', { class: 'muted track-card__blurb' }, tier.blurb),
-      meter(p.pct, { label: `${tier.title} track progress` })),
-    h('ol', { class: 'track-card__units' },
-      units.map((u, i) => {
-        const target = u.lesson ? `l.${u.lesson}` : `g.${u.games[0]}`;
-        const first = findEntry(u.lesson || u.games[0]);
-        const locked = !!access?.enforced && !!first && !access.canOpen(first);
-        return h('li', null,
-          h('a', { class: 'unit-row', href: `#${target}` },
-            h('span', { class: 'unit-row__n mono' }, String(i + 1).padStart(2, '0')),
-            h('span', { class: 'unit-row__title' }, u.title),
-            locked ? h('span', { class: 'unit-row__lock', title: `Part of the ${access.lockLabel(access.requiredPlan(first))}` }, icon('lock', { size: 14, label: 'Locked' })) : null,
-            unitStatus(store, u)));
-      })),
-    h('a', { class: 'btn track-card__cta', href: `#${tier.id}` }, `Open the ${tier.title} track`, icon('arrow-right')));
+function trackCard(store, tier) {
+  return sharedTrackCard(store, tier, { cta: 'dashboard' });
 }
 
 function styleIcons(g) {
@@ -617,12 +583,32 @@ function styleIcons(g) {
     ids.map((id) => h('span', { class: `style-icons__i style-icons__i--${id}` }, styleIcon(id, { size: 13 }))));
 }
 
-function arcadeTile(store, g, feature = false, access = null) {
+/** Arcade game tile (home + games hub). Third arg may be `feature` boolean or options. */
+export function arcadeTile(store, g, featureOrOpts = false) {
+  const opts = (featureOrOpts && typeof featureOrOpts === 'object')
+    ? featureOrOpts
+    : { feature: !!featureOrOpts };
+  const feature = !!opts.feature;
+  const locked = !!opts.locked;
+  const free = !!opts.free;
+  const href = opts.href || `#g.${g.id}`;
   const st = store.gameStats(g.id);
   const kind = findKind(g.kind);
   const real = sourcesOf(g).includes('real');
   const art = h('div', { class: 'game-tile__art', 'aria-hidden': 'true', 'data-art': g.id });
-  const tile = h('a', { class: ['game-tile card card--link', feature && 'game-tile--feature'], href: `#g.${g.id}`, 'data-kind': g.kind },
+  const tile = h('a', {
+    class: [
+      'game-tile', 'card', 'card--link',
+      feature && 'game-tile--feature',
+      locked && 'game-tile--locked',
+      free && 'game-tile--free',
+    ],
+    href,
+    'data-kind': g.kind,
+    'aria-label': locked
+      ? `${g.title} (locked — subscribe to play)`
+      : `${g.title}${free ? ' — free to play' : ''}`,
+  },
     art,
     h('div', { class: 'game-tile__body' },
       feature ? h('p', { class: 'eyebrow eyebrow--accent' }, 'Capstone simulation') : null,
@@ -631,13 +617,18 @@ function arcadeTile(store, g, feature = false, access = null) {
         st?.plays ? starRow(st.stars || 0, { size: 14 }) : null),
       h('p', { class: 'game-tile__blurb' }, g.blurb),
       h('div', { class: 'game-tile__meta' },
+        free
+          ? h('span', { class: 'chip chip--sm chip--accent' }, icon('spark', { size: 12 }), 'Free')
+          : null,
+        locked
+          ? h('span', { class: 'chip chip--sm chip--outline' }, icon('lock', { size: 12 }), 'Locked')
+          : null,
         tierChip(g.tier, { small: true }),
         h('span', { class: 'game-tile__kind faint' }, kind ? icon(kind.icon, { size: 13 }) : null, `${KIND_LABEL[g.kind] || 'Game'} · ${g.minutes} min`),
         g.kind === 'live'
           ? h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live data')
           : real ? h('span', { class: 'chip chip--sm source-chip is-real', title: 'Offers real market charts' }, h('span', { class: 'source-chip__dot', 'aria-hidden': 'true' }), 'Real charts') : null,
-        styleIcons(g),
-        accessChip(access, g))));
+        styleIcons(g))));
   return { tile, art };
 }
 
@@ -729,32 +720,6 @@ function playYourWay() {
         h('ul', { class: 'play-way__rules' }, (STYLE_RULES[st.id] || []).map((r) => h('li', null, icon('check', { size: 14 }), h('span', null, r))))))));
 }
 
-/** Membership teaser: the free tier and the two plans, linking to #pricing (hidden for Advanced members). */
-function pricingTeaser(access) {
-  const lv = access?.level || null;
-  if (lv === 'advanced') return null;
-  const tier = (id, name, price, per, text) => h('a', { class: 'pricing-teaser__tier', href: id === 'free' ? '#pricing' : `#pricing.${id}`, 'data-tier': id },
-    h('strong', null, name),
-    h('span', { class: 'pricing-teaser__price' }, price, per ? h('small', null, ` ${per}`) : null),
-    h('span', null, text));
-  const ctas = !lv
-    ? [h('a', { class: 'btn btn--primary', href: '#signup' }, 'Create free account', icon('arrow-right')), h('a', { class: 'btn btn--ghost', href: '#pricing' }, 'See plans')]
-    : lv === 'beginner'
-      ? [h('a', { class: 'btn btn--primary', href: '#pricing.advanced' }, 'Upgrade to Advanced', icon('arrow-right'))]
-      : [h('a', { class: 'btn btn--primary', href: '#pricing' }, 'See plans', icon('arrow-right'))];
-  return h('section', { class: 'container section section--tight', 'aria-labelledby': 'teaser-h' },
-    h('div', { class: 'pricing-teaser' },
-      h('div', { class: 'pricing-teaser__copy' },
-        h('p', { class: 'eyebrow eyebrow--accent' }, 'Membership'),
-        h('h2', { id: 'teaser-h' }, 'Start free. Upgrade when you are ready.'),
-        h('p', { class: 'muted' }, 'A free account opens the first unit, the Daily Challenge, the Pattern Library and the Setup Playbook, and keeps your progress in sync. Beginner unlocks the whole Read the chart track; Advanced adds Plan the trade. Cancel anytime.'),
-        h('div', { class: 'row pricing-teaser__ctas' }, ctas)),
-      h('div', { class: 'pricing-teaser__tiers' },
-        tier('free', 'Free', '$0', null, 'Unit 1, Daily Challenge, Pattern Library, progress sync'),
-        tier('beginner', PLANS.beginner.name, `$${PLANS.beginner.price.toFixed(2)}`, '/ month', 'Every Beginner lesson and game, and the Live Market Lab'),
-        tier('advanced', PLANS.advanced.name, `$${PLANS.advanced.price.toFixed(2)}`, '/ month', 'Everything in Beginner plus every Advanced lesson and game'))));
-}
-
 function levelStrip(store) {
   const lv = store.level();
   const earned = store.state.badges.map((id) => BADGES.find((b) => b.id === id)).filter(Boolean);
@@ -778,16 +743,51 @@ function levelStrip(store) {
       h('div', { class: 'level-strip__badges' },
         h('span', { class: 'eyebrow' }, `Badges · ${earned.length}/${BADGES.length}`),
         h('div', { class: 'level-strip__row' }, slots)),
-      h('a', { class: 'btn', href: '#progress' }, 'View progress', icon('arrow-right'))));
+      h('a', { class: 'btn', href: '#dashboard' }, 'View dashboard', icon('arrow-right'))));
 }
 
 // ------------------------------------------------------------------ page
+
+function showWelcome(store) {
+  if (store.getSetting('welcomed')) return;
+  const body = h('div', { class: 'welcome-modal' },
+    h('p', null, 'Short visual lessons and games teach chart reading — then you can test your eye on textbook or real-market charts.'),
+    h('ol', { class: 'welcome-modal__steps' },
+      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner track; Markets, orders & the spread comes late, then Put it together (Daily Challenge stays free).'),
+      h('li', null, h('strong', null, 'Play styles:'), ' Practice, Arcade, or Survival on every game.'),
+      h('li', null, h('strong', null, 'Dashboard:'), ' See the full map anytime under Dashboard.')),
+    h('p', { class: 'faint' }, 'Educational only — not financial advice. You can skip this tour.'),
+  );
+  modal({
+    title: 'Welcome to The Trade School',
+    body,
+    dismissible: true,
+    actions: [
+      {
+        label: 'Start Beginner',
+        primary: true,
+        onClick: () => {
+          store.setSetting('welcomed', true);
+          location.hash = '#l.candle-anatomy';
+        },
+      },
+      {
+        label: 'Skip for now',
+        onClick: () => store.setSetting('welcomed', true),
+      },
+    ],
+    onClose: () => store.setSetting('welcomed', true),
+  });
+}
+
 
 export default {
   id: 'home',
   mount(root, ctx) {
     const { store } = ctx;
     const cleanups = [];
+    // First-visit welcome (skippable, a11y modal).
+    try { showWelcome(store); } catch (err) { console.error(err); }
     const totalLessons = UNITS.filter((u) => u.lesson).length;
 
     const chartHost = h('figure', { class: 'hero__chart' });
@@ -804,7 +804,8 @@ export default {
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
           h('div', { class: 'hero__ctas' },
             h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
-            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced')),
+            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
+            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
             h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),
@@ -847,6 +848,14 @@ export default {
       emptyNote.hidden = shown > 0;
     }
 
+    const tracksHost = h('div', { class: 'tracks__grid', id: 'home-tracks' });
+    const paintTracks = () => {
+      tracksHost.replaceChildren(...TIERS.map((tier) => trackCard(store, tier)));
+    };
+    paintTracks();
+    const unsubAccess = access.onChange(() => paintTracks());
+    access.ready.then(() => paintTracks()).catch(() => {});
+
     root.append(
       h('div', { class: 'home' },
         hero,
@@ -857,18 +866,17 @@ export default {
             h('div', null,
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
-            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology.')),
-          h('div', { class: 'tracks__grid' }, TIERS.map((t) => trackCard(store, t, ctx.access)))),
+            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible — open one to see the paywall teaser.')),
+          tracksHost),
         playYourWay(),
         arcade,
-        pricingTeaser(ctx.access),
         levelStrip(store)));
 
     const FEATURE = 'trade-simulator';
     // The wide feature tile goes last so it never strands a single tile below it.
     const ordered = [...GAMES.filter((g) => g.id !== FEATURE), ...GAMES.filter((g) => g.id === FEATURE)];
     const arts = ordered.map((g) => {
-      const { tile, art } = arcadeTile(store, g, g.id === FEATURE, ctx.access);
+      const { tile, art } = arcadeTile(store, g, g.id === FEATURE);
       arcadeGrid.append(tile);
       tiles.push(tile);
       return art;
@@ -912,6 +920,7 @@ export default {
       cleanups.dead = true;
       cleanups.forEach((fn) => fn());
       heroCleanup?.();
+      unsubAccess?.();
     };
   },
 };

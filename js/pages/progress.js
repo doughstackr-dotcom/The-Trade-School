@@ -1,9 +1,130 @@
-// Progress: level card + ladder, stats, badges (earned vs locked), per-game table,
-// lesson checklist, and an in-page two-step "Reset progress".
+// Dashboard hub (#dashboard, aliased as #progress; #beginner / #advanced scroll here):
+// 1) Account overview  2) Beginner + Advanced track panels (route + ladder)  3) Progress extras.
+// Home keeps the compact curriculum cards that link here.
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
-import { TIERS, LESSONS, GAMES, BADGES, STYLES, unitsOf, stylesOf } from '../registry.js';
+import {
+  LESSONS, GAMES, BADGES, STYLES, UNITS, stylesOf, hashFor, findEntry,
+} from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
+import { trackPanels } from '../core/track-panel.js';
+import * as access from '../core/access.js';
+import { PLANS, FREE_IDS } from '../config.js';
+
+function levelLabel(level) {
+  if (level === 'advanced') return 'Advanced';
+  if (level === 'beginner') return 'Beginner';
+  if (level === 'free') return 'Free';
+  return 'Guest';
+}
+
+function unitCompletion(store, unit) {
+  const parts = [];
+  if (unit.lesson) parts.push({ type: 'lesson', id: unit.lesson });
+  for (const id of unit.games || []) parts.push({ type: 'game', id });
+  let done = 0;
+  for (const p of parts) {
+    if (p.type === 'lesson') {
+      if (store.isLessonDone(p.id)) done += 1;
+    } else if ((store.state.games[p.id]?.stars || 0) >= 1) done += 1;
+  }
+  const total = parts.length || 1;
+  return { done, total, pct: done / total };
+}
+
+function courseCompletion(store) {
+  let done = 0;
+  let total = 0;
+  for (const u of UNITS) {
+    const c = unitCompletion(store, u);
+    done += c.done;
+    total += c.total;
+  }
+  return { done, total: total || 1, pct: total ? done / total : 0 };
+}
+
+function accountOverview(store, snap) {
+  const overall = courseCompletion(store);
+  const lv = store.level();
+  const beginner = store.tierProgress('beginner');
+  const advanced = store.tierProgress('advanced');
+  const signedIn = !!snap.user;
+  const level = snap.level;
+  const enforcing = snap.enforcing;
+  const plan = level && PLANS[level];
+
+  let statusLine;
+  if (!enforcing) {
+    statusLine = 'Local preview — access checks are open on this host.';
+  } else if (!signedIn) {
+    statusLine = 'Browsing as a guest. Curriculum cards below are visible; open any locked lesson to see the paywall teaser.';
+  } else if (level === 'advanced') {
+    statusLine = 'Advanced plan active — full curriculum, Library, Playbook and Glossary unlocked.';
+  } else if (level === 'beginner') {
+    statusLine = 'Beginner plan active — Beginner track unlocked. Upgrade for Advanced plus full tools.';
+  } else {
+    statusLine = 'Signed in on the free tier. Free unit modules stay open after sign-in; subscribe for the full tracks and tools.';
+  }
+
+  return h('section', {
+    class: 'card card--raised dash-account',
+    'aria-labelledby': 'dash-account-h',
+    id: 'dash-account',
+  },
+    h('div', { class: 'dash-account__head row row--between' },
+      h('div', null,
+        h('p', { class: 'eyebrow' }, 'Account'),
+        h('h2', { id: 'dash-account-h' }, signedIn ? (snap.user.email || 'Member') : 'Welcome, guest')),
+      h('span', { class: ['chip', level === 'advanced' && 'chip--bull', level === 'beginner' && 'chip--accent'] },
+        levelLabel(level))),
+    h('p', { class: 'muted dash-account__status' }, statusLine),
+    // Progress stats stay visible for guests + members; gray frames stripped in CSS.
+    h('div', { class: 'dash-account__highlights' },
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Course'),
+        h('span', { class: 'stat__value mono' }, `${Math.round(overall.pct * 100)}%`),
+        h('span', { class: 'faint' }, `${overall.done}/${overall.total} items`)),
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Level'),
+        h('span', { class: 'stat__value' }, lv.title),
+        h('span', { class: 'faint mono' }, `${fmt(lv.xp)} XP`)),
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Beginner'),
+        h('span', { class: 'stat__value mono' }, `${Math.round((beginner.pct || 0) * 100)}%`),
+        meter(beginner.pct || 0, { size: 'sm', label: 'Beginner completion' })),
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Advanced'),
+        h('span', { class: 'stat__value mono' }, `${Math.round((advanced.pct || 0) * 100)}%`),
+        meter(advanced.pct || 0, { size: 'sm', label: 'Advanced completion' })),
+    ),
+    h('div', { class: 'row dash-account__actions' },
+      signedIn
+        ? [
+          level !== 'advanced'
+            ? h('a', { class: 'btn btn--primary', href: '#paywall' },
+              icon('lock', { size: 16 }),
+              level === 'beginner' ? 'Upgrade to Advanced' : 'View plans')
+            : h('a', { class: 'btn btn--ghost', href: '#account' }, 'Manage account'),
+          h('a', { class: 'btn btn--ghost', href: '#account' }, 'Account'),
+        ]
+        : [
+          h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in / create account'),
+          h('a', { class: 'btn btn--ghost', href: '#paywall' }, 'See plans'),
+        ],
+      h('a', { class: 'btn btn--ghost', href: '#g.daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
+    ),
+    signedIn && level === 'free'
+      ? h('p', { class: 'faint dash-account__free' },
+        'Free after sign-in: ',
+        FREE_IDS.map((id, i) => {
+          const e = findEntry(id);
+          if (!e) return null;
+          return [i ? ', ' : '', h('a', { href: `#${hashFor(id)}` }, e.title)];
+        }))
+      : null,
+    plan ? h('p', { class: 'faint' }, `${plan.name} · $${plan.price}/mo`) : null,
+  );
+}
 
 function levelCard(store) {
   const lv = store.level();
@@ -65,7 +186,6 @@ function badgesGrid(store) {
     }));
 }
 
-/** Best for one (game, style): score, or rounds survived for Survival. '—' when never played. */
 function styleCell(store, g, style) {
   if (!stylesOf(g).includes(style)) return h('td', { class: 'num mono faint style-col' }, h('span', { 'aria-label': 'Not offered' }, '·'));
   const st = store.styleStats ? store.styleStats(g.id, style) : null;
@@ -102,25 +222,6 @@ function gamesTable(store) {
       h('tbody', null, rows)));
 }
 
-function lessonChecklist(store) {
-  return h('div', { class: 'checklists' },
-    TIERS.map((t) => {
-      const lessons = unitsOf(t.id).filter((u) => u.lesson).map((u) => LESSONS.find((l) => l.id === u.lesson)).filter(Boolean);
-      return h('div', { class: 'checklist card' },
-        h('div', { class: 'row row--between checklist__head' }, h('h3', { class: 't-18' }, t.title), tierChip(t.id, { small: true })),
-        h('ul', { class: 'checklist__list' },
-          lessons.map((l) => {
-            const done = store.isLessonDone(l.id);
-            return h('li', null,
-              h('a', { class: ['checklist__item', done && 'is-done'], href: `#l.${l.id}` },
-                h('span', { class: 'checklist__box', 'aria-hidden': 'true' }, done ? icon('check', { size: 14 }) : null),
-                h('span', { class: 'checklist__title' }, l.title),
-                h('span', { class: 'visually-hidden' }, done ? '(done)' : '(not done)'),
-                h('span', { class: 'faint mono checklist__min' }, `${l.minutes} min`)));
-          })));
-    }));
-}
-
 function resetZone(store, rerender) {
   const confirmBox = h('div', { class: 'reset__confirm', hidden: true, role: 'alertdialog', 'aria-labelledby': 'reset-q', 'aria-describedby': 'reset-d' });
   const openBtn = h('button', { type: 'button', class: 'btn', 'data-action': 'reset', on: { click: () => {
@@ -150,17 +251,48 @@ function resetZone(store, rerender) {
     confirmBox);
 }
 
+function scrollToSection(section) {
+  if (!section) return;
+  const id = section === 'beginner' || section === 'advanced' ? `dash-${section}` : section;
+  const el = document.getElementById(id);
+  if (!el) return;
+  try {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    el.scrollIntoView();
+  }
+}
+
 export default {
-  id: 'progress',
+  id: 'dashboard',
   mount(root, ctx) {
     const { store } = ctx;
+    try {
+      store.award?.('dashboard-visit', { silent: true });
+    } catch { /* badge may not exist yet */ }
+
     const render = () => {
+      const snap = access.getAccess();
       root.replaceChildren(
-        h('div', { class: 'container progress-page' },
+        h('div', { class: 'container progress-page dashboard-hub' },
           h('header', { class: 'page-head' },
-            h('p', { class: 'eyebrow eyebrow--accent' }, 'Your progress'),
-            h('h1', null, 'Progress & badges'),
-            h('p', { class: 'lead' }, 'Everything you have learned and earned so far. Progress is stored on this device only.')),
+            h('p', { class: 'eyebrow eyebrow--accent' }, 'Dashboard'),
+            h('h1', null, 'Your school hub'),
+            h('p', { class: 'lead' },
+              'Account status, the full Beginner and Advanced tracks (route map + unit ladder), and your progress. Live quotes and daily charts live on the Live page. Locked lessons stay visible as teasers — subscribe to open them.')),
+          accountOverview(store, snap),
+          h('section', {
+            class: 'section tracks dash-curriculum-section',
+            'aria-labelledby': 'dash-curr-h',
+            id: 'dash-curriculum',
+          },
+            h('div', { class: 'section-head' },
+              h('div', null,
+                h('p', { class: 'eyebrow' }, 'The curriculum'),
+                h('h2', { id: 'dash-curr-h' }, 'Beginner & Advanced tracks')),
+              h('p', { class: 'muted' },
+                'Route map and unit ladder for each track. Home still shows the compact card list; locked items open the paywall until you are signed in with the right plan.')),
+            trackPanels(store, { idPrefix: 'dash-' })),
           levelCard(store),
           statsRow(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'badges-h' },
@@ -172,17 +304,22 @@ export default {
               h('div', null, h('p', { class: 'eyebrow' }, 'Best runs per style'), h('h2', { id: 'games-h' }, 'Games')),
               h('p', { class: 'muted' }, 'Best score in Practice and Arcade, and the most rounds survived in Survival.')),
             gamesTable(store)),
-          h('section', { class: 'section section--tight', 'aria-labelledby': 'lessons-h' },
-            h('div', { class: 'section-head' },
-              h('div', null, h('p', { class: 'eyebrow' }, 'Checklist'), h('h2', { id: 'lessons-h' }, 'Lessons'))),
-            lessonChecklist(store)),
           resetZone(store, () => {
             render();
             root.querySelector('h1')?.focus?.();
-          })));
+          }),
+          h('p', { class: 'faint dash-disclaimer' }, 'Educational simulations only — not financial advice.')));
+
+      const section = ctx.route?.section;
+      if (section === 'beginner' || section === 'advanced') {
+        try { store.setLastTier?.(section); } catch { /* ignore */ }
+      }
+      if (section) {
+        requestAnimationFrame(() => scrollToSection(section));
+      }
     };
+
     render();
-    // Stay current when progress changes elsewhere (another tab, a level-up toast, sync).
     let queued = 0;
     const onChange = () => {
       if (queued) return;
@@ -192,8 +329,11 @@ export default {
       });
     };
     store.on('change', onChange);
+    const unsubAccess = access.onChange(() => onChange());
+    access.ready.then(() => onChange()).catch(() => {});
     return () => {
       store.off('change', onChange);
+      unsubAccess?.();
       if (queued) cancelAnimationFrame(queued);
     };
   },

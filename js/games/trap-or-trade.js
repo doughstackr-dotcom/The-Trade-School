@@ -1,52 +1,96 @@
-// Stub game (trap-or-trade) — proves the GameShell §12 contract (play styles, difficulty, hints);
-// replaced by the full game.
+// Trap or Trade — breakout, fakeout or wait on a live decision chart.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { annotateSetup } from '../core/lesson-kit.js';
+import { chartScenario } from '../core/patterns.js';
 
-// [difficulty 0–2, question, options (the first is correct; shown shuffled), explanation, hint]
-const BANK = [
-  [0, "Price closes well above a level tested four times, on 2× average volume, in the direction of the trend.", ["Trade the breakout", "Fade the trap", "Wait for the retest"], "<strong>Trade the breakout.</strong> A decisive close with strong volume and the trend behind it.", "Look at the close, the volume and the trend."],
-  [0, "Price spikes above resistance but closes back below it on heavy volume.", ["Fade the trap", "Trade the breakout", "Wait for the retest"], "<strong>Fade the trap.</strong> The close back inside traps the breakout buyers.", "Where did the candle close?"],
-  [1, "The breakout closes just above resistance on average volume. The next candle drifts back toward the level.", ["Wait for the retest", "Trade the breakout", "Fade the trap"], "<strong>Wait for the retest.</strong> Let the level prove it flipped to support.", "Nothing is decisive yet."],
-  [1, "Price pokes above the range high minutes before a major news release, on thin volume.", ["Wait for the retest", "Trade the breakout", "Fade the trap"], "<strong>Wait.</strong> Thin volume before news is noise, not conviction.", "What could happen in a few minutes?"],
-  [2, "A clean breakout, then a pullback to the broken level that holds with a bullish engulfing candle.", ["Buy the retest", "Fade it", "Keep waiting"], "<strong>Buy the retest.</strong> The level held as support and printed a trigger, with a tight stop below it.", "The retest you waited for just happened."],
-  [2, "Price sweeps below an obvious double-bottom low, triggering stops, then closes back above it on strong volume.", ["Fade the break (go long)", "Short the breakdown", "Wait"], "<strong>Fade the break.</strong> A liquidity grab: stops were taken and price reclaimed the level.", "Where are the stops, and where did price close?"],
-];
-const CORRECT = BANK.map(() => 0);
-
-/** Next unused question closest to the target difficulty; reuses the deck once it runs out. */
-function pickQuestion(deck, used, difficulty) {
-  if (used.size >= deck.length) used.clear();
-  const target = Math.round(difficulty * 2);
-  const open = deck.filter((i) => !used.has(i));
-  const best = open.find((i) => BANK[i][0] === target) ?? open.find((i) => Math.abs(BANK[i][0] - target) === 1) ?? open[0];
-  used.add(best);
-  return best;
+function textbook(rng, difficulty) {
+  const trap = rng.chance(0.4 + 0.15 * difficulty);
+  const wait = !trap && rng.chance(0.25);
+  const id = rng.pick(['ascending-triangle', 'descending-triangle', 'double-top', 'double-bottom', 'bull-flag', 'bear-flag']);
+  const sc = chartScenario(id, {
+    seed: rng.int(1, 1e9),
+    count: Math.round(100 - 15 * difficulty),
+    after: 18,
+    outcome: trap ? 'fail' : 'success',
+  });
+  let answer = 'trade';
+  if (trap) answer = 'fade';
+  else if (wait) answer = 'wait';
+  return {
+    candles: sc.candles,
+    decisionIdx: wait ? Math.max(5, sc.breakoutIdx - 2) : sc.breakoutIdx,
+    level: sc.level,
+    answer,
+    name: sc.name,
+    direction: sc.direction,
+  };
 }
 
 export default {
   id: 'trap-or-trade',
   mount(root, ctx) {
-    let deck = [];
-    const used = new Set();
-    let current = 0;
     const game = new GameShell(root, ctx, {
-      rounds: 6,
-      timer: { seconds: 25, perRound: true },
-      howTo: ["Price has just broken a level.", "Trade the breakout, fade the trap, or wait for the retest.", "Real-market mode grades your read, then shows what happened."],
-      onStart(g, { rng }) {
-        deck = rng.shuffle(BANK.map((_, i) => i));
-        used.clear();
-      },
-      onRound(g, { rng, difficulty, retry }) {
-        if (!retry) current = pickQuestion(deck, used, difficulty);
-        const q = BANK[current];
-        g.ask({
-          question: q[1],
-          options: rng.shuffle(q[2].map((label, i) => ({ label, value: i }))),
-          answer: CORRECT[current],
-          explain: q[3],
-          hint: q[4],
+      preview: (el) => gameplayPreview(el, { seed: 48, direction: 'down', title: 'trap-or-trade', score: 590, streak: 4, round: '2/8' }),
+      rounds: 8,
+      timer: { seconds: 28, perRound: true },
+      howTo: [
+        'Price is challenging a level. Read the close and the volume context.',
+        'Trade the breakout, fade the trap, or wait for a retest.',
+        'We grade your read; the reveal shows what this sample did next.',
+      ],
+      async onRound(g, { rng, stage, difficulty }) {
+        const real = await g.realRound({
+          kinds: ['breakout-up', 'breakout-down', 'fakeout-up', 'fakeout-down'],
+          intervals: ['1d', '1w'],
+          before: Math.round(70 - 15 * difficulty),
+          after: 16,
         });
+        let r;
+        if (real) {
+          const k = real.setup?.kind || '';
+          const breakIdx = /^fakeout/.test(k) && Number.isFinite(real.setup.meta?.breakoutIdx)
+            ? real.setup.meta.breakoutIdx
+            : real.decisionIdx;
+          r = {
+            candles: real.candles,
+            decisionIdx: breakIdx,
+            level: real.setup?.meta?.level,
+            answer: /^fakeout/.test(k) ? 'fade' : 'trade',
+            name: real.setup?.meta?.name || k,
+            decimals: real.decimals,
+            setup: real.setup,
+            outcome: real.outcome,
+          };
+        } else r = textbook(rng, difficulty);
+
+        const host = h('div', { class: 'chart-frame' });
+        stage.append(h('p', { class: 'quiz__q' }, 'Break of the level — trade it, fade the trap, or wait?'), host);
+        const chart = new CandleChart(host, {
+          candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+          height: 350, showVolume: true, decimals: r.decimals ?? 2, yPad: 0.14,
+          ariaLabel: 'Breakout decision chart with volume',
+        });
+        if (Number.isFinite(r.level)) chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
+        chart.addMarker({ idx: r.decisionIdx, position: 'above', shape: 'dot', color: 'accent' });
+        g.setHint('Decisive close + expanding volume → trade. Close back inside → fade. Marginal poke → wait.');
+        g.ask({
+          options: [
+            { label: 'Trade the breakout', value: 'trade' },
+            { label: 'Fade the trap', value: 'fade' },
+            { label: 'Wait for retest / clarity', value: 'wait' },
+          ],
+          answer: r.answer,
+          explain: `<strong>${r.answer === 'trade' ? 'Trade' : r.answer === 'fade' ? 'Fade' : 'Wait'}</strong> · ${r.name || ''}. Sample result: ${r.outcome?.result || 'see reveal'}.`,
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            try { if (r.setup) annotateSetup(r.setup, chart, r); } catch { /* */ }
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
+        });
+        return () => chart.destroy();
       },
     });
     return () => game.destroy();

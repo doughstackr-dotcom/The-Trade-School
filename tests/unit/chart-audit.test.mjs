@@ -276,6 +276,18 @@ test('cup and handle / rounding bottom: rounded base, small handle, rim neckline
       assert.ok(rb.candles[i].c < lip.price - d2 * 0.55, `saucer ${seed}: not rounded at ${i}`);
     }
     assert.equal(rb.neckline.y1, lip.price);
+
+    const rt = scenario('rounding-top', seed);
+    const rtLip = one(rt, 'Left lip');
+    const top = one(rt, 'Top');
+    const d3 = top.price - rtLip.price;
+    assert.ok(d3 / rtLip.price >= 0.08, 'dome height');
+    const spanT = rt.breakoutIdx - rtLip.idx;
+    assert.ok(Math.abs(top.idx - (rtLip.idx + spanT / 2)) <= spanT / 5, 'top near the middle');
+    for (let i = rtLip.idx + Math.round(spanT * 0.35); i <= rtLip.idx + Math.round(spanT * 0.65); i++) {
+      assert.ok(rt.candles[i].c > rtLip.price + d3 * 0.55, `dome ${seed}: not rounded at ${i}`);
+    }
+    assert.equal(rt.neckline.y1, rtLip.price);
   }
 });
 
@@ -295,9 +307,9 @@ test('volume: dries up in the formation, surges on a real breakout, stays light 
       const recent = avgVol(cs, b - 10, b);
       assert.ok(cs[b].v >= 1.35 * form && cs[b].v >= 1.7 * recent, `${msg}: breakout volume ${cs[b].v} vs ${form.toFixed(0)}`);
       assert.ok(bad.candles[b].v <= recent * 1.001, `${msg}: trap breakout on strong volume`);
-      if (id === 'cup-and-handle' || id === 'rounding-bottom') {
-        // U-shaped: quiet at the bottom of the base, busier on the way down and back up.
-        const bot = one(good, id === 'cup-and-handle' ? 'Cup bottom' : 'Bottom').idx;
+      if (id === 'cup-and-handle' || id === 'rounding-bottom' || id === 'rounding-top') {
+        // U/dome-shaped: quiet at the extreme of the base, busier on the way in and out.
+        const bot = one(good, id === 'cup-and-handle' ? 'Cup bottom' : id === 'rounding-top' ? 'Top' : 'Bottom').idx;
         const third = Math.floor((bot - k0) / 2);
         assert.ok(avgVol(cs, bot - 3, bot + 4) < avgVol(cs, k0, k0 + third), `${msg}: base volume not drying up`);
       } else if (good.keyPoints.some((k) => LATER.includes(k.label))) {

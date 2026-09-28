@@ -4,10 +4,21 @@
   "description": "Learn trading fundamentals by playing: interactive lessons, games and simulations in Beginner and Advanced tracks.",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "serve": "npx http-server -c-1 -p 5173 .",
-    "test": "node --test \"tests/unit/*.test.mjs\"",
-    "smoke": "node tests/smoke.mjs"
+    "test": "node --test tests/unit/*.test.mjs",
+    "smoke": "node tests/smoke.mjs",
+    "test:all": "npm test && npm run smoke",
+    "lint": "eslint .",
+    "test:functions": "deno test --no-config --node-modules-dir=none --allow-env --allow-net=127.0.0.1 supabase/functions/tests/"
   },
-  "license": "UNLICENSED"
+  "devDependencies": {
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "playwright": "^1.63.0"
+  }
 }

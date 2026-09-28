@@ -15,6 +15,13 @@ in your browser.
 > are past data, never a prediction. Nothing here says a pattern "always works"; the games
 > include failed setups on purpose.
 
+## Dashboard & access
+
+- **`#dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
+- **`#account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
+- Access gating: `js/core/access.js` + router `setAccessGate`. Free ids include candle anatomy, candle builder, daily challenge, markets & orders, and order desk. See `docs/SECRETS.md`.
+
+
 ## Curriculum
 
 Two tracks. Each unit pairs a lesson with a game that drills the same skill.
@@ -75,12 +82,32 @@ python3 -m http.server 5173
 Opening `index.html` straight from the file system will not work, because browsers block
 ES-module imports from `file://` URLs.
 
+## Deploy (static host)
+
+This is **vanilla JS with native `import()`** — not Vite. There is no `vite.config`, no
+`dist/` folder, and no hashed route chunks. A host that runs `vite build` or looks for
+`/assets/index-*.js` will 404 every lazy route.
+
+For Vercel (free tier): import the repo, Framework Preset **Other**, leave Build Command
+empty, Output Directory `.` (or rely on the included `vercel.json`). Deploy the feature
+branch as a static site. Do not attach a custom domain unless you intend to.
+
+Basic browsing works without env vars. Real-market charts need the Supabase `market-data`
+edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `docs/SECRETS.md`).
+
+
 ## Tests
 
 ```sh
+npm run lint             # ESLint over the site JS
 npm test                 # node --test "tests/unit/*.test.mjs" — core-module unit tests (no DOM)
 npm run smoke            # node tests/smoke.mjs     — every route in Chromium
+npm run test:all         # lint + unit + smoke — must pass before pushing (CI runs the same)
+npm run test:functions   # Deno tests for the Supabase edge functions (needs Deno installed)
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint + unit tests and the smoke suite on every push and
+pull request.
 
 The smoke test starts its own static server, opens every page, lesson and game at desktop
 (1280×800), tablet (820×1180) and phone (390×844) sizes in light and dark themes, clicks through the first
@@ -117,12 +144,20 @@ js/
 tests/
   unit/               node:test unit tests
   smoke.mjs           Playwright smoke test
-docs/ARCHITECTURE.md  the build contract: routes, module API, design system, core APIs
+  fixtures/           offline market fixtures (synthetic candles, labelled as such)
+supabase/
+  functions/          Deno edge functions: market-data proxy, billing (see docs/ACCOUNTS.md)
+  migrations/         accounts, subscriptions and billing schema
+docs/
+  ARCHITECTURE.md     the build contract: routes, module API, design system, core APIs
+  ACCOUNTS.md         owner guide: Supabase, Stripe and premium-module setup
+  MARKET_DATA.md      the market-data function: sources, budget, caching
 ```
 
 Every lesson and game is a lazy-loaded ES module that default-exports
 `{ id, mount(root, ctx) → cleanup }`, and builds on the shared `LessonShell` / `GameShell`
 so they all look and behave the same. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Design
 
@@ -131,3 +166,7 @@ accent, and green/red reserved for meaning (up/down, correct/wrong). Type is Bri
 Grotesque for headings, Figtree for text and JetBrains Mono for prices and scores. The site
 works at 360px wide with touch, is fully keyboard-driven (games take number keys and Enter,
 lessons take ← / →), and respects reduced-motion settings.
+
+## License
+
+[MIT](LICENSE). Educational content only — nothing here is financial advice.

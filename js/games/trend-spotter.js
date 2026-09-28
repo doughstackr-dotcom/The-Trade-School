@@ -1,39 +1,69 @@
-// Stub game (trend-spotter) — proves the GameShell contract; replaced by the full game.
+// Trend Spotter — call up, down or range from structure on a mystery chart.
 import { GameShell } from '../core/game-kit.js';
-import { choiceQuiz } from '../core/ui.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { trendSeries } from '../core/data.js';
 
-// [question, options, index of the correct option, explanation]
-const QUESTIONS = [
-  ["Swings: 100 → 106 → 102 → 109 → 105 → 112. What is the trend?", ["Uptrend", "Downtrend", "Range", "Reversing down"], 0, "Highs 106, 109, 112 and lows 102, 105 both rise: <strong>higher highs and higher lows</strong>."],
-  ["Highs at 120, 116, 113 and lows at 110, 106, 101. What is the trend?", ["Downtrend", "Uptrend", "Range", "Cannot tell"], 0, "Lower highs and lower lows make a <strong>downtrend</strong>."],
-  ["In an uptrend the last swing low was 104. Price now falls to 102. What does that mean?", ["A lower low — the structure is breaking", "A higher low — trend intact", "A higher high", "Nothing changes"], 0, "Undercutting the last higher low is a <strong>break of structure</strong>: the first warning the uptrend may be over."],
-];
+function textbook(rng, difficulty) {
+  const direction = rng.pick(difficulty < 0.35 ? ['up', 'down'] : ['up', 'down', 'range']);
+  const ts = trendSeries({ seed: rng.int(1, 2 ** 31 - 1), count: Math.round(70 - 10 * difficulty), direction, swings: 3 + Math.floor(difficulty * 2) });
+  const decisionIdx = ts.candles.length - 1 - Math.round(8 + 6 * difficulty);
+  return { candles: ts.candles, decisionIdx, direction: direction === 'up' ? 'bullish' : direction === 'down' ? 'bearish' : 'range' };
+}
 
 export default {
   id: 'trend-spotter',
   mount(root, ctx) {
-    let order = QUESTIONS;
     const game = new GameShell(root, ctx, {
-      rounds: QUESTIONS.length,
-      howTo: ["Read the swing sequence.", "Call the trend or label the swing.", "Higher highs + higher lows = uptrend."],
-      onStart(g, { rng }) {
-        order = rng.shuffle(QUESTIONS);
-        g.nextRound();
-      },
-      onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[(round - 1) % order.length];
-        const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
-        stage.append(choiceQuiz({
-          question,
-          options,
-          answer: correct,
-          sfx: false,
-          onAnswer(ok) {
-            if (ok) g.correct(explain);
-            else g.wrong(explain);
-            g.nextButton();
+      preview: (el) => gameplayPreview(el, { seed: 44, direction: 'up', title: 'trend-spotter', score: 430, streak: 3, round: '2/8' }),
+      rounds: 7,
+      timer: { seconds: 25, perRound: true },
+      howTo: [
+        'Read swing structure: higher highs/lows, lower highs/lows, or chop.',
+        'Call bullish, bearish or range.',
+        'Harder rounds show less context and noisier swings.',
+      ],
+      async onRound(g, { rng, stage, difficulty }) {
+        const real = await g.realRound({
+          kinds: difficulty < 0.5 ? ['trend-up', 'trend-down'] : ['trend-up', 'trend-down', 'range'],
+          before: Math.round(65 - 20 * difficulty),
+          after: 12,
+        });
+        let r;
+        if (real) {
+          const k = real.setup?.kind || '';
+          r = {
+            candles: real.candles,
+            decisionIdx: real.decisionIdx,
+            direction: k.includes('up') || real.setup?.direction === 'bullish' ? 'bullish'
+              : k.includes('down') || real.setup?.direction === 'bearish' ? 'bearish' : 'range',
+            decimals: real.decimals,
+            outcome: real.outcome,
+          };
+        } else r = textbook(rng, difficulty);
+        const host = h('div', { class: 'chart-frame' });
+        stage.append(h('p', { class: 'quiz__q' }, 'What is the dominant structure?'), host);
+        const chart = new CandleChart(host, {
+          candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.12,
+          ariaLabel: 'Price chart for trend reading; future hidden.',
+        });
+        g.setHint('Mark the last two or three swing highs and lows in your head.');
+        g.ask({
+          options: [
+            { label: 'Bullish (HH / HL)', value: 'bullish' },
+            { label: 'Bearish (LH / LL)', value: 'bearish' },
+            { label: 'Range / unclear', value: 'range' },
+          ],
+          answer: r.direction,
+          explain: `<strong>${r.direction}</strong> structure at the freeze. Always re-check after new swings print.`,
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
-        }));
+        });
+        return () => chart.destroy();
       },
     });
     return () => game.destroy();

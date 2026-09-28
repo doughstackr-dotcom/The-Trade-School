@@ -7,9 +7,10 @@
 // until they run out, difficulty ramps). Chart sources (§12.2): Textbook or Real market, with
 // game.realRound() / game.revealSource() for "mystery chart" rounds and a textbook fallback.
 import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast, choiceQuiz } from './ui.js';
+import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
 import {
-  findEntry, findTier, nextItem, unitOf, findBadge, hashFor, tiersOf,
+  findEntry, nextItem, unitOf, findBadge, hashFor, tiersOf,
   STYLES, DIFFICULTY_LEVELS, SOURCES, findStyle,
 } from '../registry.js';
 
@@ -362,6 +363,8 @@ export class GameShell {
     this.source = this.sourcePref === 'real' && this._canReal() ? 'real' : 'textbook';
     this.roundSource = this.source;
     this.real = null;
+    this.sawReal = false;
+    this.sawReal = false;
     this.fallbacks = 0;
 
     this.state = 'intro';
@@ -400,6 +403,7 @@ export class GameShell {
     this._loadingEl = null;
     this._previewEl = null;
     this._previewStale = false;
+    this._meterCleanup = null;
 
     this._build();
     this.timer = createTimer(this);
@@ -610,6 +614,7 @@ export class GameShell {
     if (clockWasRunning) this.timer.resume();
     if (res && Array.isArray(res.candles) && res.candles.length) {
       this.real = res;
+      this.sawReal = true;
       this.roundSource = 'real';
       this._roundFallback = false;
       this._realFails = 0;
@@ -750,6 +755,7 @@ export class GameShell {
       if (this.store?.recordGame) {
         rec = this.store.recordGame(this.id, {
           score: this.score, stars, mode: this.mode, maxScore: this.maxScore, xp, perfect, style: this.style, rounds: survived,
+          real: !!this.sawReal,
         });
       }
     } catch (err) {
@@ -889,6 +895,7 @@ export class GameShell {
   }
 
   destroy() {
+    if (typeof this._meterCleanup === 'function') { try { this._meterCleanup(); } catch { /* */ } this._meterCleanup = null; }
     this._roundToken += 1;
     this.timer.stop();
     this._runRoundCleanups();
@@ -1186,13 +1193,21 @@ export class GameShell {
       if (this._previewStale) this._mountPreview();
       this._renderIntroStats();
       this._renderFacts();
+      if (typeof this._meterCleanup === 'function') {
+        try { this._meterCleanup(); } catch { /* */ }
+        this._meterCleanup = null;
+      }
+    } else if (which === 'play') {
+      if (typeof this._meterCleanup === 'function') {
+        try { this._meterCleanup(); } catch { /* */ }
+      }
+      try { this._meterCleanup = bindRoundMeter(this); } catch { this._meterCleanup = null; }
     }
   }
 
   _backLink() {
-    const tier = this.tier;
-    const t = findTier(tier);
-    return h('a', { class: 'link-btn', href: `#${tier}` }, icon('arrow-left', { size: 16 }), t ? t.title : 'Back');
+    // Always return to the Games hub, regardless of entry point (Games tiles, home arcade, or track).
+    return h('a', { class: 'link-btn', href: '#games' }, icon('arrow-left', { size: 16 }), 'Games');
   }
 
   /** Segmented radio picker. options: [{ id, label, iconEl?, note?, locked?, lockNote? }]. */
@@ -1375,14 +1390,14 @@ export class GameShell {
     this._facts = h('dl', { class: 'game-facts' });
 
     const art = h('div', { class: 'game-intro__preview' });
-    this._previewEl = this.opts.preview ? previewEl : null;
-    if (this.opts.preview) {
-      art.append(previewEl);
-      this._mountPreview();
-    } else {
-      const badge = findBadge(`${this.id}-ace`);
-      art.append(h('div', { class: 'game-intro__emblem', 'aria-hidden': 'true' }, icon(badge?.icon || 'gamepad', { size: 56 })));
+    // Always show a real gameplay candle preview (never the generic emblem).
+    if (!this.opts.preview) {
+      const id = this.id;
+      this.opts.preview = (el) => defaultGamePreview(el, id);
     }
+    this._previewEl = previewEl;
+    art.append(previewEl);
+    this._mountPreview();
     art.append(this._facts);
 
     this._intro = h('section', { class: 'game-intro', 'aria-labelledby': `${this.id}-title` },
@@ -1675,7 +1690,6 @@ export class GameShell {
   _renderResults(s) {
     const e = this.entry;
     const tier = this.tier;
-    const tierEntry = findTier(tier);
     const survival = s.style === 'survival';
     const [headline, sub0] = (survival ? SURVIVAL_LINES : STAR_LINES)[s.stars];
     let sub = sub0;
@@ -1743,7 +1757,7 @@ export class GameShell {
           this._startBtn.focus({ preventScroll: true });
         } } }, icon('grid'), 'Change style')
         : null,
-      h('a', { class: 'btn btn--lg', href: `#${tier}` }, icon('arrow-left'), `Back to ${tierEntry ? tierEntry.title : 'track'}`),
+      h('a', { class: 'btn btn--lg', href: '#games' }, icon('arrow-left'), 'Back to Games'),
       nextEntry ? h('a', { class: 'btn btn--lg btn--ghost results__next', href: `#${hashFor(nextEntry.id)}` },
         h('span', null, h('small', null, `Next ${nextEntry.type}`), nextEntry.title), icon('arrow-right')) : null);
 

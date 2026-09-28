@@ -1,28 +1,26 @@
-// Hash router. Routes are plain tokens: #home, #beginner, #advanced, #library(.<id>),
-// #progress, #glossary, #playbook(.<setupId>), #live, #l.<lessonId>, #g.<gameId>, #dev-chart,
-// and the account pages #pricing(.<plan>), #account, #signin, #signup, #reset, #reset.update,
-// #terms, #privacy.
+// Hash router. Routes are plain tokens: #home, #library(.<id>),
+// #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
+// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #live,
+// #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
 import { h, icon } from './ui.js';
 
 const PAGE_PATHS = {
   home: '../pages/home.js',
-  track: '../pages/track.js',
   library: '../pages/library.js',
+  // progress aliases to the merged dashboard (Progress visual shell + track panels).
   progress: '../pages/progress.js',
   glossary: '../pages/glossary.js',
+  platforms: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
-  'dev-chart': '../pages/dev-chart.js',
-  // accounts (§9)
-  pricing: '../pages/pricing.js',
+  games: '../pages/games.js',
+  dashboard: '../pages/progress.js',
   account: '../pages/account.js',
-  auth: '../pages/auth.js',        // #signin #signup #reset #reset.update
-  legal: '../pages/legal.js',      // #terms #privacy
+  paywall: '../pages/paywall.js',
+  'dev-chart': '../pages/dev-chart.js',
 };
-
-const AUTH_ROUTES = ['signin', 'signup', 'reset', 'reset.update'];
 
 const SITE = 'The Trade School';
 
@@ -34,8 +32,6 @@ let cleanup = null;
 let renderToken = 0;
 let fallbackHash = null; // used when writing location.hash is blocked
 let started = false;
-let currentBlocked = false;
-let currentEntry = null;
 
 // Optional access gate (ARCHITECTURE §9.3). Inert until something registers one, so the
 // router has no dependency on the accounts modules.
@@ -43,11 +39,12 @@ const OPEN_ACCESS = Object.freeze({ level: null, can: () => true });
 let gate = null;
 
 /**
- * Registers the access gate: { canOpen(entry, route) → boolean | Promise<boolean> (asked for
- * every lesson, game and page route; public pages answer true), access: { level, can(plan), … }
- * | () => that (→ ctx.access), paywallPath?: URL string of the page module to mount instead of a
- * blocked route (default '../pages/paywall.js'), loadModule?(entry, route, url) → Promise<module>
- * | null (loads a paid lesson/game itself, e.g. from premium storage; null → import(url)) }.
+ * Registers the access gate: { canOpen(entry, route) → boolean | Promise<boolean>,
+ * access: { level, can(plan), user? } | () => that,
+ * paywallPath?: URL string of the page module to mount for signed-in users who lack the plan
+ * (default '../pages/paywall.js'),
+ * onUnauthenticated?(route, entry)?: called when an unsigned visitor hits a gated route —
+ * typically store a return hash and navigate to account sign-up }.
  * Pass null to remove it. Re-renders the current route.
  */
 export function setAccessGate(next) {
@@ -75,20 +72,24 @@ export function parseHash(hash) {
   }
   token = token.trim();
   if (!token || token === 'home') return { key: 'home', kind: 'page', page: 'home' };
-  if (token === 'beginner' || token === 'advanced') return { key: token, kind: 'page', page: 'track', tier: token };
+  // Legacy track hashes → unified Dashboard hub (scroll to section on mount).
+  if (token === 'beginner' || token === 'advanced') {
+    return { key: token, kind: 'page', page: 'dashboard', section: token };
+  }
   if (token === 'library' || token.startsWith('library.')) {
     return { key: token, kind: 'page', page: 'library', param: token.slice('library.'.length) || null };
   }
   if (token === 'playbook' || token.startsWith('playbook.')) {
     return { key: token, kind: 'page', page: 'playbook', param: token.slice('playbook.'.length) || null };
   }
-  if (token === 'progress' || token === 'glossary' || token === 'live' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
-  if (token === 'pricing' || token.startsWith('pricing.')) {
-    return { key: token, kind: 'page', page: 'pricing', param: token.slice('pricing.'.length) || null };
+  // #progress is an alias of #dashboard (merged progress + curriculum page).
+  if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
+  // #affiliate is an alias of #platforms (renamed partners page).
+  if (token === 'affiliate') return { key: 'affiliate', kind: 'page', page: 'platforms' };
+  if (token === 'account' || token.startsWith('account.')) {
+    return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'account') return { key: token, kind: 'page', page: 'account' };
-  if (AUTH_ROUTES.includes(token)) return { key: token, kind: 'page', page: 'auth', param: token };
-  if (token === 'terms' || token === 'privacy') return { key: token, kind: 'page', page: 'legal', param: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -98,17 +99,16 @@ function titleFor(route, entry) {
   if (route.kind === 'lesson' || route.kind === 'game') return entry ? `${entry.title} · ${SITE}` : SITE;
   switch (route.page) {
     case 'home': return `${SITE} — Learn to read the market`;
-    case 'track': return `${entry ? entry.title : 'Track'} · ${SITE}`;
     case 'library': return `Pattern Library · ${SITE}`;
-    case 'progress': return `Your progress · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
+    case 'platforms': return `Platforms · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
+    case 'games': return `Games · ${SITE}`;
+    case 'dashboard': return `Dashboard · ${SITE}`;
+    case 'account': return `Account · ${SITE}`;
+    case 'paywall': return `Unlock · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
-    case 'pricing': return `Plans & pricing · ${SITE}`;
-    case 'account': return `Your account · ${SITE}`;
-    case 'auth': return `${{ signin: 'Sign in', signup: 'Create your free account', reset: 'Reset your password', 'reset.update': 'Choose a new password' }[route.param] || 'Account'} · ${SITE}`;
-    case 'legal': return `${route.param === 'privacy' ? 'Privacy policy' : 'Terms of service'} · ${SITE}`;
     default: return `Not found · ${SITE}`;
   }
 }
@@ -127,15 +127,17 @@ function newSeed() {
 }
 
 function backTarget(route, entry) {
-  if (entry && (entry.tier === 'beginner' || entry.tier === 'advanced')) return entry.tier;
-  if (entry && entry.tier === 'both') return storeRef?.state?.lastTier || 'beginner';
-  if (route.tier) return route.tier;
+  if (entry && (entry.tier === 'beginner' || entry.tier === 'advanced' || entry.tier === 'both')) {
+    return 'dashboard';
+  }
+  if (route.section === 'beginner' || route.section === 'advanced') return 'dashboard';
+  if (route.tier) return 'dashboard';
   return 'home';
 }
 
 function errorCard(route, entry, err, retry) {
   const back = backTarget(route, entry);
-  const backLabel = back === 'home' ? 'Back to home' : `Back to ${back === 'advanced' ? 'Advanced' : 'Beginner'} track`;
+  const backLabel = back === 'home' ? 'Back to home' : 'Back to Dashboard';
   return h('div', { class: 'container' },
     h('div', { class: 'route-error card', role: 'alert' },
       h('div', { class: 'route-error__icon', 'aria-hidden': 'true' }, icon('info', { size: 28 })),
@@ -155,7 +157,7 @@ function notFoundCard(route) {
       h('p', { class: 'muted' }, `We couldn't find “${route.key}”. It may have moved.`),
       h('div', { class: 'row' },
         h('button', { type: 'button', class: 'btn btn--primary', on: { click: () => navigate('home') } }, icon('home'), 'Go home'),
-        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('beginner') } }, 'Beginner track'))));
+        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('dashboard') } }, 'Dashboard'))));
 }
 
 function skeleton() {
@@ -201,8 +203,9 @@ async function render(hash, { initial = false, retry = false } = {}) {
       path = new URL('../' + entry.path.replace(/^\.\//, ''), import.meta.url).href;
     } else entry = null;
   } else if (route.kind === 'page') {
-    path = new URL(PAGE_PATHS[route.page], import.meta.url).href;
-    if (route.page === 'track') entry = registry.findTier(route.tier);
+    path = PAGE_PATHS[route.page]
+      ? new URL(PAGE_PATHS[route.page], import.meta.url).href
+      : null;
   }
 
   document.title = titleFor(route, entry);
@@ -218,20 +221,27 @@ async function render(hash, { initial = false, retry = false } = {}) {
     return;
   }
 
-  // Blocked by the access gate → mount the paywall page instead (entry stays the requested one).
-  // Every lesson, game and page is asked; the gate answers true straight away for public pages.
+  // Access gate: paid lessons/games show the paywall teaser (visible to unsigned + unpaid).
+  // Optional gate.onUnauthenticated may still redirect, but the default shell leaves the
+  // paywall mounted so teasers are never hidden behind a hard login wall.
   let blocked = false;
-  if (gate && (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'page')) {
+  if (gate) {
     try {
       blocked = !(await gate.canOpen(entry, route));
     } catch (err) {
       console.error('[router] access check failed:', err);
     }
     if (my !== renderToken) return;
-    if (blocked) path = new URL(gate.paywallPath || '../pages/paywall.js', import.meta.url).href;
+    if (blocked) {
+      const a = accessInfo();
+      const signedIn = !!(a && a.user);
+      if (!signedIn && typeof gate.onUnauthenticated === 'function') {
+        try { gate.onUnauthenticated(route, entry); } catch (err) { console.error(err); }
+        return;
+      }
+      path = new URL(gate.paywallPath || '../pages/paywall.js', import.meta.url).href;
+    }
   }
-  currentBlocked = blocked;
-  currentEntry = entry;
 
   if (!blocked && entry && (route.kind === 'lesson' || route.kind === 'game')) {
     storeRef?.setLast?.({ type: route.kind, id: entry.id });
@@ -244,13 +254,7 @@ async function render(hash, { initial = false, retry = false } = {}) {
   try {
     // "Try again" re-fetches the page module itself (a failed or broken import is cached by URL);
     // shared core modules keep their URLs, so they stay single instances.
-    // The gate may load paid modules itself (PREMIUM_SOURCE 'storage', §9.3); null → import().
-    let mod = null;
-    if (!blocked && gate?.loadModule && entry && (route.kind === 'lesson' || route.kind === 'game')) {
-      mod = await gate.loadModule(entry, route, path);
-      if (my !== renderToken) return;
-    }
-    if (!mod) mod = await import(retry ? `${path}?retry=${++retries}` : path);
+    const mod = await import(retry ? `${path}?retry=${++retries}` : path);
     if (my !== renderToken) return;
     const def = mod.default;
     if (!def || typeof def.mount !== 'function') throw new Error(`Module for "${route.key}" has no default export with mount().`);
@@ -306,6 +310,15 @@ export function navigate(hash) {
         render(target);
         return;
       }
+      // Games always back out to the Games hub: if we are opening a game from
+      // somewhere else (Beginner track, home arcade, etc.), rewrite the current
+      // history entry to #games first so browser Back lands on Games, not the entry page.
+      if (token.startsWith('g.')) {
+        const cur = (location.hash || '#home').replace(/^#/, '') || 'home';
+        if (cur !== 'games' && !cur.startsWith('g.')) {
+          try { history.replaceState(null, '', '#games'); } catch { /* ignore */ }
+        }
+      }
       location.hash = target;
       ok = location.hash === target;
     } catch {
@@ -320,16 +333,6 @@ export function navigate(hash) {
 
 export function currentRoute() {
   return current;
-}
-
-/** { route, entry, blocked } of the page on screen (blocked: the paywall stands in for it). */
-export function currentState() {
-  return { route: current, entry: currentEntry, blocked: currentBlocked };
-}
-
-/** Re-renders the current route (e.g. after the member's plan changed). */
-export function refresh() {
-  if (outlet && started) render(currentHash());
 }
 
 function onLinkClick(e) {

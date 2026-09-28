@@ -1,23 +1,20 @@
 // Boot: render the app shell (top bar, phone tab bar, footer) and start the router.
 import { store } from './core/store.js';
-import { startRouter, navigate, setAccessGate, currentState, currentRoute, refresh } from './core/router.js';
-import { h, svg, icon, sfx, toast } from './core/ui.js';
-import { findEntry, tiersOf } from './registry.js';
-import { auth } from './core/auth.js';
-import { startSync } from './core/sync.js';
-import { makeAccess, requiredPlan, canOpen, browserAccessMode, premiumFolder, planChipLabel } from './core/access.js';
-import { PREMIUM_SOURCE } from './config.js';
+import { startRouter, navigate, setAccessGate } from './core/router.js';
+import * as access from './core/access.js';
+import { h, svg, icon, sfx } from './core/ui.js';
+import { findEntry } from './registry.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
-  { hash: 'beginner', label: 'Beginner', icon: 'candle' },
-  { hash: 'advanced', label: 'Advanced', icon: 'target' },
+  { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
+  { hash: 'games', label: 'Games', icon: 'gamepad' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
-  { hash: 'progress', label: 'Progress', icon: 'trophy' },
   { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
+  { hash: 'platforms', label: 'Platforms', icon: 'spark', tab: false, wide: true },
 ];
 
 /** Small pulsing dot marking the Live Market Lab link. */
@@ -29,7 +26,7 @@ const THEMES = ['system', 'light', 'dark'];
 const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' };
 const THEME_ICON = { system: 'system', light: 'sun', dark: 'moon' };
 
-/** Brand mark: a hollow bear candle and a gold bull candle. */
+/** Brand mark: a hollow bear candle and a filled bull candle (theme accent). */
 export function brandMark(size = 28) {
   return svg('svg', { class: 'brand__mark', width: size, height: size, viewBox: '0 0 28 28', 'aria-hidden': 'true', focusable: 'false' },
     svg('path', { class: 'brand__wick brand__wick--bear', d: 'M9 4v5M9 21v3' }),
@@ -55,22 +52,40 @@ function applyTheme(pref) {
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', color));
 }
 
-function navKeyFor(route, entry) {
+function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
-    if (route.page === 'track') return route.tier;
-    if (['library', 'progress', 'glossary', 'playbook', 'live'].includes(route.page)) return route.page;
+    // Legacy #beginner / #advanced land on dashboard with a section.
+    if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
-  if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
-    if (entry.tier === 'both') {
-      // A 'both' game that sits in one track's units (e.g. Live Predict) belongs to that track.
-      const tiers = tiersOf(entry.id);
-      return tiers.length === 1 ? tiers[0] : store.state.lastTier || 'beginner';
-    }
-    return entry.tier;
-  }
+  if (route.kind === 'game') return 'games';
+  // Lessons highlight Dashboard (track nav entries removed).
+  if (route.kind === 'lesson') return 'dashboard';
   return null;
+}
+
+
+const RISK_DISCLAIMER =
+  'This is not financial advice. The Trade School is educational material only. Trade at your own risk.';
+
+/** Site-wide risk disclaimer (marquee). Sticky at the top of the viewport above the top nav. */
+function riskTicker() {
+  // Even count: first half === second half so translateX(-50%) loops seamlessly.
+  // Enough copies to cover wide viewports without a visible gap.
+  const COPIES = 8;
+  const segments = Array.from({ length: COPIES }, (_, i) =>
+    h('p', {
+      class: 'risk-ticker__text',
+      ...(i === 0 ? {} : { 'aria-hidden': 'true' }),
+    }, RISK_DISCLAIMER));
+  return h('aside', {
+    class: 'risk-ticker',
+    role: 'alert',
+    'aria-label': 'Risk and educational disclaimer',
+  },
+    h('div', { class: 'risk-ticker__track' }, ...segments));
 }
 
 function buildShell(app) {
@@ -97,7 +112,7 @@ function buildShell(app) {
   const lvNum = h('span', { class: 'xp-pill__lv mono' });
   const lvTitle = h('span', { class: 'xp-pill__title' });
   const lvFill = h('span', { class: 'xp-pill__fill' });
-  const xpPill = h('a', { class: 'xp-pill', href: '#progress' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
+  const xpPill = h('a', { class: 'xp-pill', href: '#dashboard' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
 
   function renderXP(bump = false) {
     const lv = store.level();
@@ -105,7 +120,7 @@ function buildShell(app) {
     lvTitle.textContent = lv.title;
     lvFill.style.width = `${Math.round(lv.progress * 100)}%`;
     const toNext = lv.next != null ? `, ${lv.next - lv.xp} XP to ${lv.nextTitle}` : '';
-    xpPill.setAttribute('aria-label', `Level ${lv.number}, ${lv.title}. ${lv.xp} XP${toNext}. View progress.`);
+    xpPill.setAttribute('aria-label', `Level ${lv.number}, ${lv.title}. ${lv.xp} XP${toNext}. View dashboard.`);
     xpPill.title = `${lv.xp.toLocaleString()} XP${lv.next != null ? ` · ${(lv.next - lv.xp).toLocaleString()} to ${lv.nextTitle}` : ''}`;
     if (bump) {
       xpPill.classList.remove('is-bump');
@@ -115,7 +130,7 @@ function buildShell(app) {
   }
 
   // Sound toggle
-  const soundBtn = h('button', { type: 'button', class: 'icon-btn topbar__sound', on: { click: () => {
+  const soundBtn = h('button', { type: 'button', class: 'icon-btn', on: { click: () => {
     store.setSetting('sound', !store.state.settings.sound);
     renderSound();
     sfx.click();
@@ -148,13 +163,38 @@ function buildShell(app) {
 
   const skip = h('button', { type: 'button', class: 'skip-link', on: { click: () => main.focus() } }, 'Skip to content');
 
+  // Sign in / Sign up (or Account when signed in) — always visible in the header.
+  const authBtn = h('a', {
+    class: 'btn btn--ghost btn--sm topbar__auth',
+    href: '#account',
+    'data-auth': 'out',
+  }, icon('lock', { size: 14 }), 'Sign in');
+
+  function renderAuth() {
+    const a = access.getAccess();
+    if (a.user) {
+      const label = (a.user.email && a.user.email.split('@')[0]) || 'Account';
+      authBtn.href = '#account';
+      authBtn.dataset.auth = 'in';
+      authBtn.replaceChildren(icon('lock', { size: 14 }), label);
+      authBtn.setAttribute('aria-label', `Account (${a.user.email || 'signed in'})`);
+      authBtn.title = a.user.email || 'Account';
+    } else {
+      authBtn.href = '#account';
+      authBtn.dataset.auth = 'out';
+      authBtn.replaceChildren(icon('lock', { size: 14 }), 'Sign in');
+      authBtn.setAttribute('aria-label', 'Sign in or sign up');
+      authBtn.title = 'Sign in / Sign up';
+    }
+  }
+
   const header = h('header', { class: 'topbar' },
     h('div', { class: 'container topbar__inner' },
       h('a', { class: 'brand', href: '#home', 'aria-label': 'The Trade School — home' },
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, soundBtn, themeBtn, accountArea())));
+      h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn)));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },
@@ -162,28 +202,29 @@ function buildShell(app) {
         brandMark(22),
         h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
-        h('a', { href: '#beginner' }, 'Beginner'),
-        h('a', { href: '#advanced' }, 'Advanced'),
+        h('a', { href: '#dashboard' }, 'Dashboard'),
+        h('a', { href: '#games' }, 'Games'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
-        h('a', { href: '#progress' }, 'Progress'),
-        h('a', { href: '#pricing' }, 'Pricing'),
-        h('a', { href: '#terms' }, 'Terms'),
-        h('a', { href: '#privacy' }, 'Privacy'))));
+        h('a', { href: '#platforms' }, 'Platforms'),
+        h('a', { href: '#account' }, 'Account'))));
 
-  app.replaceChildren(skip, header, main, footer, tabbar);
+  app.replaceChildren(skip, riskTicker(), header, main, footer, tabbar);
   app.classList.add('app');
 
   renderXP();
   renderSound();
   renderTheme();
+  renderAuth();
   store.on('xp', () => renderXP(true));
   store.on('change', () => {
     renderXP();
     renderSound();
   });
+  access.onChange(() => renderAuth());
+  access.ready.then(() => renderAuth()).catch(() => {});
 
   function setActive(route, entry) {
     const key = navKeyFor(route, entry);
@@ -199,270 +240,31 @@ function buildShell(app) {
   return { main, setActive };
 }
 
-// ------------------------------------------------------------------ accounts (§9)
-
-/** A person glyph for the signed-out account button (phones). */
-function personIcon(size = 20) {
-  return svg('svg', { class: 'icon', width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.75, 'stroke-linecap': 'round', 'aria-hidden': 'true', focusable: 'false' },
-    svg('circle', { cx: 12, cy: 8.5, r: 3.8 }),
-    svg('path', { d: 'M4.5 20c1.3-3.7 4.1-5.6 7.5-5.6s6.2 1.9 7.5 5.6' }));
-}
-
-/** Remember where the member was, so signing in brings them back. */
-function rememberHere() {
-  const r = currentRoute();
-  if (r?.key) auth.setReturnTo(r.key);
-}
-
-/**
- * Header account area. Signed out: "Sign in" + "Start free" (a person button with the same
- * choices on phones). Signed in: an avatar button opening a small menu (name, email, plan,
- * Account, Pricing/Upgrade, Sign out). Menu: Enter/Space/↓ open, ↑/↓/Home/End move, Esc closes.
- */
-function accountArea() {
-  const slot = h('div', { class: 'acct-slot' });
-  const menuId = 'acct-menu';
-  let menu = null;
-  let trigger = null;
-
-  const items = () => (menu ? [...menu.querySelectorAll('[role^="menuitem"]')].filter((el) => el.getClientRects().length > 0) : []);
-  function openMenu(focus = 'first') {
-    if (!menu || !trigger) return;
-    menu.querySelector('.acct-menu__item--sound')?.sync?.();
-    menu.hidden = false;
-    trigger.setAttribute('aria-expanded', 'true');
-    slot.classList.add('is-open');
-    const list = items();
-    (focus === 'last' ? list[list.length - 1] : list[0])?.focus();
-    document.addEventListener('pointerdown', onOutside, true);
-  }
-  function closeMenu(refocus = false) {
-    if (!menu || menu.hidden) return;
-    menu.hidden = true;
-    trigger?.setAttribute('aria-expanded', 'false');
-    slot.classList.remove('is-open');
-    document.removeEventListener('pointerdown', onOutside, true);
-    if (refocus) trigger?.focus();
-  }
-  function onOutside(e) {
-    if (!slot.contains(e.target)) closeMenu(false);
-  }
-  function onTriggerKey(e) {
-    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      if (menu.hidden) openMenu('first');
-      else closeMenu(true);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      openMenu('last');
-    } else if (e.key === 'Escape') closeMenu(true);
-  }
-  function onMenuKey(e) {
-    const list = items();
-    const i = list.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      const n = list[(i + (e.key === 'ArrowDown' ? 1 : list.length - 1) + list.length) % list.length];
-      n?.focus();
-    } else if (e.key === 'Home' || e.key === 'End') {
-      e.preventDefault();
-      (e.key === 'Home' ? list[0] : list[list.length - 1])?.focus();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      closeMenu(true);
-    } else if (e.key === 'Tab') {
-      closeMenu(false);
-    }
-  }
-  function item(label, { href, onClick, iconName, action }) {
-    const attrs = { role: 'menuitem', class: 'acct-menu__item', tabindex: '-1', 'data-action': action };
-    const kids = [iconName ? icon(iconName, { size: 16 }) : null, h('span', null, label)];
-    const el = href
-      ? h('a', { ...attrs, href, on: { click: () => closeMenu(false) } }, kids)
-      : h('button', { ...attrs, type: 'button', on: { click: (e) => {
-        closeMenu(false);
-        onClick?.(e);
-      } } }, kids);
-    return el;
-  }
-
-  // On narrow top bars the sound toggle lives in this menu (css/account.css hides the icon).
-  function soundItem() {
-    const on = () => store.state.settings.sound !== false;
-    const el = h('button', {
-      type: 'button', role: 'menuitemcheckbox', class: 'acct-menu__item acct-menu__item--sound', tabindex: '-1', 'data-action': 'menu-sound',
-      on: { click: (e) => {
-        e.stopPropagation();          // keep the menu open: it is a toggle
-        store.setSetting('sound', !on());
-        el.sync();
-        sfx.click();
-      } },
-    });
-    el.sync = () => {
-      el.setAttribute('aria-checked', String(on()));
-      el.replaceChildren(icon(on() ? 'sound' : 'mute', { size: 16 }), h('span', null, on() ? 'Sound effects: on' : 'Sound effects: off'));
-    };
-    el.sync();
-    return el;
-  }
-
-  function render() {
-    const wasOpen = menu && !menu.hidden;
-    closeMenu(false);
-    slot.replaceChildren();
-    const user = auth.user;
-    if (!user && auth.restoring) {
-      // A stored session is being restored: hold the space without flashing "Sign in".
-      slot.dataset.state = 'pending';
-      document.documentElement.dataset.auth = 'pending';
-      trigger = null;
-      menu = null;
-      slot.append(h('span', { class: 'avatar-btn acct-pending', 'aria-hidden': 'true' }, h('span', { class: 'avatar avatar--sm' })));
-      return;
-    }
-    slot.dataset.state = user ? 'in' : 'out';
-    document.documentElement.dataset.auth = user ? 'in' : 'out';
-    if (!user) {
-      trigger = h('button', {
-        type: 'button', class: 'icon-btn acct-compact', 'aria-label': 'Account: sign in or create a free account',
-        'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': menuId,
-        on: { click: () => (menu.hidden ? openMenu('first') : closeMenu(true)), keydown: onTriggerKey },
-      }, personIcon(20));
-      menu = h('div', { class: 'acct-menu', id: menuId, role: 'menu', 'aria-label': 'Account', hidden: true, on: { keydown: onMenuKey } },
-        item('Sign in', { href: '#signin', iconName: 'arrow-right', action: 'menu-signin' }),
-        item('Create free account', { href: '#signup', iconName: 'plus', action: 'menu-signup' }),
-        item('Plans & pricing', { href: '#pricing', iconName: 'star', action: 'menu-pricing' }),
-        soundItem());
-      menu.addEventListener('click', (e) => {
-        if (e.target.closest('[href="#signin"], [href="#signup"]')) rememberHere();
-      });
-      slot.append(
-        h('a', { class: 'btn btn--ghost btn--sm acct-signin', href: '#signin', 'data-action': 'header-signin', on: { click: rememberHere } }, 'Sign in'),
-        h('a', { class: 'btn btn--primary btn--sm acct-start', href: '#signup', 'data-action': 'header-signup', on: { click: rememberHere } }, 'Start free'),
-        trigger, menu);
-      return;
-    }
-    const name = auth.displayName;
-    const lv = auth.level;
-    const chipText = planChipLabel(lv);
-    trigger = h('button', {
-      type: 'button', class: 'avatar-btn', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': menuId,
-      'aria-label': `Account menu: ${name}${chipText ? `, ${chipText}` : ''}`, 'data-action': 'account-menu',
-      on: { click: () => (menu.hidden ? openMenu('first') : closeMenu(true)), keydown: onTriggerKey },
-    }, h('span', { class: 'avatar avatar--sm', 'aria-hidden': 'true' }, (name.trim()[0] || '?').toUpperCase()));
-    menu = h('div', { class: 'acct-menu', id: menuId, role: 'menu', 'aria-label': 'Account', hidden: true, on: { keydown: onMenuKey } },
-      h('div', { class: 'acct-menu__head', role: 'none' },
-        h('span', { class: 'avatar avatar--md', 'aria-hidden': 'true' }, (name.trim()[0] || '?').toUpperCase()),
-        h('span', { class: 'acct-menu__who' },
-          h('strong', { class: 'acct-menu__name' }, name),
-          h('span', { class: 'acct-menu__email' }, user.email),
-          chipText ? h('span', { class: ['chip', 'chip--sm', 'plan-chip', `plan-chip--${lv}`] }, chipText) : null)),
-      item('Account', { href: '#account', iconName: 'shield', action: 'menu-account' }),
-      item(lv === 'advanced' ? 'Plans & pricing' : lv === 'beginner' ? 'Upgrade to Advanced' : 'Upgrade', { href: lv === 'beginner' ? '#pricing.advanced' : '#pricing', iconName: 'star', action: 'menu-pricing' }),
-      soundItem(),
-      item('Sign out', { iconName: 'arrow-left', action: 'menu-signout', onClick: async () => {
-        try {
-          await auth.signOut();
-          toast('Signed out. Your progress is saved in your account.', { type: 'info' });
-          const r = currentRoute();
-          if (r?.page === 'account') navigate('home');
-        } catch (err) {
-          toast(err?.message || 'Could not sign out.', { type: 'bad' });
-        }
-      } }));
-    slot.append(trigger, menu);
-    if (wasOpen) openMenu('first');
-  }
-
-  render();
-  let last = '';
-  auth.on('change', () => {
-    const key = `${auth.user?.id || ''}|${auth.level || ''}|${auth.displayName}|${auth.restoring}`;
-    if (key === last) return;
-    last = key;
-    render();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && menu && !menu.hidden) closeMenu(true);
-  });
-  window.addEventListener('hashchange', () => closeMenu(false));
-  return slot;
-}
-
-/** Registers the access gate (§9.3), progress sync and the auth → router glue. */
-function setupAccounts() {
-  auth.init();
-  const enforce = browserAccessMode() === 'enforce';
-  document.documentElement.dataset.access = enforce ? 'enforce' : 'open';
-  const access = makeAccess(() => auth.level, { enforce, signedIn: () => !!auth.user });
-  const targetOf = (entry, route) => (route.kind === 'lesson' || route.kind === 'game' ? entry : route);
-  let premiumUsed = false;
-
-  setAccessGate({
-    access,
-    async canOpen(entry, route) {
-      if (!enforce) return true;
-      const target = targetOf(entry, route);
-      if (!requiredPlan(target)) return true;
-      await auth.ready;
-      return canOpen(target, auth.level);
-    },
-    loadModule: PREMIUM_SOURCE === 'storage' ? async (entry) => {
-      const plan = premiumFolder(entry);
-      if (!plan || !auth.user || auth.mode !== 'supabase') return null;
-      try {
-        const { loadPremiumModule } = await import('./core/premium-loader.js');
-        premiumUsed = true;
-        return await loadPremiumModule(entry, {
-          plan,
-          download: (path) => auth.downloadPremium(path),
-          jsRoot: new URL('./', import.meta.url).href,
-          siteRoot: new URL('../', import.meta.url).href,
-        });
-      } catch (err) {
-        console.warn(`[premium] ${entry.id}: loading the site copy instead:`, err?.message || err);
-        return null;
-      }
-    } : undefined,
-  });
-
-  startSync({ store, auth });
-  auth.on('recovery', () => navigate('reset.update'));
-
-  // When the member's plan changes, re-render what depends on it: pages that show lock chips,
-  // and a lesson / game whose paywall state flipped (a game in progress is otherwise left alone).
-  let lastLevel = auth.level;
-  let lastUser = auth.user?.id || null;
-  auth.on('change', () => {
-    const lv = auth.level;
-    const who = auth.user?.id || null;
-    if (lv === lastLevel && who === lastUser) return;
-    lastLevel = lv;
-    lastUser = who;
-    if (!who && premiumUsed) import('./core/premium-loader.js').then((m) => m.clearPremiumCache()).catch(() => {});
-    if (!enforce) return;
-    const { route, entry, blocked } = currentState();
-    if (!route) return;
-    if (route.kind === 'lesson' || route.kind === 'game') {
-      if (canOpen(targetOf(entry, route), lv) === blocked) refresh();
-    } else if (route.kind === 'page' && ['home', 'track', 'library', 'playbook', 'live'].includes(route.page)) {
-      refresh();
-    }
-  });
-}
-
 function boot() {
   const app = document.getElementById('app');
   if (!app) return;
   applyTheme(store.state.settings.theme);
-  setupAccounts();
   try {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(store.state.settings.theme));
   } catch {
     /* old browsers */
   }
   const shell = buildShell(app);
+  // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
+  function wireGate() {
+    setAccessGate({
+      canOpen: (entry, route) => access.canOpen(entry, route),
+      access: () => access.accessInfo(),
+      paywallPath: '../pages/paywall.js',
+      // No onUnauthenticated redirect: unsigned visitors see the paywall teaser
+      // (plans + sign-in CTA) instead of a hard hide-behind-login wall.
+    });
+  }
+  wireGate();
+  access.ready.then(() => {
+    /* re-render current route once session/level is known */
+    wireGate();
+  }).catch(() => { /* offline / missing vendor */ });
   startRouter(shell.main, {
     store,
     onRoute: (route, entry) => {

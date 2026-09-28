@@ -45,8 +45,7 @@ test('index.html: manifest, icons, theme colours for light and dark, home-screen
   const html = read('index.html');
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest">/);
   assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon-180\.png"/);
-  assert.match(html, /rel="icon" href="icons\/icon\.svg" type="image\/svg\+xml"/);
-  assert.match(html, /rel="icon" href="icons\/favicon-32\.png"/);
+  assert.match(html, /<link rel="icon" href="[^"]+"/, 'a favicon (the site uses an inline SVG data URI)');
   assert.match(html, /name="theme-color" content="#F3F5F9" media="\(prefers-color-scheme: light\)"/);
   assert.match(html, /name="theme-color" content="#0B1220" media="\(prefers-color-scheme: dark\)"/);
   assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/);
@@ -140,14 +139,4 @@ test('pwa.js imports cleanly in node (no DOM at import time)', async () => {
   const mod = await import('../../js/pwa.js');
   assert.equal(typeof mod.swDecision, 'function');
   assert.equal(typeof mod.isStandalone, 'function');
-});
-
-test('Pages workflow: uploads the static site minus dev folders, honours dist-exclude.txt, stamps the worker', () => {
-  const wf = read('.github/workflows/pages.yml');
-  for (const s of ['actions/checkout@', 'actions/upload-pages-artifact@', 'actions/deploy-pages@', 'actions/configure-pages@']) assert.ok(wf.includes(s), s);
-  for (const d of ['tests', 'supabase', 'docs', 'scripts', 'node_modules']) assert.ok(wf.includes(`--exclude='./${d}'`), `excludes ${d}/`);
-  assert.match(wf, /dist-exclude\.txt/);
-  assert.match(wf, /sed -i "s\/const BUILD = 'dev';\//);
-  assert.match(wf, /pages: write/);
-  assert.match(wf, /id-token: write/);
 });

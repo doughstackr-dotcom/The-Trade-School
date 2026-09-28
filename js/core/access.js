@@ -1,321 +1,420 @@
-// Access rules (ARCHITECTURE §9): which plan a lesson, game, game mode or page needs, and
-// whether a member level may open it. PURE: no DOM, no network, importable from node.
-//
-// The rules come from js/config.js (FREE_IDS, PAGE_PLANS, BOTH_TIER_MODES, ACCESS_MODE) plus
-// each registry entry's `tier`, so new lessons and games follow automatically.
-//
-//   required plan  null (public) < 'account' (free account) < 'beginner' < 'advanced'
-//   member level   null (signed out) < 'free' < 'beginner' < 'advanced'
-import { FREE_IDS, ACCESS_MODE, PAGE_PLANS, BOTH_TIER_MODES, PLANS } from '../config.js';
-import { LESSONS, GAMES, PAGES, findEntry, findPage } from '../registry.js';
+// Access control (ARCHITECTURE §9): Supabase session + access_level, FREE_IDS, plan unlocks.
+// Client-side gating is UX; PREMIUM_SOURCE='storage' is the real content lock (see docs/SECRETS.md).
+import {
+  SUPABASE_URL, SUPABASE_KEY, PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE,
+} from '../config.js';
 
-/** Rank of a member level or a required plan. Signed out / public = 0. */
-export const PLAN_RANK = Object.freeze({ none: 0, account: 1, free: 1, beginner: 2, advanced: 3 });
+const VENDOR_SRC = new URL('../vendor/supabase.js', import.meta.url).href;
+const LEVELS = ['free', 'beginner', 'advanced'];
+const listeners = new Set();
 
-/** Member levels returned by the access_level() RPC. */
-export const MEMBER_LEVELS = Object.freeze(['free', 'beginner', 'advanced']);
+let client = null;
+let vendorP = null;
+let session = null;
+let level = null; // null = signed out; 'free' | 'beginner' | 'advanced'
+let mode = 'offline'; // 'supabase' | 'offline'
 
-/** Paid plans, cheapest first. */
-export const PAID_PLANS = Object.freeze(['beginner', 'advanced']);
-
-/** Chip text for what an item needs ("Free" = a free account). */
-export const PLAN_LABELS = Object.freeze({ account: 'Free', free: 'Free', beginner: 'Beginner plan', advanced: 'Advanced plan' });
-
-/** Short names of member levels. */
-export const LEVEL_LABELS = Object.freeze({ none: 'Signed out', free: 'Free', beginner: 'Beginner', advanced: 'Advanced' });
-
-const PAGE_TITLES = { library: 'Pattern Library', playbook: 'Setup Playbook', live: 'Live Market Lab' };
-const PAGE_BLURBS = {
-  library: 'Every candlestick and chart pattern with a diagram, the psychology behind it and how traders confirm it.',
-};
-
-/** Rank of a level / plan name (unknown or null → 0). */
-export function rankOf(levelOrPlan) {
-  if (levelOrPlan == null) return 0;
-  return PLAN_RANK[levelOrPlan] ?? 0;
-}
-
-/** Normalises anything level-like to null | 'free' | 'beginner' | 'advanced'. */
-export function normalizeLevel(level) {
-  return MEMBER_LEVELS.includes(level) ? level : level == null ? null : 'free';
-}
-
-/** The plan a content tier needs: 'beginner' | 'advanced' (| null for unknown tiers). */
-export function planForTier(tier, { mode = null } = {}) {
-  if (tier === 'beginner') return 'beginner';
-  if (tier === 'advanced') return 'advanced';
-  if (tier === 'both') return BOTH_TIER_MODES[mode] || BOTH_TIER_MODES.beginner || 'beginner';
-  return null;
-}
-
-function resolveTarget(target) {
-  if (target == null) return null;
-  if (typeof target === 'string') {
-    const e = findEntry(target);
-    if (e) return e;
-    if (PAGE_PLANS[target] !== undefined || findPage(target)) return { type: 'page', id: target };
-    return null;
-  }
-  if (target.kind === 'lesson' || target.kind === 'game') return findEntry(target.id) || null; // a route
-  if (target.kind === 'page') return { type: 'page', id: target.page };                        // a route
-  if (target.kind === 'notfound') return null;
-  return target;
-}
-
-/**
- * The plan needed to open a lesson, game (optionally one of its modes) or page.
- * target: registry entry | id | route ({ kind, id | page }) | { type: 'page', id }.
- * → null (public) | 'account' | 'beginner' | 'advanced'
- */
-export function requiredPlan(target, { mode = null } = {}) {
-  const e = resolveTarget(target);
-  if (!e) return null;
-  if (e.type === 'page') return PAGE_PLANS[e.id] ?? null;
-  if (e.dev) return null;                       // developer demos (localhost only)
-  if (FREE_IDS.includes(e.id)) return 'account';
-  if (e.type !== 'lesson' && e.type !== 'game') return null;
-  return planForTier(e.tier, { mode }) || 'account';
-}
-
-/** The plan a GameShell mode needs: the mode's own `requires`, else the rule for its game. */
-export function modeRequirement(entry, modeOrId) {
-  const m = typeof modeOrId === 'string' ? { id: modeOrId } : modeOrId || {};
-  if (m.requires) return m.requires === 'free' ? 'account' : m.requires;
-  return requiredPlan(entry, { mode: m.id || null });
-}
-
-/** True when a member level satisfies a required plan. */
-export function levelSatisfies(level, plan) {
-  return rankOf(normalizeLevel(level)) >= rankOf(plan);
-}
-
-/**
- * May `level` open `target`? opts.mode: a game mode; opts.enforce = false opens everything
- * (ACCESS_MODE 'open' / localhost).
- */
-export function canOpen(target, level, { mode = null, enforce = true } = {}) {
-  if (!enforce) return true;
-  return levelSatisfies(level, requiredPlan(target, { mode }));
-}
-
-/** The paid plan to buy for a requirement (null for public / free-account items). */
-export function planToBuy(required) {
-  return required === 'beginner' || required === 'advanced' ? required : null;
-}
-
-/**
- * Why `level` cannot open `target`, or null when it can.
- * → { required, plan, reason: 'signin' | 'subscribe' | 'upgrade' }
- *   signin: signed out (free-account items and paid ones: create an account first)
- *   subscribe: signed in on the free level, needs a plan
- *   upgrade: on Beginner, needs Advanced
- */
-export function blockReason(target, level, opts = {}) {
-  if (canOpen(target, level, opts)) return null;
-  const required = requiredPlan(target, opts);
-  const lv = normalizeLevel(level);
-  const plan = planToBuy(required);
-  const reason = lv == null ? 'signin' : lv === 'beginner' && plan === 'advanced' ? 'upgrade' : 'subscribe';
-  return { required, plan, reason };
-}
-
-/** Chip text for a requirement: 'Free' | 'Beginner plan' | 'Advanced plan' | null (public). */
-export function lockLabel(required) {
-  return required ? PLAN_LABELS[required] || null : null;
-}
-
-/** 'Signed out' | 'Free' | 'Beginner' | 'Advanced' */
-export function levelLabel(level) {
-  const lv = normalizeLevel(level);
-  return LEVEL_LABELS[lv || 'none'];
-}
-
-/** Chip text for a member's plan: 'Free plan' | 'Beginner plan' | 'Advanced plan' | null. */
-export function planChipLabel(level) {
-  const lv = normalizeLevel(level);
-  if (!lv) return null;
-  return lv === 'free' ? 'Free plan' : PLAN_LABELS[lv];
-}
-
-/**
- * The call to action on a plan card for a member level.
- * → { action: 'signup' | 'subscribe' | 'upgrade' | 'manage' | 'included', label, current }
- */
-export function planCta(plan, level) {
-  const lv = normalizeLevel(level);
-  const name = PLANS[plan]?.name || plan;
-  if (!lv) return { action: 'signup', label: `Start with ${name}`, current: false };
-  if (lv === plan) return { action: 'manage', label: 'Manage billing', current: true };
-  if (rankOf(lv) > rankOf(plan)) return { action: 'included', label: 'Included in your plan', current: false };
-  if (lv === 'beginner' && plan === 'advanced') return { action: 'upgrade', label: 'Upgrade to Advanced', current: false };
-  return { action: 'subscribe', label: `Subscribe to ${name}`, current: false };
-}
-
-/** Where a locked item's upgrade link goes: '#signup' for free-account items, else '#pricing.<plan>'. */
-export function upgradeHash(required, level) {
-  const plan = planToBuy(required);
-  if (!plan) return normalizeLevel(level) ? '#account' : '#signup';
-  return `#pricing.${plan}`;
-}
-
-// ---------------------------------------------------------------- enforcement mode
-
-/** localhost / 127.0.0.1 / ::1 (development and tests). */
-export function isLocalHost(hostname) {
-  const hn = String(hostname || '').toLowerCase();
-  return hn === 'localhost' || hn === '127.0.0.1' || hn === '::1' || hn === '[::1]';
-}
-
-/**
- * ACCESS_MODE resolution → 'open' | 'enforce'.
- * 'auto': open on localhost (so development and the smoke test see every module) unless
- * localStorage['tts-enforce-access'] === '1'; enforced on every other host.
- */
-export function resolveAccessMode({ mode = ACCESS_MODE, hostname = '', enforceFlag = null } = {}) {
-  if (mode === 'open') return 'open';
-  if (mode === 'enforce') return 'enforce';
-  if (!isLocalHost(hostname)) return 'enforce';
-  return enforceFlag === '1' ? 'enforce' : 'open';
-}
-
-/** Reads the browser's hostname and the local override (safe in node and with blocked storage). */
-export function browserAccessMode() {
-  let hostname = '';
-  let flag = null;
+function isLocalHost() {
   try {
-    hostname = globalThis.location?.hostname || '';
+    const h = location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
   } catch {
-    hostname = '';
+    return false;
   }
-  try {
-    flag = globalThis.localStorage?.getItem('tts-enforce-access') ?? null;
-  } catch {
-    flag = null;
-  }
-  return resolveAccessMode({ hostname, enforceFlag: flag });
 }
 
-/**
- * The `ctx.access` object modules receive. `getLevel` may be a function (live value) or a level.
- * { level, enforced, signedIn, can(plan), canOpen(target, opts), requiredPlan(target, opts),
- *   modeRequirement(entry, mode), canTier(tier), lockLabel(plan), upgradeHash(plan) }
- */
-export function makeAccess(getLevel, { enforce = true, signedIn = null } = {}) {
-  const read = () => normalizeLevel(typeof getLevel === 'function' ? getLevel() : getLevel);
+function forceEnforceLocally() {
+  try {
+    return globalThis.localStorage?.getItem('tts-enforce-access') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the gate should block unpaid modules right now. */
+export function isEnforcing() {
+  if (ACCESS_MODE === 'open') return false;
+  if (ACCESS_MODE === 'enforce') return true;
+  // auto
+  if (isLocalHost() && !forceEnforceLocally()) return false;
+  return true;
+}
+
+function emit() {
+  const snap = snapshot();
+  for (const fn of [...listeners]) {
+    try { fn(snap); } catch (err) { console.error(err); }
+  }
+}
+
+function snapshot() {
   return {
-    get level() {
-      return read();
-    },
-    get signedIn() {
-      if (typeof signedIn === 'function') return !!signedIn();
-      return signedIn == null ? read() != null : !!signedIn;
-    },
-    enforced: !!enforce,
-    /** plan: null | 'free' | 'account' | 'beginner' | 'advanced' */
-    can(plan) {
-      return !enforce || levelSatisfies(read(), plan === 'free' ? 'account' : plan);
-    },
-    canOpen(target, opts = {}) {
-      return canOpen(target, read(), { ...opts, enforce });
-    },
-    requiredPlan(target, opts) {
-      return requiredPlan(target, opts);
-    },
-    modeRequirement(entry, mode) {
-      return modeRequirement(entry, mode);
-    },
-    /** For content inside a page (e.g. a Beginner or Advanced playbook setup). */
-    canTier(tier, opts) {
-      const plan = planForTier(tier, opts);
-      return !enforce || !plan || levelSatisfies(read(), plan);
-    },
-    lockLabel,
-    upgradeHash(plan) {
-      return upgradeHash(plan, read());
-    },
+    level,
+    session,
+    mode,
+    user: session?.user ? { id: session.user.id, email: session.user.email || null } : null,
+    enforcing: isEnforcing(),
+    premiumSource: PREMIUM_SOURCE,
   };
 }
 
-// ---------------------------------------------------------------- what each plan unlocks
-
-const titleOf = (e) => e.title;
-
-/**
- * Exactly what a plan adds on top of the plan below it, generated from the registry.
- * plan: 'account' | 'beginner' | 'advanced'
- * → { lessons: [entry], games: [entry], modes: [{ game: entry, mode }], pages: [{ id, title }], extras: [string] }
- */
-export function unlocksFor(plan) {
-  const want = plan === 'free' ? 'account' : plan;
-  const lessons = LESSONS.filter((l) => requiredPlan(l) === want);
-  const games = GAMES.filter((g) => requiredPlan(g) === want);
-  // 'both'-tier games whose Advanced mode needs a higher plan than the game itself.
-  const modes = [];
-  for (const g of GAMES) {
-    if (g.tier !== 'both' || FREE_IDS.includes(g.id)) continue;
-    for (const m of Object.keys(BOTH_TIER_MODES)) {
-      const need = requiredPlan(g, { mode: m });
-      if (need === want && need !== requiredPlan(g)) modes.push({ game: g, mode: m });
+function loadVendor() {
+  if (globalThis.supabase?.createClient) return Promise.resolve(globalThis.supabase);
+  if (vendorP) return vendorP;
+  vendorP = new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-tts-supabase]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve(globalThis.supabase));
+      existing.addEventListener('error', () => reject(new Error('Failed to load supabase vendor')));
+      if (globalThis.supabase?.createClient) resolve(globalThis.supabase);
+      return;
     }
-  }
-  const pages = Object.entries(PAGE_PLANS)
-    .filter(([, p]) => p === want)
-    .map(([id]) => ({ id, title: findPage(id)?.title || PAGE_TITLES[id] || id }));
-  const extras = [];
-  if (want === 'account') {
-    extras.push('Progress saved to your account and synced across devices');
-  }
-  if (want === 'beginner') {
-    if (PAGE_PLANS.playbook === 'account') extras.push('Beginner setups in the Setup Playbook');
-  }
-  if (want === 'advanced') {
-    if (PAGE_PLANS.playbook === 'account') extras.push('Advanced setups in the Setup Playbook');
-    if (FREE_IDS.includes('daily-challenge')) extras.push('Daily Challenge with mixed Beginner and Advanced questions');
-  }
-  return { lessons, games, modes, pages, extras };
+    const s = document.createElement('script');
+    s.src = VENDOR_SRC;
+    s.async = true;
+    s.dataset.ttsSupabase = '1';
+    s.onload = () => {
+      if (globalThis.supabase?.createClient) resolve(globalThis.supabase);
+      else reject(new Error('supabase vendor loaded without createClient'));
+    };
+    s.onerror = () => reject(new Error('Failed to load supabase vendor'));
+    document.head.appendChild(s);
+  }).catch((err) => {
+    console.warn('[access] vendor unavailable:', err?.message || err);
+    vendorP = null;
+    return null;
+  });
+  return vendorP;
 }
 
-/** Plain-text list lines for a plan (used by the pricing page and tests). */
-export function unlockLines(plan) {
-  const u = unlocksFor(plan);
-  const lines = [];
-  if (u.lessons.length) lines.push(`${u.lessons.length} lesson${u.lessons.length === 1 ? '' : 's'}: ${u.lessons.map(titleOf).join(', ')}`);
-  if (u.games.length) lines.push(`${u.games.length} game${u.games.length === 1 ? '' : 's'}: ${u.games.map(titleOf).join(', ')}`);
-  if (u.modes.length) lines.push(`${cap(u.modes[0].mode)} mode of ${u.modes.map((m) => m.game.title).join(', ')}`);
-  for (const p of u.pages) lines.push(p.title);
-  lines.push(...u.extras);
-  return lines;
+async function getClient() {
+  if (client) return client;
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    mode = 'offline';
+    return null;
+  }
+  const sb = await loadVendor();
+  if (!sb?.createClient) {
+    mode = 'offline';
+    return null;
+  }
+  try {
+    client = sb.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        flowType: 'pkce',
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
+    mode = 'supabase';
+    return client;
+  } catch (err) {
+    console.warn('[access] createClient failed:', err?.message || err);
+    mode = 'offline';
+    return null;
+  }
 }
 
-function cap(s) {
-  return String(s).charAt(0).toUpperCase() + String(s).slice(1);
+async function fetchAccessLevel(c) {
+  if (!c) return null;
+  try {
+    const { data, error } = await c.rpc('access_level');
+    if (error) throw error;
+    const v = typeof data === 'string' ? data : data?.access_level || data;
+    if (LEVELS.includes(v)) return v;
+  } catch (err) {
+    console.warn('[access] access_level RPC failed:', err?.message || err);
+  }
+  // Fallback: subscriptions table (active / trialing / past_due)
+  try {
+    const uid = session?.user?.id;
+    if (!uid) return 'free';
+    const { data, error } = await c.from('subscriptions')
+      .select('plan, status')
+      .eq('user_id', uid)
+      .in('status', ['active', 'trialing', 'past_due'])
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const plan = data?.[0]?.plan;
+    if (plan === 'advanced' || plan === 'beginner') return plan;
+    return 'free';
+  } catch (err) {
+    console.warn('[access] subscriptions fallback failed:', err?.message || err);
+    return session?.user ? 'free' : null;
+  }
+}
+
+async function refresh() {
+  const c = await getClient();
+  if (!c) {
+    session = null;
+    level = null;
+    emit();
+    return snapshot();
+  }
+  try {
+    const { data } = await c.auth.getSession();
+    session = data?.session || null;
+  } catch {
+    session = null;
+  }
+  if (session?.user) level = await fetchAccessLevel(c) || 'free';
+  else level = null;
+  emit();
+  return snapshot();
+}
+
+/** Resolves once the first session/access check finishes. */
+export const ready = ((async () => {
+  await refresh();
+  const c = client;
+  if (c?.auth?.onAuthStateChange) {
+    c.auth.onAuthStateChange(async (_event, next) => {
+      session = next || null;
+      if (session?.user) level = await fetchAccessLevel(c) || 'free';
+      else level = null;
+      emit();
+    });
+  }
+  return snapshot();
+})());
+
+export function getAccess() {
+  return snapshot();
+}
+
+export function onChange(fn) {
+  if (typeof fn === 'function') listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export function can(plan) {
+  if (!plan || plan === 'free') return true;
+  if (!isEnforcing()) return true;
+  if (!level) return false;
+  if (level === 'advanced') return true;
+  if (level === 'beginner') return plan === 'beginner' || plan === 'free';
+  return false;
 }
 
 /**
- * A lockable target described for the paywall.
- * → { kind: 'lesson' | 'game' | 'page', id, title, blurb, tier, required, entry }
+ * Plan required for a registry entry (lesson/game) or a mode string.
+ * Free ids and unsigned public pages → 'free'.
+ * Beginner-tier modules → 'beginner'; advanced / both-tier paid → 'advanced'.
  */
-export function describeTarget(target) {
-  const e = resolveTarget(target);
-  if (!e) return null;
-  if (e.type === 'page') {
-    const p = findPage(e.id);
-    return {
-      kind: 'page', id: e.id, title: p?.title || PAGE_TITLES[e.id] || e.id,
-      blurb: p?.blurb || PAGE_BLURBS[e.id] || '', tier: null, required: requiredPlan(e), entry: null,
-    };
+export function requiredPlan(entryOrMode) {
+  if (!entryOrMode) return 'free';
+  if (typeof entryOrMode === 'string') {
+    if (entryOrMode === 'advanced') return 'advanced';
+    if (entryOrMode === 'beginner') return 'beginner';
+    return 'free';
   }
-  return { kind: e.type, id: e.id, title: e.title, blurb: e.blurb || '', tier: e.tier, required: requiredPlan(e), entry: e };
+  const id = entryOrMode.id;
+  if (id && FREE_IDS.includes(id)) return 'free';
+  const tier = entryOrMode.tier;
+  if (tier === 'advanced') return 'advanced';
+  if (tier === 'beginner') return 'beginner';
+  if (tier === 'both') return 'beginner'; // shared games need at least Beginner when gated
+  return 'free';
 }
 
-/** Folder in the premium bucket for an entry's module ('beginner' | 'advanced'), or null if public. */
-export function premiumFolder(target) {
-  const need = requiredPlan(target);
-  return need === 'beginner' || need === 'advanced' ? need : null;
+/** Pages anyone may open without a session (home, dashboard, tools, auth).
+ *  library / glossary / playbook stay routable so unpaid & anonymous visitors see
+ *  in-page teasers; full interaction requires hasPaidAccess() (see pages).
+ *  Platforms stays fully public with no teaser lock.
+ */
+export const PUBLIC_PAGES = Object.freeze([
+  'home', 'account', 'paywall',
+  'dashboard', 'progress', // #progress aliases to dashboard
+  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
+  'dev-chart',
+]);
+
+/** Tool pages that mount for everyone but self-gate full content behind a paid plan. */
+export const TEASER_PAGES = Object.freeze(['library', 'glossary', 'playbook', 'games']);
+
+/**
+ * True when the user may use paid tool pages (Library, Playbook, Glossary) and
+ * paid curriculum beyond FREE_IDS. When not enforcing (local open mode), always true.
+ * Requires a signed-in Beginner or Advanced subscription while enforcing.
+ */
+export function hasPaidAccess() {
+  if (!isEnforcing()) return true;
+  return can('beginner');
 }
 
-/** Every registry page id with its rule (for docs and tests). */
-export function pageRules() {
-  const ids = new Set([...Object.keys(PAGE_PLANS), ...PAGES.map((p) => p.id)]);
-  return [...ids].map((id) => ({ id, required: PAGE_PLANS[id] ?? null }));
+const RETURN_KEY = 'tts-return-hash';
+
+/** Remember where an unsigned visitor was headed before sign-up / sign-in. */
+export function rememberReturn(hash) {
+  const token = String(hash || '').replace(/^#/, '').trim();
+  if (!token) return;
+  // Never bounce back into auth / marketing surfaces.
+  if (token === 'home' || token === 'account' || token.startsWith('account.')
+      || token === 'paywall') return;
+  try { globalThis.sessionStorage?.setItem(RETURN_KEY, token); } catch { /* private mode */ }
 }
+
+/** Read and clear the stored return hash (or null). */
+export function consumeReturn() {
+  try {
+    const v = globalThis.sessionStorage?.getItem(RETURN_KEY);
+    globalThis.sessionStorage?.removeItem(RETURN_KEY);
+    return v || null;
+  } catch {
+    return null;
+  }
+}
+
+export function peekReturn() {
+  try { return globalThis.sessionStorage?.getItem(RETURN_KEY) || null; } catch { return null; }
+}
+
+/**
+ * True for Beginner / Advanced lessons/games (tier beginner|advanced|both).
+ * Only these are auth-gated; Home, Dashboard, Games, Library, Playbook, Live, Glossary, Platforms stay public.
+ */
+export function isCurriculumGated(entry, route = null) {
+  // Standalone track pages are gone; #beginner / #advanced land on public Dashboard.
+  const kind = route?.kind || entry?.type;
+  if (kind === 'lesson' || kind === 'game') {
+    const tier = entry?.tier;
+    if (tier === 'beginner' || tier === 'advanced' || tier === 'both') return true;
+    // Unknown lesson/game id — keep gated rather than leaking paid modules.
+    if (!entry) return true;
+  }
+  return false;
+}
+
+/**
+ * True when the current user may open this route.
+ * When ACCESS_MODE enforces: Home / Dashboard / Library / Playbook / Live / Glossary / Platforms stay
+ * open; Beginner + Advanced lessons/games need a signed-in session.
+ * Signed-in free members still need the right plan for paid modules (FREE_IDS stay free).
+ */
+export function canOpen(entry, route = null) {
+  if (!isEnforcing()) return true;
+  const page = route?.page || (entry?.type === 'page' ? entry.id : null);
+  if (page && PUBLIC_PAGES.includes(page)) return true;
+
+  // Do not newly lock non-curriculum pages (Playbook, Live, Library, Glossary, …).
+  if (!isCurriculumGated(entry, route)) return true;
+
+  // Beginner / Advanced lessons and games: need a session first.
+  if (!session?.user) return false;
+
+  const need = requiredPlan(entry);
+  if (need === 'free') return true;
+  return can(need);
+}
+
+export function lockLabel(entry) {
+  const need = requiredPlan(entry);
+  if (need === 'free') return null;
+  const plan = PLANS[need];
+  return plan ? `${plan.name} plan` : 'Paid plan';
+}
+
+/** ctx.access shape expected by the router and modules. */
+export function accessInfo() {
+  return {
+    level,
+    can,
+    requiredPlan,
+    lockLabel,
+    user: session?.user ? { id: session.user.id, email: session.user.email || null } : null,
+    mode,
+    enforcing: isEnforcing(),
+    refresh,
+  };
+}
+
+export async function signIn({ email, password }) {
+  const c = await getClient();
+  if (!c) return { ok: false, error: 'Subscriptions not open yet' };
+  const { error } = await c.auth.signInWithPassword({ email, password });
+  if (error) return { ok: false, error: error.message };
+  await refresh();
+  return { ok: true };
+}
+
+export async function signUp({ email, password, displayName }) {
+  const c = await getClient();
+  if (!c) return { ok: false, error: 'Subscriptions not open yet' };
+  const { data, error } = await c.auth.signUp({
+    email,
+    password,
+    options: { data: displayName ? { display_name: displayName } : undefined },
+  });
+  if (error) return { ok: false, error: error.message };
+  await refresh();
+  return { ok: true, needsConfirmation: !data?.session };
+}
+
+export async function signOut() {
+  const c = await getClient();
+  if (c) {
+    try { await c.auth.signOut(); } catch { /* ignore */ }
+  }
+  session = null;
+  level = null;
+  emit();
+}
+
+/** Starts Stripe Checkout via Edge Function. Returns { ok, error } or redirects. */
+export async function checkout(plan) {
+  const c = await getClient();
+  if (!c || !session) return { ok: false, error: 'Sign in to subscribe' };
+  if (!PLANS[plan]) return { ok: false, error: 'Unknown plan' };
+  try {
+    const { data, error } = await c.functions.invoke('create-checkout', { body: { plan } });
+    if (error) throw error;
+    if (data?.url) {
+      location.href = data.url;
+      return { ok: true };
+    }
+    if (data?.switched) {
+      await refresh();
+      return { ok: true, switched: true };
+    }
+    return { ok: false, error: data?.error || 'Subscriptions not open yet' };
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (/not open|not configured|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test(msg)) {
+      return { ok: false, error: 'Subscriptions not open yet' };
+    }
+    return { ok: false, error: msg };
+  }
+}
+
+/** Opens the Stripe customer portal. */
+export async function openBillingPortal() {
+  const c = await getClient();
+  if (!c || !session) return { ok: false, error: 'Sign in to manage billing' };
+  try {
+    const { data, error } = await c.functions.invoke('customer-portal', { body: {} });
+    if (error) throw error;
+    if (data?.url) {
+      location.href = data.url;
+      return { ok: true };
+    }
+    return { ok: false, error: data?.error || 'Subscriptions not open yet' };
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (/not open|not configured|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test(msg)) {
+      return { ok: false, error: 'Subscriptions not open yet' };
+    }
+    return { ok: false, error: msg };
+  }
+}
+
+export { FREE_IDS, PLANS, ACCESS_MODE, PREMIUM_SOURCE };
+
+export default {
+  ready, getAccess, onChange, can, canOpen, requiredPlan, lockLabel, accessInfo,
+  signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing, PUBLIC_PAGES,
+  TEASER_PAGES, hasPaidAccess,
+  rememberReturn, consumeReturn, peekReturn, isCurriculumGated,
+};

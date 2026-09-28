@@ -1,39 +1,70 @@
-// Stub game (level-hunter) — proves the GameShell contract; replaced by the full game.
+// Level Hunter — pick whether price is reacting at support, resistance, or neither.
 import { GameShell } from '../core/game-kit.js';
-import { choiceQuiz } from '../core/ui.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
+import { h } from '../core/ui.js';
+import { CandleChart } from '../core/chart.js';
+import { chartScenario } from '../core/patterns.js';
 
-// [question, options, index of the correct option, explanation]
-const QUESTIONS = [
-  ["Price has bounced from 98.00 four times this month. What is 98 most likely?", ["Support", "Resistance", "A moving average", "A trend line"], 0, "Repeated bounces from below mark <strong>support</strong>: buyers keep defending that price."],
-  ["Price broke above 105, came back to retest 105 from above, and a bullish candle closed there. Bounce or break?", ["Bounce — old resistance is acting as support", "Break — price will fall through", "Neither — levels only work once", "Break — retests always fail"], 0, "A retest that holds is classic <strong>role reversal</strong>: broken resistance became support."],
-  ["Price wicks above resistance but closes back below it. What is that?", ["A fakeout (false breakout)", "A confirmed breakout", "Role reversal", "A golden cross"], 0, "No close above the level means <strong>no breakout</strong>. The wick trapped early buyers."],
-];
+function textbook(rng, difficulty) {
+  const ids = ['double-bottom', 'double-top', 'ascending-triangle', 'descending-triangle'];
+  const id = rng.pick(ids);
+  const sc = chartScenario(id, { seed: rng.int(1, 1e9), count: Math.round(90 - 10 * difficulty), after: 12, outcome: rng.chance(0.55) ? 'success' : 'fail' });
+  const kind = /bottom|ascending/.test(id) ? 'support' : 'resistance';
+  return { candles: sc.candles, decisionIdx: Math.max(10, sc.breakoutIdx - 1), level: sc.level, kind, name: sc.name };
+}
 
 export default {
   id: 'level-hunter',
   mount(root, ctx) {
-    let order = QUESTIONS;
     const game = new GameShell(root, ctx, {
-      rounds: QUESTIONS.length,
-      howTo: ["Read the price action.", "Decide what the level is, or whether it will bounce or break.", "Streaks multiply your points."],
-      onStart(g, { rng }) {
-        order = rng.shuffle(QUESTIONS);
-        g.nextRound();
-      },
-      onRound(g, { round, rng, stage }) {
-        const [question, labels, correct, explain] = order[(round - 1) % order.length];
-        const options = rng.shuffle(labels.map((label, i) => ({ label, value: i })));
-        stage.append(choiceQuiz({
-          question,
-          options,
-          answer: correct,
-          sfx: false,
-          onAnswer(ok) {
-            if (ok) g.correct(explain);
-            else g.wrong(explain);
-            g.nextButton();
+      preview: (el) => gameplayPreview(el, { seed: 52, direction: 'down', title: 'level-hunter', score: 390, streak: 2, round: '2/8' }),
+      rounds: 7,
+      timer: { seconds: 26, perRound: true },
+      howTo: [
+        'A horizontal level is marked (or implied by reactions).',
+        'Is price treating it as support, resistance, or is it unclear?',
+        'Harder rounds hide the label and shorten context.',
+      ],
+      async onRound(g, { rng, stage, difficulty }) {
+        const real = await g.realRound({
+          kinds: ['support-bounce', 'resistance-reject', 'breakout-up', 'breakout-down'],
+          before: Math.round(60 - 15 * difficulty),
+          after: 12,
+        });
+        const r = real
+          ? {
+            candles: real.candles,
+            decisionIdx: real.decisionIdx,
+            level: real.setup?.meta?.level,
+            kind: /support|bounce|breakout-up|double-bottom/i.test(real.setup?.kind || '') ? 'support'
+              : /resist|reject|breakout-down|double-top/i.test(real.setup?.kind || '') ? 'resistance' : 'unclear',
+            decimals: real.decimals,
+            name: real.setup?.meta?.name || real.setup?.kind,
+          }
+          : textbook(rng, difficulty);
+        const host = h('div', { class: 'chart-frame' });
+        stage.append(h('p', { class: 'quiz__q' }, 'How is price interacting with the key level?'), host);
+        const chart = new CandleChart(host, {
+          candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.14,
+          ariaLabel: 'Chart with a horizontal level to classify',
+        });
+        if (Number.isFinite(r.level)) chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
+        g.setHint('Support = buyers defending from below. Resistance = sellers capping from above.');
+        g.ask({
+          options: [
+            { label: 'Support (buyers defending)', value: 'support' },
+            { label: 'Resistance (sellers capping)', value: 'resistance' },
+            { label: 'Unclear / transitioning', value: 'unclear' },
+          ],
+          answer: r.kind === 'unclear' ? 'unclear' : r.kind,
+          explain: `<strong>${r.kind}</strong>${r.name ? ` · ${r.name}` : ''}. Levels flip roles after decisive breaks.`,
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
-        }));
+        });
+        return () => chart.destroy();
       },
     });
     return () => game.destroy();

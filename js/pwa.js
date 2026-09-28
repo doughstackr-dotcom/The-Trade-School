@@ -1,10 +1,10 @@
 // Installable-app support (ARCHITECTURE §10). Loaded by index.html after js/main.js.
 //
-// - Registers sw.js only where it can work: a secure context (https, or localhost when opted
-//   in), top-level (never inside an iframe / sandboxed artifact, where registration fails),
-//   and not switched off. On localhost the worker is OFF unless you open the site once with
-//   `?sw=1` (remembered in localStorage 'tts-sw'), so development and the smoke test always
-//   load fresh files. `?sw=0` unregisters it and clears its caches (on any host).
+// - Registers sw.js only where it can work: a secure context, top-level (never inside an
+//   iframe / sandboxed artifact, where registration fails), and only when opted in: the worker
+//   is OFF on every host unless you open the site once with `?sw=1` (remembered in
+//   localStorage 'tts-sw') or OFFLINE_DEFAULT is set to true, so deploys always load fresh
+//   files. `?sw=0` unregisters it and clears its caches (on any host).
 // - "Install app": when the browser fires beforeinstallprompt, a small pill appears on the home
 //   page (dismissible, stays hidden for 30 days) and an "Install app" button joins the footer
 //   links. iOS Safari has no prompt, so its footer button explains Share → Add to Home Screen.
@@ -18,6 +18,7 @@ const KEY_OPT = 'tts-sw';
 const KEY_DISMISS = 'tts-install-dismissed';
 const DISMISS_MS = 30 * 24 * 3600 * 1000;
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
+const OFFLINE_DEFAULT = false;
 
 let deferredPrompt = null;
 let registration = null;
@@ -102,7 +103,10 @@ export function swDecision() {
   if (flag === '1') return 'on';
   const saved = read(KEY_OPT);
   if (saved === '0') return 'off';
-  if (local) return saved === '1' ? 'on' : 'off';
+  // Offline caching is opt-in on every host for now (open the site once with ?sw=1), so each
+  // deploy reaches visitors immediately while the site changes often. Flip OFFLINE_DEFAULT to
+  // true to turn it on for everyone.
+  if (local || !OFFLINE_DEFAULT) return saved === '1' ? 'on' : 'off';
   return 'on';
 }
 

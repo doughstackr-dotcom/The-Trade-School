@@ -22,7 +22,6 @@ export const TIERS = [
 
 // Units pair a lesson with its game(s). Order = recommended learning order.
 export const UNITS = [
-  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
   { id: 'u-candle-anatomy', tier: 'beginner', title: 'Candlestick anatomy', lesson: 'candle-anatomy', games: ['candle-builder'] },
   { id: 'u-chart-basics', tier: 'beginner', title: 'Chart types, scales & timeframes', lesson: 'chart-basics', games: ['chart-match'] },
   { id: 'u-candle-patterns', tier: 'beginner', title: 'Candlestick patterns', lesson: 'candle-patterns', games: ['pattern-flash'] },
@@ -31,6 +30,7 @@ export const UNITS = [
   { id: 'u-trendlines', tier: 'beginner', title: 'Trend lines & channels', lesson: 'trendlines', games: ['trendline-challenge'] },
   { id: 'u-moving-averages', tier: 'beginner', title: 'Moving averages', lesson: 'moving-averages', games: ['cross-catcher'] },
   { id: 'u-volume', tier: 'beginner', title: 'Volume', lesson: 'volume', games: ['volume-verdict'] },
+  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
   { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
 
   { id: 'u-chart-patterns', tier: 'advanced', title: 'Reversal & continuation chart patterns', lesson: 'chart-patterns', games: ['pattern-detective'] },
@@ -44,13 +44,6 @@ export const UNITS = [
 ];
 
 export const LESSONS = [
-  {
-    id: 'markets-orders', type: 'lesson', tier: 'beginner', minutes: 10,
-    title: 'Markets, orders and the spread',
-    blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
-    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
-    path: './lessons/markets-orders.js',
-  },
   {
     id: 'candle-anatomy', type: 'lesson', tier: 'beginner', minutes: 8,
     title: 'Anatomy of a candlestick',
@@ -106,6 +99,13 @@ export const LESSONS = [
     blurb: 'Volume shows how much conviction sits behind a move. Read volume spikes, dry-ups and climaxes, and learn why breakouts on thin volume so often fail.',
     topics: ['Reading volume bars', 'Confirmation', 'Climax & exhaustion', 'Breakout volume'],
     path: './lessons/volume.js',
+  },
+  {
+    id: 'markets-orders', type: 'lesson', tier: 'beginner', minutes: 10,
+    title: 'Markets, orders and the spread',
+    blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
+    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
+    path: './lessons/markets-orders.js',
   },
   {
     id: 'chart-patterns', type: 'lesson', tier: 'advanced', minutes: 16,
@@ -374,6 +374,10 @@ export const BADGES = [
   { id: 'survivor', title: 'Survivor', description: 'Survive 15 rounds in a Survival run.', icon: 'shield' },
   { id: 'play-your-way', title: 'Play Your Way', description: 'Finish one game in Practice, Arcade and Survival.', icon: 'grid' },
   { id: 'daily-streak-7', title: 'Habit Former', description: 'Complete the Daily Challenge seven days in a row.', icon: 'flame' },
+  { id: 'dashboard-visit', title: 'Floor Manager', description: 'Open the Dashboard and survey the curriculum.', icon: 'grid' },
+  { id: 'first-real-chart', title: 'Tape Reader', description: 'Finish a round on a real-market chart.', icon: 'eye' },
+  { id: 'streak-keeper', title: 'Steady Hand', description: 'Keep a best run streak of 5 or more.', icon: 'flame' },
+
   ...GAMES.map((g) => ({
     id: `${g.id}-ace`,
     title: `${g.title} Ace`,
@@ -434,12 +438,16 @@ export const ARCADE_FILTERS = [
   { id: 'live', label: 'Live', kinds: ['live'] },
 ];
 
-/** Stand-alone pages added in §12.6 (routes: #playbook, #playbook.<setupId>, #live). */
+/** Stand-alone pages (routes: #playbook, #playbook.<setupId>, #live, #platforms; #affiliate aliases to platforms). */
 export const PAGES = [
+  { id: 'games', title: 'Games', hash: 'games', param: false, path: './pages/games.js',
+    blurb: 'The arcade: practice, arcade and survival modes across every skill game. One free daily hook; the rest unlock with a plan.' },
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',
     blurb: 'A live chart with indicator toggles and a plain-English read of trend, levels and patterns.' },
+  { id: 'platforms', title: 'Platforms', hash: 'platforms', param: false, path: './pages/affiliate.js',
+    blurb: 'Trading platforms and tools we partner with — affiliate / referral links with clear placeholders until filled.' },
 ];
 
 /** Developer-only entries: routable by id (findEntry) but not part of the curriculum lists. */

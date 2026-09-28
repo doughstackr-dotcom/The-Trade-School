@@ -401,7 +401,7 @@ export function confetti(originEl = null) {
     ox = r.left + r.width / 2;
     oy = r.top + r.height / 2;
   }
-  const colors = [cssVar('--accent', '#F2B53A'), cssVar('--bull', '#27C990'), cssVar('--accent-soft', '#F6E7C8'), cssVar('--accent', '#F2B53A')];
+  const colors = [cssVar('--accent', '#0A8F6A'), cssVar('--bull', '#27C990'), cssVar('--accent-soft', '#D5F1E7'), cssVar('--bear', '#D23F4A')];
   const parts = Array.from({ length: 110 }, () => {
     const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.25;
     const sp = 5 + Math.random() * 9;
