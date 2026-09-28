@@ -155,7 +155,7 @@ export function createPremiumLoader({
 
   /** Blob URL of the object's code with its imports resolved; `chain` guards against cycles. */
   async function blobUrl(objectPath, chain) {
-    if (!OBJECT_RE.test(objectPath)) throw new PremiumLoadError(`Unknown member module "${objectPath}".`);
+    if (!OBJECT_RE.test(objectPath) || objectPath.includes('..')) throw new PremiumLoadError(`Unknown member module "${objectPath}".`);
     if (chain.includes(objectPath)) throw new PremiumLoadError(`Import cycle between member modules: ${[...chain, objectPath].join(' → ')}`);
     let text = await source(objectPath);
     const deps = [...new Set([...text.matchAll(PREMIUM_SPEC_RE)].map((m) => m[2]))];

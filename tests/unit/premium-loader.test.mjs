@@ -132,7 +132,7 @@ test('network failures are PremiumLoadError: unknown storage error, thrown clien
 
 test('only beginner/… and advanced/… object paths are loaded', async () => {
   const w = world();
-  for (const bad of ['secret/x.js', '../beginner/x.js', 'beginner/x.txt', '']) {
+  for (const bad of ['secret/x.js', '../beginner/x.js', 'beginner/../../x.js', 'beginner/x.txt', '']) {
     await assert.rejects(w.loader.load(bad), PremiumLoadError);
   }
   assert.equal(w.signed.length, 0);
