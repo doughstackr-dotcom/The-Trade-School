@@ -524,8 +524,26 @@ export const sfx = {
 
 // ------------------------------------------------------------------ quiz
 
-const activeQuizzes = [];
+// Registry for the 1–9 keyboard shortcut. Entries are weak references to quiz roots, so a quiz
+// whose DOM was detached (route change, next question) can be garbage-collected; dead or
+// finished-and-detached entries are pruned whenever a new quiz registers and on each digit key.
+let activeQuizzes = [];
 let quizKeysBound = false;
+
+const weakRef = (el) => (typeof WeakRef === 'function' ? new WeakRef(el) : { deref: () => el });
+
+/**
+ * Drop registry entries whose quiz is gone (collected) or answered and no longer in the DOM.
+ * Unanswered quizzes that are merely not attached yet are kept. Pure: returns a new array.
+ * @param {Array<{ deref: () => any }>} refs
+ */
+export function pruneQuizRegistry(refs) {
+  return (refs || []).filter((ref) => {
+    const el = ref?.deref?.();
+    if (!el) return false;
+    return el.isConnected || !el._quiz?.answered();
+  });
+}
 
 function bindQuizKeys() {
   if (quizKeysBound || typeof document === 'undefined') return;
@@ -536,16 +554,14 @@ function bindQuizKeys() {
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (document.body.classList.contains('has-modal')) return;
     if (!/^[1-9]$/.test(e.key)) return;
+    activeQuizzes = pruneQuizRegistry(activeQuizzes);
     for (let i = activeQuizzes.length - 1; i >= 0; i--) {
-      const q = activeQuizzes[i];
-      if (!q.el.isConnected || q.answered()) {
-        if (!q.el.isConnected) activeQuizzes.splice(i, 1);
-        continue;
-      }
+      const el = activeQuizzes[i].deref();
+      if (!el?.isConnected || el._quiz.answered()) continue;
       const idx = Number(e.key) - 1;
-      if (idx < q.count) {
+      if (idx < el._quiz.count) {
         e.preventDefault();
-        q.choose(idx);
+        el.choose(idx);
       }
       return;
     }
@@ -618,8 +634,10 @@ export function choiceQuiz({ question = '', options = [], answer, explain = null
     onAnswer?.(correct, opt.value);
   }
 
-  activeQuizzes.push({ el: root, answered: () => answered, choose, count: Math.min(9, options.length) });
-  bindQuizKeys();
   root.choose = choose;
+  root._quiz = { answered: () => answered, count: Math.min(9, options.length) };
+  activeQuizzes = pruneQuizRegistry(activeQuizzes);
+  activeQuizzes.push(weakRef(root));
+  bindQuizKeys();
   return root;
 }
