@@ -40,6 +40,10 @@ function planCard(planId, { highlight = false, current = null, onSubscribe } = {
         'aria-label': `Subscribe to ${p.name}`,
         on: { click: () => onSubscribe?.(planId) },
       }, lockedAdvanced ? 'Upgrade to Advanced' : `Get ${p.name}`),
+    isCurrent && current === planId ? null : h('p', { class: 'consent-note' },
+      'By continuing you agree to the ', h('a', { href: '#terms' }, 'Terms'), ', ',
+      h('a', { href: '#privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '#refunds' }, 'Refund Policy'),
+      '. Renews monthly; cancel anytime.'),
   );
 }
 

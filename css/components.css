@@ -337,6 +337,24 @@
   text-decoration: underline;
 }
 
+.footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  flex-basis: 100%;
+  font-size: 13px;
+}
+
+.footer__legal a {
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.footer__legal a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 /* Phones and narrow tablets (≤ 819px, e.g. 768px portrait): the primary nav moves to a bottom
    tab bar, because five links plus the wordmark and tools do not fit in one row. */
 @media (max-width: 819.98px) {
@@ -2639,6 +2657,77 @@ figcaption {
 
 .card--flush {
   padding: 0;
+}
+
+/* ---------------------------------------------------------------- legal pages */
+
+.legal {
+  padding-bottom: 24px;
+}
+
+.legal__head {
+  padding-bottom: 12px;
+}
+
+.legal__date {
+  font-size: 14px;
+}
+
+.legal__dev-notice {
+  margin-bottom: 20px;
+}
+
+.legal__body {
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.legal__body strong {
+  color: var(--text);
+}
+
+.legal__section h2 {
+  margin-top: 1.8em;
+  margin-bottom: 0.5em;
+  color: var(--text);
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.legal__section > * + * {
+  margin-top: 0.75em;
+}
+
+.legal__section ul {
+  padding-left: 1.3em;
+}
+
+.legal__section li + li {
+  margin-top: 0.4em;
+}
+
+.legal__more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-weight: 600;
+}
+
+/* Small "By continuing you agree…" line under sign-up / checkout buttons. */
+.consent-note {
+  margin: 8px 0 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.consent-note a {
+  color: var(--text-2);
+  text-decoration: underline;
 }
 
 /* ---------------------------------------------------------------- home: hero */

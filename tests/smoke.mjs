@@ -127,6 +127,7 @@ async function routes() {
   const reg = await import(pathToFileURL(path.join(ROOT, 'js', 'registry.js')).href);
   const all = [
     'home', 'beginner', 'advanced', 'library', 'progress', 'glossary', 'dashboard', 'account', 'dev-chart',
+    'privacy', 'terms', 'refunds',
     ...(reg.PAGES || []).map((p) => p.hash),
     ...((reg.PAGES || []).some((p) => p.id === 'playbook') ? ['playbook.hammer'] : []),
     ...reg.LESSONS.map((l) => `l.${l.id}`),

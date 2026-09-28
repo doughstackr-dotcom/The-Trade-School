@@ -229,6 +229,7 @@ export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'dashboard', 'progress', // #progress aliases to dashboard
   'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
+  'privacy', 'terms', 'refunds', // legal pages
   'dev-chart',
 ]);
 

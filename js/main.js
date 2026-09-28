@@ -209,7 +209,11 @@ function buildShell(app) {
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
         h('a', { href: '#platforms' }, 'Platforms'),
-        h('a', { href: '#account' }, 'Account'))));
+        h('a', { href: '#account' }, 'Account')),
+      h('nav', { class: 'footer__legal', 'aria-label': 'Legal' },
+        h('a', { href: '#privacy' }, 'Privacy'),
+        h('a', { href: '#terms' }, 'Terms'),
+        h('a', { href: '#refunds' }, 'Refunds'))));
 
   app.replaceChildren(skip, riskTicker(), header, main, footer, tabbar);
   app.classList.add('app');

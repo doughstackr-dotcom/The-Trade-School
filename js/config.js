@@ -25,3 +25,15 @@ export const ACCESS_MODE = 'auto';
 export const PREMIUM_SOURCE = 'site';
 // When set to 'storage', paid modules load from the private Supabase Storage bucket
 // paths beginner/<file> and advanced/<file> (see docs/ACCOUNTS.md §10 and docs/SECRETS.md).
+
+// Owner-specific values used by the Privacy Policy, Terms of Service and Refund Policy
+// pages (js/pages/legal.js). Keep them all here. A null contactEmail / jurisdiction still
+// renders (with neutral fallback wording) but shows a notice on localhost and warns in the
+// console so it gets filled in before launch. The legal text is a template: have it
+// reviewed by a qualified lawyer for your business before relying on it.
+export const LEGAL = {
+  businessName: 'The Trade School',
+  contactEmail: 'simpleais@outlook.com',
+  jurisdiction: 'California, USA',
+  effectiveDate: '2026-09-28', // ISO date the current versions take effect
+};
