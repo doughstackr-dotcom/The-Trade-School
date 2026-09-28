@@ -6114,6 +6114,183 @@ figcaption {
   }
 }
 
+/* Playbook guide sections (risk, frameworks, checklists, scenarios) */
+.playbook-jump__link--guide {
+  border-style: dashed;
+  color: var(--text);
+}
+
+.playbook-guide {
+  margin-bottom: 32px;
+  scroll-margin-top: calc(var(--topbar-h) + 12px);
+}
+
+.playbook-guide__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.playbook-guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+.playbook-guide-card__n {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.playbook-guide-card__title {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.playbook-guide-card__body {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.playbook-disclaimer {
+  margin-top: 14px;
+}
+
+.playbook-frameworks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.playbook-framework {
+  padding: 0;
+  overflow: hidden;
+}
+
+.playbook-framework__head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.playbook-framework__title {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.playbook-framework__when {
+  margin: 0;
+  font-size: 13px;
+}
+
+.playbook-plan--framework {
+  border: 0;
+  border-radius: 0;
+}
+
+.playbook-checklists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.playbook-checklist {
+  padding: 16px 18px 18px;
+}
+
+.playbook-checklist__head {
+  margin-bottom: 10px;
+}
+
+.playbook-checklist__title {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.playbook-rules--check {
+  margin-top: 8px;
+}
+
+.playbook-scenarios {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.playbook-scenario {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.playbook-scenario__head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.playbook-scenario__title {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.playbook-scenario__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playbook-scenario__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.playbook-scenario__n {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.playbook-scenario__lesson {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.playbook-setups-head {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 0;
+}
+
+.playbook-setups-head .t-22 {
+  margin: 0;
+}
+
 /* ---------------------------------------------------------------- live market lab (stub) */
 
 .live {
@@ -6625,7 +6802,7 @@ figcaption {
 .lib-card__thumb {
   border-radius: 10px;
   overflow: hidden;
-  background: var(--surface-2);
+  background: transparent;
   margin-bottom: 8px;
 }
 .lib-card__thumb svg { display: block; width: 100%; height: auto; }
@@ -6654,8 +6831,8 @@ figcaption {
   justify-content: center;
   min-height: 148px;
   padding: 14px 10px;
-  border-radius: 12px;
-  background: var(--surface-2);
+  border-radius: 0;
+  background: transparent;
   margin-bottom: 6px;
 }
 .lib-card__art svg {
@@ -6677,7 +6854,8 @@ figcaption {
 .lib-detail__chart {
   border-radius: 12px;
   overflow: hidden;
-  background: var(--surface-2);
+  background: transparent;
+  border: 1px solid var(--line);
 }
 .lib-detail__chart svg { display: block; width: 100%; height: auto; }
 .lib-detail__art {
@@ -6686,7 +6864,8 @@ figcaption {
   justify-content: center;
   padding: 16px;
   border-radius: 12px;
-  background: var(--surface-2);
+  background: transparent;
+  border: 1px solid var(--line);
   max-width: 280px;
 }
 .lib-detail__art svg { display: block; width: auto; max-width: 100%; height: auto; }

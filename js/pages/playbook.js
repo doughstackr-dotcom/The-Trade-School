@@ -1,223 +1,26 @@
 // Setup Playbook — rule-based setups with checklist + Home-hero-style playback on detail.
 // List keeps static miniChart thumbs; detail keeps the diagram and ADDS a stepped simulation.
-// List is sectioned by trading difficulty (Easy / Medium / Hard), separate from curriculum tier.
+// List is sectioned by trading difficulty (Easy / Medium / Hard), plus risk / framework / checklist guides.
 import { h, icon, tierChip } from '../core/ui.js';
 import { takeaway, figure } from '../core/lesson-kit.js';
 import { mountPatternPlayback } from '../core/pattern-playback.js';
+import {
+  DIFFICULTIES,
+  SETUPS,
+  RISK_RULES,
+  ENTRY_EXIT_FRAMEWORKS,
+  TRADE_CHECKLISTS,
+  SCENARIOS,
+  difficultyMeta,
+  setupById,
+} from '../core/playbook-data.js';
 
-const DIFFICULTIES = [
-  { id: 'easy', label: 'Easy', blurb: 'High-clarity candle reversals at levels — clean single-idea scalps.' },
-  { id: 'medium', label: 'Medium', blurb: 'Weaker candles that need confirmation, plus straightforward chart continuations.' },
-  { id: 'hard', label: 'Hard', blurb: 'Trap / fade trades and multi-leg or confluence setups.' },
+const GUIDE_JUMPS = [
+  { id: 'risk', label: 'Risk' },
+  { id: 'frameworks', label: 'Entry / exit' },
+  { id: 'checklists', label: 'Checklists' },
+  { id: 'scenarios', label: 'Scenarios' },
 ];
-
-// id = scanner setup kind where one exists (§12.4), so real examples can be looked up by id.
-// Candle pattern ids must exist in CANDLE_PATTERNS / candleScenario.
-const SETUPS = [
-  // —— Easy: simple, high-clarity candle reversals at levels ——
-  {
-    id: 'hammer', name: 'Hammer at support', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
-    pattern: 'hammer', fib: true,
-    summary: 'After a decline, a candle with a long lower wick closes near its high at a support zone — classic long scalp trigger.',
-    rules: [
-      'A clear decline into the candle',
-      'Lower wick at least 2× the body, little or no upper wick',
-      'At or near a support zone or Fib golden pocket',
-      'Next candle closes above the hammer high',
-    ],
-    entry: 'Buy on the close of the confirmation candle (or a tick above the hammer high).',
-    stop: 'Just below the hammer’s low — tight for scalps.',
-    target: '1.5–2R or the next micro resistance.',
-  },
-  {
-    id: 'shooting-star', name: 'Shooting star scalp', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
-    pattern: 'shooting-star', fib: true,
-    summary: 'After a short-term rally, a small body with a long upper wick rejects the high — fade with a stop above the wick.',
-    rules: [
-      'Prior up-push into resistance or Fib of the last decline',
-      'Upper wick ≥ 2× body, little lower wick',
-      'Next candle closes below the star’s body (ideally below its low)',
-      'Skip if higher-timeframe trend is violently bullish',
-    ],
-    entry: 'Sell the confirmation close below the star.',
-    stop: 'A few ticks above the upper wick.',
-    target: '1.5–2R or next micro support.',
-  },
-  {
-    id: 'bullish-engulfing', name: 'Bullish engulfing', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
-    pattern: 'bullish-engulfing', fib: true,
-    summary: 'A bullish body completely engulfs the previous bearish body after a pullback — strong scalp long when it prints at a level.',
-    rules: [
-      'A downtrend or a pullback in an uptrend',
-      'The green body engulfs the prior red body',
-      'Forms at a level (support, MA, Fib 50–61.8%, trend line)',
-      'Above-average volume on the engulfing candle',
-    ],
-    entry: 'Buy above the engulfing candle’s high (or on its close for aggressive scalps).',
-    stop: 'Below the engulfing candle’s low.',
-    target: '1.5–2R or the prior swing high.',
-  },
-  {
-    id: 'bearish-engulfing', name: 'Bearish engulfing', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
-    pattern: 'bearish-engulfing', fib: true,
-    summary: 'A bearish body engulfs the prior bullish body after a rally — short scalp with stop above the pattern high.',
-    rules: [
-      'Uptrend or bounce into resistance',
-      'Red body fully engulfs the prior green body',
-      'At resistance / Fib / session high',
-      'Prefer expanding volume on the engulfing bar',
-    ],
-    entry: 'Sell below the engulfing low (or on the close).',
-    stop: 'Above the engulfing high.',
-    target: '1.5–2R or prior micro swing low.',
-  },
-  {
-    id: 'dragonfly-doji', name: 'Dragonfly doji scalp', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
-    pattern: 'dragonfly-doji', fib: true,
-    summary: 'Long lower wick, open/high/close near the top after a dip — buyers absorbed the sell. Scalp the reclaim.',
-    rules: [
-      'Short-term decline or flush into support / Fib 50–61.8%',
-      'Open, high and close clustered at the top of a long lower wick',
-      'Next candle closes above the dragonfly high',
-      'Volume on the reclaim is not thinner than the flush',
-    ],
-    entry: 'Buy the close above the dragonfly high (or a 1-tick break).',
-    stop: 'Just below the long wick low.',
-    target: '1.5–2R or prior micro swing high.',
-  },
-  {
-    id: 'gravestone-doji', name: 'Gravestone doji scalp', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
-    pattern: 'gravestone-doji', fib: true,
-    summary: 'Long upper wick with open/low/close at the bottom after a pop — sellers rejected the high. Scalp the failure.',
-    rules: [
-      'Short-term rally into resistance / Fib retracement of the last drop',
-      'Open, low and close clustered at the bottom of a long upper wick',
-      'Next candle closes below the gravestone low',
-      'Avoid if a strong trend day is still expanding higher',
-    ],
-    entry: 'Sell the close below the gravestone low.',
-    stop: 'Just above the upper wick high.',
-    target: '1.5–2R or prior micro swing low.',
-  },
-  // —— Medium: weaker / confirmation-needed candles + straightforward chart continuation ——
-  {
-    id: 'doji', name: 'Doji pause (scalp)', tier: 'beginner', difficulty: 'medium', bias: 'neutral', kind: 'candle',
-    pattern: 'doji', fib: true,
-    summary: 'On a short timeframe, a doji at a micro level flags indecision — trade only the break of its range with a tight stop.',
-    rules: [
-      'Clear prior push into a level (VWAP, prior high/low, or session open)',
-      'Doji body ≤ ~8% of its range',
-      'Wait for the next candle to close beyond the doji high (long) or low (short)',
-      'Skip if the doji is mid-range with no level',
-    ],
-    entry: 'Buy/sell the confirmation close beyond the doji extreme.',
-    stop: 'A few ticks beyond the opposite wick — scalp-tight.',
-    target: '1–1.5R or the next micro swing; take profit quick.',
-  },
-  {
-    id: 'inverted-hammer', name: 'Inverted hammer scalp', tier: 'beginner', difficulty: 'medium', bias: 'bullish', kind: 'candle',
-    pattern: 'inverted-hammer',
-    summary: 'After a dip, a long upper wick with a small body near the low shows buyers probing — weaker than a hammer; demand confirmation.',
-    rules: [
-      'Short-term decline into a level',
-      'Long upper wick, small body near the low',
-      'Next candle closes above the inverted hammer high',
-      'Prefer confluence with support or VWAP',
-    ],
-    entry: 'Buy only after a close above the pattern high.',
-    stop: 'Below the pattern low.',
-    target: '1–2R; take profit at the first micro resistance.',
-  },
-  {
-    id: 'bullish-harami', name: 'Bullish harami scalp', tier: 'beginner', difficulty: 'medium', bias: 'bullish', kind: 'candle',
-    pattern: 'bullish-harami',
-    summary: 'A small green body inside a large red body after a selloff — momentum stall. Scalp only with a break of the mother candle.',
-    rules: [
-      'Clear short-term decline',
-      'Small green body inside the prior long red body',
-      'Wait for a close above the mother candle’s open',
-      'Stop stays below the pattern low',
-    ],
-    entry: 'Buy the close above the first candle’s open.',
-    stop: 'Below the pattern low (tight).',
-    target: '1–2R; harami is weaker — bank quick.',
-  },
-  {
-    id: 'bearish-harami', name: 'Bearish harami scalp', tier: 'beginner', difficulty: 'medium', bias: 'bearish', kind: 'candle',
-    pattern: 'bearish-harami',
-    summary: 'A small red body inside a large green body after a rally — stall warning. Short the break of the mother candle.',
-    rules: [
-      'Clear short-term rally',
-      'Small red body inside the prior long green body',
-      'Wait for a close below the mother candle’s open',
-      'Stop above the pattern high',
-    ],
-    entry: 'Sell the close below the first candle’s open.',
-    stop: 'Above the pattern high.',
-    target: '1–2R; take profit at the first micro support.',
-  },
-  {
-    id: 'bull-flag', name: 'Bull flag', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'chart',
-    pattern: 'bull-flag',
-    summary: 'A sharp rally (the pole) followed by a tight, gently falling consolidation on shrinking volume.',
-    rules: ['A strong pole on heavy volume', 'A shallow, orderly pullback', 'Volume dries up in the flag', 'Close above the flag’s upper line'],
-    entry: 'Buy the close above the flag.', stop: 'Below the flag’s low.', target: 'The pole’s height projected from the breakout.',
-  },
-  {
-    id: 'double-bottom', name: 'Double bottom', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'chart',
-    pattern: 'double-bottom',
-    summary: 'Two lows at about the same price, then a close above the peak between them (the neckline).',
-    rules: ['A prior downtrend', 'Two lows within about 1–2%', 'Second low on lighter volume', 'Close above the neckline'],
-    entry: 'Buy the neckline break or its retest.', stop: 'Below the second low.', target: 'The pattern height projected from the neckline.',
-  },
-  {
-    id: 'breakout-up', name: 'Breakout and retest', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'chart',
-    pattern: 'ascending-triangle',
-    summary: 'Price closes above a well-tested resistance on strong volume, then retests it as support.',
-    rules: ['Resistance tested at least twice', 'Decisive close above it', 'Breakout volume well above average', 'Pullback holds the old resistance'],
-    entry: 'Buy the retest once it holds (or the breakout close for an aggressive entry).', stop: 'Below the retest low.', target: 'The measured move: the pattern height projected from the breakout.',
-  },
-  // —— Hard: trap / fade and multi-leg / confluence ——
-  {
-    id: 'fakeout-up', name: 'Failed breakout (fade)', tier: 'advanced', difficulty: 'hard', bias: 'bearish', kind: 'chart',
-    pattern: 'ascending-triangle', outcome: 'fail',
-    summary: 'Price pokes above resistance on thin volume and closes back inside: the breakout buyers are trapped.',
-    rules: ['An obvious level with stops above it', 'The break comes on weak volume', 'A close back inside the range', 'No follow-through on the next candle'],
-    entry: 'Sell the close back inside the range.', stop: 'Above the fakeout high.', target: 'The other side of the range.',
-  },
-  {
-    id: 'head-and-shoulders', name: 'Head and shoulders', tier: 'advanced', difficulty: 'hard', bias: 'bearish', kind: 'chart',
-    pattern: 'head-and-shoulders',
-    summary: 'Three-push top: left shoulder, higher head, lower right shoulder — short the neckline break when volume confirms the fail.',
-    rules: [
-      'Prior uptrend into the pattern',
-      'Head clearly higher than both shoulders',
-      'Right shoulder fails to reclaim the head high',
-      'Close below the neckline with expanding volume',
-    ],
-    entry: 'Sell the neckline break or its retest from below.',
-    stop: 'Above the right shoulder high (or the head for wider risk).',
-    target: 'Pattern height (head to neckline) projected down from the break.',
-  },
-  {
-    id: 'rising-wedge', name: 'Rising wedge fade', tier: 'advanced', difficulty: 'hard', bias: 'bearish', kind: 'chart',
-    pattern: 'rising-wedge',
-    summary: 'Higher highs and higher lows that converge — momentum is fading. Fade the breakdown when support of the wedge gives way.',
-    rules: [
-      'Both trend lines slope up and converge',
-      'Volume contracts into the apex',
-      'A decisive close below the lower wedge line',
-      'Prefer confluence with resistance / Fib of the prior swing',
-    ],
-    entry: 'Sell the close below the lower wedge line (or the retest).',
-    stop: 'Above the most recent swing high inside the wedge.',
-    target: 'The start of the wedge or the measured height of the pattern.',
-  },
-];
-
-function difficultyMeta(id) {
-  return DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[0];
-}
 
 function difficultyChip(difficulty, { small = false } = {}) {
   const meta = difficultyMeta(difficulty);
@@ -269,21 +72,140 @@ function setupCard(s, mods) {
       h('span', { class: 'playbook-card__go' }, `${s.rules.length}-point checklist`, icon('arrow-right', { size: 16 }))));
 }
 
-function listView(root, mods) {
-  const jump = h('nav', { class: 'playbook-jump', 'aria-label': 'Jump to difficulty' },
-    DIFFICULTIES.map((d) => {
+function scrollToId(id) {
+  const el = document.getElementById(id);
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function jumpNav() {
+  return h('nav', { class: 'playbook-jump', 'aria-label': 'Jump to playbook section' },
+    ...GUIDE_JUMPS.map((g) => h('button', {
+      type: 'button',
+      class: 'playbook-jump__link playbook-jump__link--guide',
+      onClick: () => scrollToId(`playbook-${g.id}`),
+    }, g.label)),
+    ...DIFFICULTIES.map((d) => {
       const n = SETUPS.filter((s) => s.difficulty === d.id).length;
       return h('button', {
         type: 'button',
         class: 'playbook-jump__link',
-        onClick: () => {
-          const el = document.getElementById(`playbook-diff-${d.id}`);
-          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        },
+        onClick: () => scrollToId(`playbook-diff-${d.id}`),
       }, d.label, h('span', { class: 'playbook-jump__n' }, String(n)));
     }));
+}
 
-  const sections = DIFFICULTIES.map((d) => {
+function riskSection() {
+  return h('section', {
+    class: 'playbook-guide playbook-guide--risk',
+    id: 'playbook-risk',
+    'aria-labelledby': 'playbook-risk-h',
+  },
+    h('header', { class: 'playbook-section__head' },
+      h('div', { class: 'playbook-section__title-row' },
+        h('span', { class: 'chip chip--outline' }, 'Process'),
+        h('h2', { id: 'playbook-risk-h', class: 'playbook-section__title' }, 'Risk management rules'),
+        h('span', { class: 'playbook-section__count muted' }, `${RISK_RULES.length} rules`)),
+      h('p', { class: 'playbook-section__blurb muted' },
+        'Survival rules that sit above any single setup. Practice them in sims before you size up.')),
+    h('div', { class: 'playbook-guide__grid' },
+      RISK_RULES.map((r, i) => h('article', { class: 'card playbook-guide-card' },
+        h('span', { class: 'playbook-guide-card__n mono' }, String(i + 1).padStart(2, '0')),
+        h('h3', { class: 'playbook-guide-card__title' }, r.title),
+        h('p', { class: 'playbook-guide-card__body' }, r.body)))),
+    h('p', { class: 'callout callout--warn playbook-disclaimer', role: 'note' },
+      icon('info', { size: 16 }),
+      h('span', null,
+        'Educational only — not financial advice. These rules are study aids for simulations, not instructions to trade real capital.')));
+}
+
+function frameworksSection() {
+  return h('section', {
+    class: 'playbook-guide playbook-guide--frameworks',
+    id: 'playbook-frameworks',
+    'aria-labelledby': 'playbook-frameworks-h',
+  },
+    h('header', { class: 'playbook-section__head' },
+      h('div', { class: 'playbook-section__title-row' },
+        h('span', { class: 'chip chip--outline' }, 'Process'),
+        h('h2', { id: 'playbook-frameworks-h', class: 'playbook-section__title' }, 'Entry / exit frameworks'),
+        h('span', { class: 'playbook-section__count muted' }, `${ENTRY_EXIT_FRAMEWORKS.length} frameworks`)),
+      h('p', { class: 'playbook-section__blurb muted' },
+        'How you pull the trigger and how you get out — reused across Easy, Medium and Hard setups.')),
+    h('div', { class: 'playbook-frameworks' },
+      ENTRY_EXIT_FRAMEWORKS.map((fw) => h('article', { class: 'card playbook-framework' },
+        h('header', { class: 'playbook-framework__head' },
+          h('h3', { class: 'playbook-framework__title' }, fw.title),
+          h('p', { class: 'muted playbook-framework__when' }, fw.when)),
+        h('dl', { class: 'playbook-plan playbook-plan--framework' },
+          h('div', null, h('dt', null, 'Entry'), h('dd', null, fw.entry)),
+          h('div', null, h('dt', null, 'Stop'), h('dd', null, fw.stop)),
+          h('div', null, h('dt', null, 'Exit'), h('dd', null, fw.exit)))))));
+}
+
+function checklistBlock(spec) {
+  return h('article', { class: 'card playbook-checklist' },
+    h('header', { class: 'playbook-checklist__head' },
+      h('h3', { class: 'playbook-checklist__title' }, spec.title),
+      h('p', { class: 'muted' }, spec.blurb)),
+    h('ol', { class: 'playbook-rules playbook-rules--check' },
+      spec.items.map((item, i) => h('li', null,
+        h('span', { class: 'playbook-rules__n mono' }, String(i + 1)),
+        h('span', null, item)))));
+}
+
+function checklistsSection() {
+  return h('section', {
+    class: 'playbook-guide playbook-guide--checklists',
+    id: 'playbook-checklists',
+    'aria-labelledby': 'playbook-checklists-h',
+  },
+    h('header', { class: 'playbook-section__head' },
+      h('div', { class: 'playbook-section__title-row' },
+        h('span', { class: 'chip chip--outline' }, 'Process'),
+        h('h2', { id: 'playbook-checklists-h', class: 'playbook-section__title' }, 'Pre-trade & post-trade'),
+        h('span', { class: 'playbook-section__count muted' }, '2 lists')),
+      h('p', { class: 'playbook-section__blurb muted' },
+        'Gate the order with the pre-trade list; close the loop with the post-trade list.')),
+    h('div', { class: 'playbook-checklists' },
+      checklistBlock(TRADE_CHECKLISTS.pre),
+      checklistBlock(TRADE_CHECKLISTS.post)));
+}
+
+function scenariosSection() {
+  return h('section', {
+    class: 'playbook-guide playbook-guide--scenarios',
+    id: 'playbook-scenarios',
+    'aria-labelledby': 'playbook-scenarios-h',
+  },
+    h('header', { class: 'playbook-section__head' },
+      h('div', { class: 'playbook-section__title-row' },
+        h('span', { class: 'chip chip--outline' }, 'Walk-through'),
+        h('h2', { id: 'playbook-scenarios-h', class: 'playbook-section__title' }, 'Scenario walkthroughs'),
+        h('span', { class: 'playbook-section__count muted' }, `${SCENARIOS.length} scenarios`)),
+      h('p', { class: 'playbook-section__blurb muted' },
+        'Short educational stories that map a tape sequence onto a playbook setup. Open the linked sim to practice.')),
+    h('div', { class: 'playbook-scenarios' },
+      SCENARIOS.map((sc) => {
+        const setup = setupById(sc.setupId);
+        return h('article', { class: 'card playbook-scenario' },
+          h('header', { class: 'playbook-scenario__head' },
+            h('div', { class: 'row row--sm' },
+              difficultyChip(sc.difficulty, { small: true }),
+              setup
+                ? h('a', { class: 'chip chip--sm chip--outline', href: `#playbook.${setup.id}` }, setup.name, icon('arrow-right', { size: 12 }))
+                : null),
+            h('h3', { class: 'playbook-scenario__title' }, sc.title)),
+          h('ol', { class: 'playbook-scenario__steps' },
+            sc.steps.map((step, i) => h('li', null,
+              h('span', { class: 'playbook-scenario__n mono' }, String(i + 1)),
+              h('span', null, step)))),
+          h('p', { class: 'playbook-scenario__lesson' },
+            h('strong', null, 'Takeaway: '), sc.lesson));
+      })));
+}
+
+function setupSections(mods) {
+  return DIFFICULTIES.map((d) => {
     const items = SETUPS.filter((s) => s.difficulty === d.id);
     return h('section', {
       class: 'playbook-section',
@@ -298,15 +220,31 @@ function listView(root, mods) {
         h('p', { class: 'playbook-section__blurb muted' }, d.blurb)),
       h('div', { class: 'playbook__grid' }, items.map((s) => setupCard(s, mods))));
   });
+}
 
+function listView(root, mods) {
   root.append(h('div', { class: 'container playbook' },
     h('header', { class: 'page-head' },
       h('p', { class: 'eyebrow eyebrow--accent' }, 'Setup Playbook'),
       h('h1', null, 'Exact setups, exact rules'),
-      h('p', { class: 'lead' }, 'Each setup is a checklist you can verify on any chart, with an entry, a stop and a target decided before you trade. Grouped by trade difficulty — Easy, Medium, Hard. Open a card for the stepped simulation.')),
-    jump,
-    ...sections,
-    h('p', { class: 'faint playbook__note' }, 'Simulations are educational — not live signals. Japanese candle setups below are framed for short-timeframe scalps with tight stops. Curriculum Beginner/Advanced chips mark lesson track; Easy/Medium/Hard mark how hard the trade is to execute.')));
+      h('p', { class: 'lead' },
+        'Each setup is a checklist you can verify on any chart, with an entry, a stop and a target decided before you trade. ',
+        'Start with risk, frameworks and checklists — then drill Easy, Medium and Hard sims.')),
+    jumpNav(),
+    riskSection(),
+    frameworksSection(),
+    checklistsSection(),
+    scenariosSection(),
+    h('header', { class: 'playbook-setups-head page-head' },
+      h('p', { class: 'eyebrow' }, 'Setups by difficulty'),
+      h('h2', { class: 't-22', id: 'playbook-setups-h' }, 'The playbook cards'),
+      h('p', { class: 'muted' },
+        'Grouped by trade difficulty — Easy, Medium, Hard. Open a card for the stepped simulation.')),
+    ...setupSections(mods),
+    h('p', { class: 'faint playbook__note' },
+      'Simulations are educational — not live signals or financial advice. ',
+      'Japanese candle setups below are framed for short-timeframe scalps with tight stops. ',
+      'Curriculum Beginner/Advanced chips mark lesson track; Easy/Medium/Hard mark how hard the trade is to execute.')));
 }
 
 function detailView(root, setup, mods) {
@@ -371,7 +309,7 @@ export default {
       import('../core/patterns.js').catch(() => null),
     ]);
     const mods = [chartMod, patMod];
-    const setup = ctx.param ? SETUPS.find((s) => s.id === ctx.param) : null;
+    const setup = ctx.param ? setupById(ctx.param) : null;
     if (ctx.param && !setup) {
       root.append(h('div', { class: 'container' },
         h('div', { class: 'route-error card' },
