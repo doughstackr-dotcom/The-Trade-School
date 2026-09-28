@@ -28,7 +28,14 @@
 //
 // Deployed with verify_jwt = false: this is public market data and callers use the
 // publishable key (not a JWT). Every input is validated against a fixed allow-list.
+//
+// Abuse limits: browsers are only given the data (CORS) on the site's own origin (SITE_URL,
+// ALLOWED_ORIGINS) and on loopback origins for local development; candle and quote requests
+// are rate limited per client IP (MARKET_DATA_RATE_LIMIT per minute, public.take_rate_limit,
+// 429 when exceeded); and every metered upstream call (Alpha Vantage, Massive) takes a unit of
+// a shared daily budget (public.take_market_quota).
 import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
+import { allowOriginHeader } from '../_shared/cors.ts';
 import {
   type Candle,
   type Interval,
@@ -50,6 +57,7 @@ import {
   isMassiveConfigured,
   MASSIVE_ATTRIBUTION,
   MASSIVE_SYMBOLS,
+  setMassiveQuotaGate,
 } from './massive.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -99,11 +107,67 @@ const isClaimStamp = (ms: number) => ms % 2 === 1;
 /** For logs: an error's message without the Alpha Vantage key (upstream URLs carry it). */
 const logText = (err: unknown) => redactKey(err instanceof Error ? err.message : String(err));
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*', // public, read-only data
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-};
+/**
+ * CORS: public, read-only data, but only the site itself (SITE_URL, ALLOWED_ORIGINS) and pages
+ * served from the developer's own machine (http://localhost:<port>, 127.0.0.1, [::1]) get it;
+ * any other origin gets no Access-Control-Allow-Origin, so other sites can't use the function
+ * (and its upstream budgets) from their visitors' browsers.
+ */
+function corsHeaders(req: Request): Record<string, string> {
+  return {
+    ...allowOriginHeader(req, { loopback: true }),
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
+
+/** Requests per client IP per window (MARKET_DATA_RATE_LIMIT; 0 turns the limit off). */
+const RATE_WINDOW_S = 60;
+function rateLimit(): number {
+  const raw = (Deno.env.get('MARKET_DATA_RATE_LIMIT') ?? '').trim();
+  if (raw === '') return 120;
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+type ConnInfo = { remoteAddr?: { hostname?: string } } | undefined;
+
+/**
+ * The caller's IP as the platform's proxy reports it (first hop), else the socket peer. The
+ * headers are only as trustworthy as the proxy in front of the function; the shared daily
+ * budgets bound the total cost either way.
+ */
+function clientIp(req: Request, info: ConnInfo): string {
+  const first = (v: string | null) => (v ?? '').split(',')[0].trim();
+  return first(req.headers.get('cf-connecting-ip')) || first(req.headers.get('x-real-ip')) ||
+    first(req.headers.get('x-forwarded-for')) || info?.remoteAddr?.hostname || 'unknown';
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * null when this request may go on; a 429 when its IP used up the current window. Fails open
+ * (logged) if the limiter itself is unavailable, e.g. before its migration is applied.
+ */
+async function rateLimited(req: Request, info: ConnInfo): Promise<Response | null> {
+  const limit = rateLimit();
+  if (!limit) return null;
+  // Hashed: no raw IP address is stored.
+  const key = `market-data:ip:${(await sha256Hex(clientIp(req, info))).slice(0, 32)}`;
+  const { data, error } = await admin.rpc('take_rate_limit', { p_key: key, p_limit: limit, p_window_seconds: RATE_WINDOW_S });
+  if (error) {
+    console.warn(`take_rate_limit failed (request allowed): ${error.message}`);
+    return null;
+  }
+  if (data === true) return null;
+  const res = respond({ error: 'Too many market data requests. Please wait a minute and try again.', rateLimited: true }, 429);
+  res.headers.set('Retry-After', String(RATE_WINDOW_S - (Math.floor(Date.now() / 1000) % RATE_WINDOW_S)));
+  return res;
+}
 
 /** The shared daily request budget of metered providers (public.market_quota, service role only). */
 const ctx: ProviderContext = {
@@ -113,12 +177,12 @@ const ctx: ProviderContext = {
     return data === true;
   },
 };
+setMassiveQuotaGate(ctx.takeQuota);
 
 function respond(body: unknown, status = 200, maxAgeMs = 0): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...CORS,
       'Content-Type': 'application/json',
       'Cache-Control': maxAgeMs > 0 ? `public, max-age=${Math.floor(maxAgeMs / 1000)}` : 'no-store',
     },
@@ -610,8 +674,14 @@ async function serveMetered(
   return candleResponse(symbol, interval, candles, source, chain[0], maxAge);
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+Deno.serve(async (req, info) => {
+  const res = await handle(req, info);
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+  return res;
+});
+
+async function handle(req: Request, info: ConnInfo): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response('ok');
   if (req.method !== 'GET' && req.method !== 'POST') return respond({ error: 'Use GET or POST.' }, 405);
 
   const p = await readParams(req);
@@ -647,6 +717,8 @@ Deno.serve(async (req) => {
         attribution: MASSIVE_ATTRIBUTION,
       }, 503);
     }
+    const limited = await rateLimited(req, info);
+    if (limited) return limited;
     try {
       const payload = await getMassiveQuotes(known);
       return respond({ ...payload, source: 'massive' }, 200, 30_000);
@@ -671,6 +743,8 @@ Deno.serve(async (req) => {
   if (endMs !== null && !(Number.isFinite(endMs) && endMs >= MIN_END)) {
     return respond({ error: 'end must be a timestamp in milliseconds or an ISO 8601 date.' }, 400);
   }
+  const limited = await rateLimited(req, info);
+  if (limited) return limited;
   // Massive daily/weekly bars for Live Lab symbols (free-tier EOD). Prefer when configured so
   // the chart is not stuck on Alpha Vantage / exchange feeds that may be unconfigured.
   if (
@@ -719,4 +793,4 @@ Deno.serve(async (req) => {
     }
     return respond({ error: 'Market data is unavailable right now.' }, 502);
   }
-});
+}

@@ -3,6 +3,9 @@
 // US equities: prefer grouped daily (1–2 upstream calls for the whole board). Crypto/FX: per-ticker
 // range. Cache briefly; on failure return last good as stale. Secret: MASSIVE_API_KEY (Edge secret).
 // Never expose the key to browsers.
+// Every upstream call first takes one unit of a shared daily budget (MASSIVE_DAILY_LIMIT, default
+// 2000/day for the whole site, via the gate index.ts installs: public.take_market_quota), so the
+// in-memory caches of many short-lived instances can't add up to unbounded upstream traffic.
 
 export type MassiveQuote = {
   symbol: string;
@@ -66,7 +69,8 @@ const ATTRIBUTION =
 
 type CacheEntry = { at: number; quote: MassiveQuote };
 const quoteCache = new Map<string, CacheEntry>();
-type CandleCacheEntry = { at: number; candles: MassiveCandle[]; interval: string };
+/** `limit`: how many candles the entry was fetched for (it can't answer a larger request). */
+type CandleCacheEntry = { at: number; candles: MassiveCandle[]; interval: string; limit: number };
 const candleCache = new Map<string, CandleCacheEntry>();
 
 /** Grouped daily by YYYY-MM-DD → Map ticker → bar */
@@ -76,18 +80,42 @@ const groupedCache = new Map<string, { at: number; byTicker: Map<string, Grouped
 let lastUpstreamAt = 0;
 let gate: Promise<void> = Promise.resolve();
 
-function apiKey(): string {
+/** Takes one unit of `provider`'s shared daily budget; false when it is used up. */
+export type MassiveQuotaGate = (provider: string, dailyLimit: number) => Promise<boolean>;
+let quotaGate: MassiveQuotaGate | null = null;
+
+/** Install the shared daily budget check (index.ts: public.take_market_quota). */
+export function setMassiveQuotaGate(fn: MassiveQuotaGate | null) {
+  quotaGate = fn;
+}
+
+/** Today's shared Massive budget is spent; it resets at 00:00 UTC. */
+export class MassiveQuotaExhausted extends Error {
+  constructor() {
+    super('Massive daily request budget is used up');
+    this.name = 'MassiveQuotaExhausted';
+  }
+}
+
+function envVar(name: string): string {
   let fromDeno: string | undefined;
   try {
-    if (typeof Deno !== 'undefined') fromDeno = Deno.env.get('MASSIVE_API_KEY') ?? undefined;
+    if (typeof Deno !== 'undefined') fromDeno = Deno.env.get(name) ?? undefined;
   } catch { /* ignore */ }
   let fromProcess: string | undefined;
   try {
     const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-    fromProcess = proc?.env?.MASSIVE_API_KEY;
+    fromProcess = proc?.env?.[name];
   } catch { /* ignore */ }
   return String(fromDeno || fromProcess || '').trim();
 }
+
+function apiKey(): string {
+  return envVar('MASSIVE_API_KEY');
+}
+
+/** Upstream calls per UTC day for the whole site (all instances). */
+export const MASSIVE_DAILY_LIMIT = () => Math.max(1, Math.floor(Number(envVar('MASSIVE_DAILY_LIMIT'))) || 2000);
 
 export function isMassiveConfigured(): boolean {
   return apiKey().length > 0;
@@ -136,9 +164,25 @@ function recentDates(count = 8): string[] {
 
 type AggBar = { c?: number; t?: number; o?: number; h?: number; l?: number; v?: number; T?: string };
 
+/** MASSIVE_SPACING_MS overrides the gap between upstream calls (tests set 0). */
+function minGapMs(): number {
+  const v = envVar('MASSIVE_SPACING_MS');
+  const n = v === '' ? NaN : Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : MIN_GAP_MS;
+}
+
+/** Forget cached quotes/candles and pacing (tests). */
+export function resetMassiveState() {
+  quoteCache.clear();
+  candleCache.clear();
+  groupedCache.clear();
+  lastUpstreamAt = 0;
+  gate = Promise.resolve();
+}
+
 async function pace(): Promise<void> {
   const run = gate.then(async () => {
-    const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastUpstreamAt));
+    const wait = Math.max(0, minGapMs() - (Date.now() - lastUpstreamAt));
     if (wait) await new Promise((r) => setTimeout(r, wait));
     lastUpstreamAt = Date.now();
   });
@@ -156,6 +200,7 @@ async function massiveGet(pathAndQuery: string): Promise<unknown> {
   if (!key) throw new Error('MASSIVE_API_KEY is not set');
   const sep = pathAndQuery.includes('?') ? '&' : '?';
   const url = `${BASE}${pathAndQuery}${sep}apiKey=${encodeURIComponent(key)}`;
+  if (quotaGate && !(await quotaGate('massive', MASSIVE_DAILY_LIMIT()))) throw new MassiveQuotaExhausted();
   await pace();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -457,7 +502,10 @@ export async function getMassiveCandles(
 
   const cacheKey = `${id}|${interval}`;
   const hit = candleCache.get(cacheKey);
-  if (hit && hit.interval === interval && Date.now() - hit.at < CANDLE_CACHE_TTL_MS && hit.candles.length) {
+  // Only an entry fetched for at least this many candles can answer: one fetched for a short
+  // chart must not answer a longer one with its short list.
+  const fresh = hit && hit.interval === interval && Date.now() - hit.at < CANDLE_CACHE_TTL_MS;
+  if (fresh && hit.limit >= limit && hit.candles.length) {
     return {
       candles: hit.candles.slice(-limit),
       attribution: ATTRIBUTION,
@@ -467,13 +515,19 @@ export async function getMassiveCandles(
     };
   }
 
+  // Refetch for the larger of this request and the (expired) entry it replaces, so alternating
+  // short and long charts don't keep evicting each other's coverage.
+  const want = Math.max(limit, hit?.interval === interval ? hit.limit : 0);
   const timespan = interval === '1w' ? 'week' : 'day';
-  const days = interval === '1w' ? Math.max(limit * 7 + 14, 120) : Math.max(limit + 10, RANGE_DAYS_CHART);
+  // Calendar days that hold `want` bars: stocks and FX trade ~5 days a week (plus holidays).
+  const days = interval === '1w' ? Math.max(want * 7 + 14, 120) : Math.max(Math.ceil(want * 1.5) + 10, RANGE_DAYS_CHART);
   const to = new Date();
   const from = new Date(to.getTime() - days * 86_400_000);
-  const candles = await fetchTickerRange(meta.ticker, ymdUTC(from), ymdUTC(to), timespan, Math.max(limit + 5, 50));
+  // The date range bounds the result. An upstream `limit` below the bars in the range would cut
+  // the NEWEST bars (results are sorted ascending), so ask for the maximum.
+  const candles = await fetchTickerRange(meta.ticker, ymdUTC(from), ymdUTC(to), timespan, 50_000);
   if (!candles.length) throw new Error('No aggregate bars');
-  candleCache.set(cacheKey, { at: Date.now(), candles, interval });
+  candleCache.set(cacheKey, { at: Date.now(), candles, interval, limit: want });
   return {
     candles: candles.slice(-limit),
     attribution: ATTRIBUTION,

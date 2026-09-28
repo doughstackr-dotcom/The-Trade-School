@@ -33,6 +33,11 @@ import { lastBoundaryMs, parseAlphaVantage, resetAlphaVantageState } from '../ma
 const SUPABASE_URL = 'http://fake.supabase';
 Deno.env.set('SUPABASE_URL', SUPABASE_URL);
 Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role');
+// CORS answers the site's own origin (read when the function loads); requests below send it.
+const SITE_ORIGIN = 'https://example.github.io';
+Deno.env.set('SITE_URL', `${SITE_ORIGIN}/The-Trade-School/`);
+Deno.env.delete('ALLOWED_ORIGINS');
+Deno.env.delete('MASSIVE_API_KEY');
 
 const Dt = (y: number, m: number, d: number, h = 0, min = 0, s = 0) => RealDate.UTC(y, m - 1, d, h, min, s);
 // Wednesday 2026-09-23 15:00 UTC: US markets are open, Tuesday's close is the newest daily candle.
@@ -106,6 +111,7 @@ function fresh(now = WED, cfg: Config = {}) {
   resetMarkets();
   clock.now = now;
   Math.random = () => 0.5; // no random prune
+  Deno.env.set('MARKET_DATA_RATE_LIMIT', '0'); // the per-IP limit is covered by market_data_limits_test.ts
   configure(cfg);
   resetAlphaVantageState(); // what the adapter learned in an earlier test (plan fallback, pacing)
 }
@@ -115,11 +121,11 @@ type Result = { status: number; headers: Headers; body: Record<string, unknown> 
 
 async function call(params: Record<string, unknown>, method = 'POST'): Promise<Result> {
   const req = method === 'GET'
-    ? new Request(`http://localhost/functions/v1/market-data?${new URLSearchParams(params as Record<string, string>)}`)
+    ? new Request(`http://localhost/functions/v1/market-data?${new URLSearchParams(params as Record<string, string>)}`, { headers: { Origin: SITE_ORIGIN } })
     : new Request('http://localhost/functions/v1/market-data', {
       method,
       body: JSON.stringify(params),
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: SITE_ORIGIN },
     });
   const res = await handler!(req);
   const text = await res.text();
@@ -160,7 +166,7 @@ Deno.test('no key and no exchange feeds: every symbol/interval is unconfigured (
     assertEquals(r.body.unconfigured, true);
     assertMatch(String(r.body.error), /not available yet/);
     assertEquals(r.headers.get('Cache-Control'), 'no-store');
-    assertEquals(r.headers.get('Access-Control-Allow-Origin'), '*');
+    assertEquals(r.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
   }
   // With the exchange feeds on but no key, the Alpha Vantage markets are still unconfigured.
   configure({ key: false, feeds: 'coinbase,kraken' });
@@ -179,7 +185,7 @@ Deno.test('catalog with nothing configured: status unconfigured, every symbol li
   const r = await call({ catalog: true });
   assertEquals(r.status, 200);
   assertEquals(r.headers.get('Cache-Control'), 'public, max-age=300');
-  assertEquals(r.headers.get('Access-Control-Allow-Origin'), '*');
+  assertEquals(r.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
   assertEquals(r.body.status, 'unconfigured');
   const symbols = r.body.symbols as Record<string, unknown>[];
   assertEquals(symbols.map((s) => s.id).slice(0, 12), AV_IDS);

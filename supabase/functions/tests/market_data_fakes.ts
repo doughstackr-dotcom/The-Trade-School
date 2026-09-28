@@ -5,13 +5,17 @@
 //                     maybeSingle, insert/upsert with on_conflict + resolution=merge|ignore,
 //                     update with filters, return=representation, rpc prune_market_candles),
 //                     with the real primary keys, NOT NULLs and the candle CHECK constraint.
-//                     plus market_quota and rpc take_market_quota (the atomic daily budget).
+//                     plus market_quota and rpc take_market_quota (the atomic daily budget)
+//                     and api_rate_limits with rpc take_rate_limit (per-client windows).
 //   * FakeCoinbase  – GET /products/{id}/candles (≤ 300 rows, newest first, [t, l, h, o, c, v]).
 //   * FakeKraken    – GET /0/public/OHLC (≤ 720 most recent rows, oldest first, strings).
 //   * FakeAlphaVantage – GET /query for every function alphavantage.ts uses (daily/weekly/
 //                     intraday for equities, FX and crypto), with sessions, holidays, splits,
 //                     compact/full output, premium-only endpoints, the key's own daily limit
 //                     and the 1-call-per-second burst limit (HTTP 200 + "Note"/"Information").
+//   * FakeMassive   – GET /v2/aggs/ticker/{t}/range/1/{day|week}/{from}/{to} (Polygon-style
+//                     aggregates, honouring `limit` and sort=asc like the real API) and
+//                     /v2/aggs/grouped/locale/us/market/stocks/{date}.
 // Every fake records its calls so tests can count upstream traffic exactly.
 
 // deno-lint-ignore-file no-explicit-any
@@ -68,6 +72,12 @@ const TABLES: Record<string, TableDef> = {
     key: ['symbol', 'interval'],
     notNull: ['symbol', 'interval', 'fetched_at'],
     defaults: { fetched_at: () => Date.now(), oldest_complete: () => null, source: () => null },
+  },
+  api_rate_limits: {
+    cols: { key: 'text', window_start: 'ts', hits: 'num' },
+    key: ['key', 'window_start'],
+    notNull: ['key', 'window_start', 'hits'],
+    defaults: { hits: () => 0 },
   },
   market_quota: {
     cols: { provider: 'text', day: 'text', used: 'num' },
@@ -130,7 +140,7 @@ export class FakePostgrest {
   }
 
   reset() {
-    this.tables = { market_candles: new Map(), market_fetches: new Map(), market_quota: new Map() };
+    this.tables = { market_candles: new Map(), market_fetches: new Map(), market_quota: new Map(), api_rate_limits: new Map() };
     this.calls = [];
     this.down = null;
     this.intercept = null;
@@ -204,6 +214,7 @@ export class FakePostgrest {
   private rpc(fn: string, body: unknown): Response {
     this.rpcCalls.push(fn);
     if (fn === 'take_market_quota') return this.takeQuota(body as Row);
+    if (fn === 'take_rate_limit') return this.takeRateLimit(body as Row);
     if (fn !== 'prune_market_candles') throw pgError(404, 'PGRST202', `function ${fn} not found`);
     const now = Date.now();
     const keep: Record<string, number> = { '1m': 3 * DAY, '5m': 30 * DAY, '15m': 120 * DAY };
@@ -234,6 +245,34 @@ export class FakePostgrest {
     }
     if ((row.used as number) < limit) {
       this.tables.market_quota.set(k, { ...row, used: (row.used as number) + 1 });
+      return json(true, 200);
+    }
+    return json(false, 200);
+  }
+
+  /**
+   * public.take_rate_limit(p_key, p_limit, p_window_seconds): one row per (key, fixed window);
+   * insert 1 on conflict do update set hits = hits + 1 where hits < limit returning hits → true
+   * when a row came back. Invalid arguments raise like the real function.
+   */
+  private takeRateLimit(args: Row): Response {
+    const key = args?.p_key;
+    const limit = args?.p_limit;
+    const win = args?.p_window_seconds;
+    if (typeof key !== 'string' || typeof limit !== 'number' || typeof win !== 'number' || !Number.isInteger(limit) || !Number.isInteger(win)) {
+      throw pgError(404, 'PGRST202', 'Could not find the function public.take_rate_limit with the given arguments');
+    }
+    if (limit < 1 || win < 1) throw pgError(400, 'P0001', 'take_rate_limit: invalid arguments');
+    if (key.length > 200) throw pgError(400, '23514', 'new row violates check constraint "api_rate_limits_key_check"');
+    const windowStart = Math.floor(Date.now() / 1000 / win) * win * 1000;
+    const k = `${key}|${windowStart}`;
+    const row = this.tables.api_rate_limits.get(k);
+    if (!row) {
+      this.tables.api_rate_limits.set(k, { key, window_start: windowStart, hits: 1 });
+      return json(true, 200);
+    }
+    if ((row.hits as number) < limit) {
+      this.tables.api_rate_limits.set(k, { ...row, hits: (row.hits as number) + 1 });
       return json(true, 200);
     }
     return json(false, 200);
@@ -856,6 +895,72 @@ function localStamp(ms: number, timeZone: string): string {
 }
 
 // ---------------------------------------------------------------------------------------
+// Massive.com (Polygon-compatible aggregates)
+// ---------------------------------------------------------------------------------------
+
+/** A market Massive serves: daily bars every day (crypto) or on weekdays (stocks, FX). */
+export type MassiveMarket = { base: number; weekdaysOnly: boolean };
+
+export class FakeMassive extends FakeExchange {
+  apiKey = 'massive-test-key';
+  massiveMarkets: Record<string, MassiveMarket> = {};
+
+  protected emptyBody() {
+    return { status: 'OK', resultsCount: 0, results: [] };
+  }
+
+  /** Daily bars of `ticker` from `from` to `to` (inclusive, UTC midnights), oldest first. */
+  dailyBars(ticker: string, from: number, to: number) {
+    const m = this.massiveMarkets[ticker];
+    const out: { t: number; o: number; h: number; l: number; c: number; v: number }[] = [];
+    if (!m) return out;
+    for (let t = Math.ceil(from / DAY) * DAY; t <= to; t += DAY) {
+      const dow = new RealDate(t).getUTCDay();
+      if (m.weekdaysOnly && (dow === 0 || dow === 6)) continue;
+      const i = t / DAY;
+      const o = m.base * (1 + 0.01 * Math.sin(i / 7));
+      const c = m.base * (1 + 0.01 * Math.sin((i + 1) / 7));
+      out.push({ t, o: +o.toFixed(4), h: +(Math.max(o, c) * 1.002).toFixed(4), l: +(Math.min(o, c) * 0.998).toFixed(4), c: +c.toFixed(4), v: 1000 + (i % 50) });
+    }
+    return out;
+  }
+
+  async handle(url: URL, signal?: AbortSignal | null): Promise<Response> {
+    const faulted = await this.prelude(url, signal);
+    if (faulted) return faulted;
+    if (url.searchParams.get('apiKey') !== this.apiKey) return json({ status: 'ERROR', error: 'Unknown API Key' }, 401);
+    let m = url.pathname.match(/^\/v2\/aggs\/ticker\/([^/]+)\/range\/1\/(day|week)\/(\d{4}-\d{2}-\d{2})\/(\d{4}-\d{2}-\d{2})$/);
+    if (m) {
+      const [, ticker, span, from, to] = m;
+      let bars = this.dailyBars(decodeURIComponent(ticker), Date.parse(from), Date.parse(to));
+      if (span === 'week') {
+        const weeks = new Map<number, typeof bars>();
+        for (const b of bars) {
+          const monday = b.t - ((new RealDate(b.t).getUTCDay() + 6) % 7) * DAY;
+          weeks.set(monday, [...(weeks.get(monday) ?? []), b]);
+        }
+        bars = [...weeks.entries()].map(([t, w]) => ({
+          t, o: w[0].o, c: w.at(-1)!.c, h: Math.max(...w.map((x) => x.h)), l: Math.min(...w.map((x) => x.l)), v: w.reduce((a, x) => a + x.v, 0),
+        }));
+      }
+      if (url.searchParams.get('sort') === 'desc') bars.reverse();
+      // Like Polygon: `limit` caps the rows returned, in the requested sort order.
+      bars = bars.slice(0, Number(url.searchParams.get('limit') ?? 5000));
+      return json({ status: 'OK', ticker, resultsCount: bars.length, results: bars }, 200);
+    }
+    m = url.pathname.match(/^\/v2\/aggs\/grouped\/locale\/us\/market\/stocks\/(\d{4}-\d{2}-\d{2})$/);
+    if (m) {
+      const day = Date.parse(m[1]);
+      const results = Object.entries(this.massiveMarkets)
+        .filter(([t, mk]) => !t.includes(':') && mk.weekdaysOnly)
+        .flatMap(([T]) => this.dailyBars(T, day, day).map((b) => ({ T, ...b })));
+      return json({ status: 'OK', resultsCount: results.length, results }, 200);
+    }
+    return json({ status: 'ERROR', error: `no fake for ${url.pathname}` }, 404);
+  }
+}
+
+// ---------------------------------------------------------------------------------------
 // fetch router: every network call made by the function lands in one of the fakes.
 // ---------------------------------------------------------------------------------------
 
@@ -865,6 +970,7 @@ export function installFetch(
   kraken: FakeKraken,
   supabaseUrl: string,
   alphavantage: FakeAlphaVantage = new FakeAlphaVantage(),
+  massive: FakeMassive = new FakeMassive(),
 ) {
   const supa = new URL(supabaseUrl).host;
   globalThis.fetch = ((input: string | URL | Request, init: RequestInit = {}) => {
@@ -873,6 +979,7 @@ export function installFetch(
     if (url.host === 'api.exchange.coinbase.com') return coinbase.handle(url, init.signal);
     if (url.host === 'api.kraken.com') return kraken.handle(url, init.signal);
     if (url.host === 'www.alphavantage.co') return alphavantage.handle(url, init.signal);
+    if (url.host === 'api.massive.com') return massive.handle(url, init.signal);
     return Promise.reject(new TypeError(`network access to ${url.host} is not allowed in tests`));
   }) as typeof fetch;
 }

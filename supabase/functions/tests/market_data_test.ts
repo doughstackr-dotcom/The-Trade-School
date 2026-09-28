@@ -32,6 +32,11 @@ import {
 const SUPABASE_URL = 'http://fake.supabase';
 Deno.env.set('SUPABASE_URL', SUPABASE_URL);
 Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role');
+// CORS answers the site's own origin (read when the function loads); requests below send it.
+const SITE_ORIGIN = 'https://example.github.io';
+Deno.env.set('SITE_URL', `${SITE_ORIGIN}/The-Trade-School/`);
+Deno.env.delete('ALLOWED_ORIGINS');
+Deno.env.delete('MASSIVE_API_KEY');
 
 // 2026-09-27 12:00:30 UTC — 30 s into a minute, so the newest 1m candle is still forming.
 const NOW0 = RealDate.UTC(2026, 8, 27, 12, 0, 30);
@@ -73,6 +78,7 @@ function fresh(now = NOW0) {
   resetMarkets();
   clock.now = now;
   Math.random = () => 0.5; // no random prune unless a test asks for it
+  Deno.env.set('MARKET_DATA_RATE_LIMIT', '0'); // the per-IP limit is covered by market_data_limits_test.ts
   // This file covers the exchange feeds: both enabled, no Alpha Vantage key (see
   // market_data_av_test.ts for Alpha Vantage and for the feeds being off by default).
   Deno.env.set('MARKET_EXCHANGE_FEEDS', 'coinbase,kraken');
@@ -86,12 +92,12 @@ async function call(params: Record<string, unknown> | string | null, method = 'P
   let req: Request;
   if (method === 'GET') {
     const qs = new URLSearchParams(params as Record<string, string>);
-    req = new Request(`http://localhost/functions/v1/market-data?${qs}`, { method });
+    req = new Request(`http://localhost/functions/v1/market-data?${qs}`, { method, headers: { Origin: SITE_ORIGIN } });
   } else if (method === 'POST') {
     const body = typeof params === 'string' ? params : JSON.stringify(params);
-    req = new Request('http://localhost/functions/v1/market-data', { method, body, headers: { 'Content-Type': 'application/json' } });
+    req = new Request('http://localhost/functions/v1/market-data', { method, body, headers: { 'Content-Type': 'application/json', Origin: SITE_ORIGIN } });
   } else {
-    req = new Request('http://localhost/functions/v1/market-data', { method });
+    req = new Request('http://localhost/functions/v1/market-data', { method, headers: { Origin: SITE_ORIGIN } });
   }
   const res = await handler!(req);
   const text = await res.text();
@@ -133,7 +139,7 @@ Deno.test('CORS preflight answers without touching the database or providers', a
   fresh();
   const res = await call(null, 'OPTIONS');
   assertEquals(res.status, 200);
-  assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
+  assertEquals(res.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
   assertMatch(res.headers.get('Access-Control-Allow-Methods')!, /GET/);
   assertMatch(res.headers.get('Access-Control-Allow-Methods')!, /POST/);
   for (const h of ['authorization', 'x-client-info', 'apikey', 'content-type']) {
@@ -147,7 +153,7 @@ Deno.test('other methods get 405 with CORS and no-store', async () => {
   for (const m of ['PUT', 'DELETE', 'PATCH']) {
     const res = await call(null, m);
     assertEquals(res.status, 405);
-    assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
+    assertEquals(res.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
     assertEquals(res.headers.get('Cache-Control'), 'no-store');
   }
   assertEquals(db.calls.length + cb.calls.length, 0);
@@ -182,7 +188,7 @@ Deno.test('validation: unknown symbol, bad interval, prototype keys, bad bodies 
     const res = await call(params as Record<string, unknown>);
     assertEquals(res.status, 400, `expected 400 for ${JSON.stringify(params)}, got ${res.status} ${JSON.stringify(res.body)}`);
     assertMatch(String(res.body.error), re);
-    assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
+    assertEquals(res.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
     assertEquals(res.headers.get('Cache-Control'), 'no-store');
   }
   const unknown = await call({ symbol: 'NOPE-USD', interval: '1h' });
@@ -256,7 +262,7 @@ Deno.test('first latest request fetches upstream once, caches, and returns the d
   // Headers.
   assertEquals(res.headers.get('Cache-Control'), 'public, max-age=15');
   assertEquals(res.headers.get('Content-Type'), 'application/json');
-  assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
+  assertEquals(res.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
   // Cache state.
   assertEquals(db.candles('BTC-USD', '1m').length, 300);
   const state = db.fetchState('BTC-USD', '1m')!;
@@ -436,7 +442,7 @@ Deno.test('total failure with no cache → 502 (and DB outage → 502 without up
   assertEquals(res.status, 502);
   assertEquals(res.body, { error: 'Market data is unavailable right now.' });
   assertEquals(res.headers.get('Cache-Control'), 'no-store');
-  assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
+  assertEquals(res.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
   assertEquals([cb.calls.length, kr.calls.length], [1, 1]);
 
   fresh();
