@@ -1,9 +1,8 @@
-// Shared Live Market Lab UI helpers — hours progress bars, quote cards, compact dashboard board.
-// Pure DOM builders (via ui.h); no page lifecycle. Used by js/pages/live.js and the Dashboard.
+// Shared Live Market Lab UI helpers — hours progress bars, quote cards, board rotation, polling.
+// Pure DOM builders (via ui.h); no page lifecycle. Used by js/pages/live.js.
 
-import { h, icon, svg } from './ui.js';
+import { h, svg } from './ui.js';
 import {
-  getMarketHoursSnapshot,
   assetSessionStatus,
   unifiedTimeline,
   venueForSymbol,
@@ -424,7 +423,7 @@ export function mountUnifiedHoursTimeline(container) {
 /**
  * Paint / update a mounted unified timeline (preserves now-line CSS transition).
  * @param {HTMLElement} el root from mountUnifiedHoursTimeline, or a wrapper
- * @param {ReturnType<typeof unifiedTimeline>|ReturnType<typeof getMarketHoursSnapshot>|null} [snapOrData]
+ * @param {ReturnType<typeof unifiedTimeline>|ReturnType<typeof import('./market-hours.js').getMarketHoursSnapshot>|null} [snapOrData]
  */
 export function paintUnifiedHoursTimeline(el, snapOrData) {
   if (!el) return;
@@ -647,311 +646,17 @@ export function quoteCard(q, { selected = false, onSelect, showSession = false }
 }
 
 /**
- * Compact hours strip for Dashboard — NYSE + key FX sessions with bars.
- * @param {ReturnType<getMarketHoursSnapshot>} [snap]
+ * Run each `[fn, ms]` task on its own interval, skipping ticks while the tab is hidden.
+ * Returns a stop function that clears every interval (safe to call more than once).
+ * @param {Array<[() => void, number]>} tasks
+ * @param {{ doc?: { hidden?: boolean } }} [opts]
  */
-export function compactHoursStrip(snap) {
-  const s = snap || getMarketHoursSnapshot();
-  const picks = [
-    s.equities.find((e) => e.id === 'nyse') || s.equities[0],
-    s.equities.find((e) => e.id === 'lse'),
-    s.forex.find((e) => e.id === 'fx-london'),
-    s.forex.find((e) => e.id === 'fx-newyork'),
-  ].filter(Boolean);
-  return h('div', {
-    class: 'live-hours__grid dash-live__hours',
-    role: 'list',
-    'aria-label': 'Market hours',
-  }, ...picks.map(hoursCard));
-}
-
-/**
- * Mount a self-contained Live markets widget into `host` (Dashboard).
- * Polls quotes (~45s), ticks hours every 1s, loads a detail chart for the selected symbol.
- * Returns an unmount/cleanup function.
- * @param {HTMLElement} host
- * @param {{ symbols?: string[] }} [opts]
- */
-export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
-  const boardSymbols = [...symbols];
-  let selected = boardSymbols[0] || 'SPY';
-  let lastQuotes = [];
-  let lastFetchedAt = 0;
-  let stale = false;
-  let delayed = true;
-  let unconfigured = false;
-  let attribution = '';
-  let chart = null;
-  let lastCandles = null;
-  let pollTimer = null;
-  let hoursTimer = null;
-  let destroyed = false;
-  let chartMod = null;
-  let marketMod = null;
-  let dataMod = null;
-
-  const statusEl = h('span', { class: 'live-status__text' });
-  const dot = h('span', { class: 'live-dot', 'aria-hidden': 'true' });
-  const updatedEl = h('span', { class: 'live-updated mono faint' });
-  const feedEl = h('span', { class: 'live-feed-badge faint' });
-  const board = h('div', {
-    class: 'live-board dash-live__board',
-    role: 'list',
-    'aria-label': 'Market quotes',
-  });
-  const hoursHost = h('div', { class: 'dash-live__hours-wrap' });
-  const chartHost = h('div', { class: 'chart-frame live__chart dash-live__chart' });
-  const chartTitle = h('h3', { class: 't-18 dash-live__chart-title' }, 'Daily chart · SPY');
-  const attrib = h('p', { class: 'faint live-attrib' });
-
-  const setStatus = (key, text) => {
-    statusEl.textContent = text || key;
-    dot.dataset.state = key;
-  };
-
-  const paintFeed = () => {
-    if (unconfigured) {
-      feedEl.textContent = 'Feed: not configured';
-      feedEl.dataset.kind = 'off';
-      return;
-    }
-    feedEl.textContent = delayed
-      ? 'Feed: delayed EOD (Massive free tier)'
-      : 'Feed: live';
-    feedEl.dataset.kind = delayed ? 'delayed' : 'live';
-  };
-
-  const paintUpdated = () => {
-    if (!lastFetchedAt) {
-      updatedEl.textContent = 'Waiting for quotes…';
-      return;
-    }
-    const label = new Date(lastFetchedAt).toLocaleTimeString(undefined, {
-      hour: 'numeric', minute: '2-digit', second: '2-digit',
-    });
-    updatedEl.textContent = stale ? `Updated ${label} · stale` : `Updated ${label}`;
-  };
-
-  const hoursGrid = h('div', {
-    class: 'live-hours__grid dash-live__hours',
-    role: 'list',
-    'aria-label': 'Market hours',
-  });
-  const hoursNote = h('p', { class: 'faint live-hours__note' });
-  hoursHost.append(hoursGrid, hoursNote);
-
-  const paintHours = () => {
-    if (destroyed) return;
-    const snap = getMarketHoursSnapshot();
-    const picks = [
-      snap.equities.find((e) => e.id === 'nyse') || snap.equities[0],
-      snap.equities.find((e) => e.id === 'lse'),
-      snap.forex.find((e) => e.id === 'fx-london'),
-      snap.forex.find((e) => e.id === 'fx-newyork'),
-    ].filter(Boolean);
-    paintHoursCards(hoursGrid, picks);
-    hoursNote.textContent = snap.context;
-  };
-
-  const paintBoard = () => {
-    const list = lastQuotes.length
-      ? lastQuotes.map((q) => {
-        const sess = assetSessionStatus(q.symbol);
-        return { ...q, _sessionOpen: sess.open };
-      })
-      : boardSymbols.map((id) => ({
-        symbol: id, name: id, price: null, change: null, changePct: null,
-        sparkline: [], ok: false, _sessionOpen: assetSessionStatus(id).open,
-      }));
-    board.replaceChildren(...list.map((q) => quoteCard(q, {
-      selected: q.symbol === selected,
-      showSession: true,
-      onSelect: (id) => {
-        selected = id;
-        paintBoard();
-        loadChart(id);
-      },
-    })));
-  };
-
-  const patchChartFromQuote = (q) => {
-    if (!chart || !lastCandles?.length || !q) return;
-    const next = applyQuoteToCandles(lastCandles, q);
-    if (next === lastCandles) return;
-    lastCandles = next;
-    setCachedCandles(selected, lastCandles);
-    try { chart.setCandles(lastCandles); } catch (err) { console.error(err); }
-  };
-
-  const loadChart = async (symbol) => {
-    if (!chartMod) return;
-    chartTitle.textContent = `Daily chart · ${symbol}`;
-    chartHost.classList.add('is-switching');
-    let candles = getCachedCandles(symbol);
-    let note = null;
-    if (marketMod?.getCandles) {
-      try {
-        const res = await marketMod.getCandles({ symbol, interval: '1d', limit: 90 });
-        if (res?.candles?.length) candles = res.candles;
-        if (res?.attribution) {
-          note = [
-            res.attribution,
-            res.delayed !== false ? 'Delayed EOD' : null,
-            res.stale ? 'stale' : null,
-          ].filter(Boolean).join(' · ');
-        }
-      } catch { candles = null; }
-    }
-    if (!candles?.length && dataMod && !unconfigured) {
-      candles = dataMod.randomWalk({
-        seed: symbol.length * 99, count: 90, drift: 0.0003, vol: 0.012,
-      });
-      note = [attribution, 'Chart: simulated'].filter(Boolean).join(' · ');
-    }
-    attrib.textContent = [attribution, note].filter(Boolean).join(' · ');
-    if (!candles?.length) {
-      lastCandles = null;
-      chartHost.classList.remove('is-switching');
-      return;
-    }
-    const q = lastQuotes.find((x) => x.symbol === symbol && x.ok !== false);
-    lastCandles = applyQuoteToCandles(candles, q) || candles;
-    setCachedCandles(symbol, lastCandles);
-    if (!chart) {
-      chart = new chartMod.CandleChart(chartHost, {
-        candles: lastCandles,
-        height: 280,
-        showVolume: true,
-        ariaLabel: `${symbol} daily chart`,
-      });
-    } else {
-      chart.setCandles(lastCandles);
-    }
-    requestAnimationFrame(() => {
-      if (!destroyed) chartHost.classList.remove('is-switching');
-    });
-  };
-
-  const refreshQuotes = async () => {
-    if (destroyed || !marketMod?.getQuotes) {
-      setStatus('offline', 'Quotes unavailable');
-      return;
-    }
-    setStatus(
-      lastQuotes.some((q) => q.ok) ? (stale ? 'stale' : 'live') : 'connecting',
-      lastQuotes.some((q) => q.ok) ? 'Refreshing…' : 'Connecting…',
-    );
-    try {
-      const res = await marketMod.getQuotes({ symbols: boardSymbols });
-      if (destroyed) return;
-      const quotes = Array.isArray(res.quotes) ? res.quotes : [];
-      const anyOk = quotes.some((q) => q.ok);
-      unconfigured = !!(res.unconfigured || /MASSIVE_API_KEY/i.test(res.error || ''));
-      delayed = res.delayed !== false;
-      if (anyOk) {
-        lastQuotes = quotes;
-        lastFetchedAt = res.fetchedAt || Date.now();
-        stale = !!res.stale;
-        attribution = res.attribution || '';
-        setLiveQuotes({ quotes, fetchedAt: lastFetchedAt, attribution, stale });
-        setStatus(
-          stale ? 'stale' : 'live',
-          stale ? 'Live · stale' : 'Live',
-        );
-        const sel = quotes.find((q) => q.symbol === selected && q.ok);
-        if (sel) patchChartFromQuote(sel);
-      } else if (lastQuotes.some((q) => q.ok)) {
-        stale = true;
-        setStatus('stale', 'Refresh failed — last good quotes');
-      } else {
-        lastQuotes = quotes.length ? quotes : boardSymbols.map((id) => ({
-          symbol: id, name: id, price: null, change: null, changePct: null,
-          sparkline: [], ok: false,
-        }));
-        setStatus(
-          'offline',
-          unconfigured
-            ? 'Configure MASSIVE_API_KEY on market-data'
-            : (res.error || 'Quotes unavailable'),
-        );
-      }
-    } catch (err) {
-      if (lastQuotes.some((q) => q.ok)) {
-        stale = true;
-        setStatus('stale', 'Network error — last good quotes');
-      } else {
-        setStatus('offline', err?.message || 'Network error');
-      }
-    }
-    paintFeed();
-    paintUpdated();
-    paintBoard();
-  };
-
-  host.replaceChildren(
-    h('div', { class: 'section-head dash-live__head' },
-      h('div', null,
-        h('p', { class: 'eyebrow' }, 'Markets'),
-        h('h2', { id: 'dash-live-h' }, 'Live markets')),
-      h('div', { class: 'dash-live__head-actions row' },
-        h('a', { class: 'btn btn--ghost btn--sm', href: '/live' },
-          icon('chart', { size: 14 }), 'Full Live lab'))),
-    h('p', { class: 'muted dash-live__lead' },
-      'Quotes for major ETFs, stocks, Bitcoin and EUR/USD. ',
-      'Open/Closed badges follow US equity and FX session hours. ',
-      'Free-tier prices are delayed end-of-day — fine for learning, not for live trading.'),
-    hoursHost,
-    h('div', { class: 'live__bar row dash-live__bar' },
-      h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
-      feedEl,
-      updatedEl),
-    board,
-    h('section', {
-      class: 'live-detail card dash-live__detail',
-      'aria-label': 'Selected market chart',
-    },
-      chartTitle,
-      chartHost,
-      attrib),
-    h('p', { class: 'faint dash-live__footnote' },
-      'Educational only — not financial advice. Data via Massive.com (delayed EOD on the free tier).'),
-  );
-
-  paintHours();
-  paintBoard();
-  paintFeed();
-  paintUpdated();
-  setStatus('connecting', 'Connecting…');
-
-  (async () => {
-    const mods = await Promise.all([
-      import('./chart.js').catch(() => null),
-      import('./data.js').catch(() => null),
-      import('./market.js').catch(() => null),
-    ]);
-    if (destroyed) return;
-    chartMod = mods[0];
-    dataMod = mods[1];
-    marketMod = mods[2];
-    await refreshQuotes();
-    if (!destroyed) await loadChart(selected);
-    if (!destroyed) {
-      pollTimer = setInterval(() => {
-        if (typeof document !== 'undefined' && document.hidden) return;
-        refreshQuotes();
-        loadChart(selected);
-      }, POLL_MS);
-      hoursTimer = setInterval(() => {
-        if (typeof document !== 'undefined' && document.hidden) return;
-        paintHours();
-      }, HOURS_TICK_MS);
-    }
-  })();
-
+export function startVisibleIntervals(tasks, { doc = typeof document !== 'undefined' ? document : null } = {}) {
+  const timers = (tasks || []).map(([fn, ms]) => setInterval(() => {
+    if (doc?.hidden) return;
+    fn();
+  }, ms));
   return () => {
-    destroyed = true;
-    if (pollTimer) clearInterval(pollTimer);
-    if (hoursTimer) clearInterval(hoursTimer);
-    try { chart?.destroy(); } catch (err) { console.error(err); }
+    for (const t of timers.splice(0)) clearInterval(t);
   };
 }

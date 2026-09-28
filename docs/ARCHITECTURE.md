@@ -44,12 +44,12 @@ js/core/routes.js          route token <-> URL path mapping, canonical paths (pu
 js/core/store.js           progress: XP, levels, completions, badges, settings
 js/core/rng.js             seeded PRNG + helpers
 js/core/data.js            OHLC generators (random walk, path-following, trends, timeframe aggregation)
-js/core/patterns.js        candlestick-pattern + chart-pattern definitions and generators
+js/core/patterns.js        candlestick-pattern + chart-pattern definitions and generators (facade over js/core/patterns/)
 js/core/indicators.js      SMA, EMA, RSI, MACD, Bollinger, ATR, swings, S/R, fib, crosses, divergence
-js/core/chart.js           CandleChart (interactive SVG chart) + miniChart()
+js/core/chart.js           CandleChart (interactive SVG chart) + miniChart() (facade over js/core/chart/)
 js/core/anim.js            tween / sequence helpers, reduced-motion aware
 js/core/ui.js              DOM helper h(), toast, modal, confetti, sfx, quiz widgets, icons
-js/core/game-kit.js        GameShell: intro → rounds → results, scoring, timer, XP
+js/core/game-kit.js        GameShell: intro → rounds → results, scoring, timer, XP (facade over js/core/game-kit/)
 js/core/lesson-kit.js      LessonShell: step-by-step lesson with nav, quick checks, completion (+ §12.5 step helpers)
 js/core/scanner.js         setup scanner: findSetups, realRound, simRound, outcomeOf, describeChart (§12.4)
 js/core/market.js          real market candles via the market-data Edge Function; mock fixtures (§12.3)
@@ -793,7 +793,8 @@ js/vendor/supabase.js  vendored @supabase/supabase-js UMD build (window.supabase
 js/core/auth.js      session, sign up/in/out, magic link, password reset, access level,
                      checkout + billing portal, 'change' events; mock mode for tests
 js/core/access.js    requiredPlan(entry | mode) and canOpen(); lock labels for the UI
-js/core/sync.js      merges local progress with the `progress` row and pushes debounced
+js/core/progress-sync.js  signed-in users: pulls the `progress` row on sign-in, merges it with
+                     local progress (store.mergeProgress), pushes debounced upserts
 js/pages/pricing.js  #pricing      plan cards, FAQ, current plan
 js/pages/account.js  /account      profile, plan status, manage billing, sign out
 js/pages/auth.js     #signin #signup #reset #reset.update

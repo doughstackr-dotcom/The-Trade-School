@@ -9,7 +9,7 @@ Everything is drawn in the browser (SVG). Textbook charts are generated from see
 walks; games and lessons that offer **Real market** charts use historical candles served by the
 site's `market-data` function (see [`docs/MARKET_DATA.md`](docs/MARKET_DATA.md)), always labelled
 with the market, date and data source. Your progress (XP, levels, stars, badges) is saved locally
-in your browser.
+in your browser and, when you are signed in, synced to your account across devices.
 
 > **Educational only — not financial advice.** No money is involved, and real-market charts
 > are past data, never a prediction. Nothing here says a pattern "always works"; the games

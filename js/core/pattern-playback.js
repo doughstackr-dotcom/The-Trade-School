@@ -127,9 +127,9 @@ function buildCandlePlan(patternId, opts = {}) {
       key: 'context',
       label: 'Context',
       caption: bias === 'bullish'
-        ? 'Price has been declining into a level. Scalpers watch the short timeframe for rejection.'
+        ? 'Price has been declining into a level. Swing and day traders wait for a clear rejection there before acting.'
         : bias === 'bearish'
-          ? 'Price has been rallying into a level. Scalpers watch for rejection on the short timeframe.'
+          ? 'Price has been rallying into a level. Swing and day traders wait for a clear rejection there before acting.'
           : 'Price is pausing. A doji or indecision print needs context and confirmation.',
       to: sc.start,
       apply(chart) {
@@ -183,8 +183,8 @@ function buildCandlePlan(patternId, opts = {}) {
       key: 'plan',
       label: 'Trade plan',
       caption: levels.bull
-        ? `Entry near ${levels.entry.toFixed(2)}, stop under the low (${levels.stop.toFixed(2)}), quick scalp target ~1.5–2R (${levels.target.toFixed(2)}).`
-        : `Entry near ${levels.entry.toFixed(2)}, stop above the high (${levels.stop.toFixed(2)}), quick scalp target ~1.5–2R (${levels.target.toFixed(2)}).`,
+        ? `Example plan: entry near ${levels.entry.toFixed(2)}, stop under the low (${levels.stop.toFixed(2)}), target ~1.5–2R (${levels.target.toFixed(2)}).`
+        : `Example plan: entry near ${levels.entry.toFixed(2)}, stop above the high (${levels.stop.toFixed(2)}), target ~1.5–2R (${levels.target.toFixed(2)}).`,
       to: Math.min(sc.candles.length, levels.entryIdx + 3),
       apply(chart) {
         chart.addMarker({
