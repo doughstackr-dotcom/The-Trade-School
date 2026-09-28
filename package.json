@@ -14,7 +14,7 @@
     "smoke": "node tests/smoke.mjs",
     "test:all": "npm test && npm run smoke",
     "lint": "eslint .",
-    "test:functions": "deno test --no-config --node-modules-dir=none --allow-env --allow-net=127.0.0.1 supabase/functions/tests/"
+    "test:functions": "deno test --no-config --node-modules-dir=none --allow-env --allow-read=supabase --allow-net=127.0.0.1 supabase/functions/tests/"
   },
   "devDependencies": {
     "eslint": "^10.11.0",
