@@ -1,7 +1,8 @@
 // Risk Manager — position sizing, R-multiples, expectancy and portfolio heat.
 import { GameShell } from '../core/game-kit.js';
-import { gameplayPreview, verdictFlourish, sampleCandle, tinySeries } from '../core/game-ui.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { miniChart } from '../core/chart.js';
+import { trendSeries } from '../core/data.js';
 import { h } from '../core/ui.js';
 
 function scenario(rng, difficulty) {
@@ -33,11 +34,34 @@ export default {
       ],
       onRound(g, { rng, stage, difficulty }) {
         const s = scenario(rng, difficulty);
+        const span = Math.max(s.riskPerShare * (s.targetR + 2), s.entry * 0.04);
+        const candles = trendSeries({
+          seed: rng.int(1, 1e9), count: 30, direction: 'up', swings: 2, start: s.stop + span * 0.3,
+        }).candles.map((k) => {
+          // Keep action near the trade levels so entry/stop/target read clearly
+          const mid = (s.stop + s.target) / 2;
+          const scale = span / 8;
+          return {
+            ...k,
+            o: mid + (k.o - 100) * scale * 0.15,
+            h: mid + (k.h - 100) * scale * 0.15,
+            l: mid + (k.l - 100) * scale * 0.15,
+            c: mid + (k.c - 100) * scale * 0.15,
+          };
+        });
+        const riskChart = miniChart(candles, {
+          width: 420, height: 200, yPad: 0.14, showAxis: true,
+          overlays: [
+            { type: 'hline', price: s.target, color: 'bull', label: `Target ${s.target}`, width: 1.5 },
+            { type: 'hline', price: s.entry, color: 'accent', label: `Entry ${s.entry}`, width: 1.75 },
+            { type: 'hline', price: s.stop, color: 'bear', label: `Stop ${s.stop}`, width: 1.5 },
+            { type: 'zone', from: s.stop, to: s.entry, color: 'bear', label: '1R risk' },
+            { type: 'zone', from: s.entry, to: s.target, color: 'bull', label: `${s.targetR}R` },
+          ],
+          ariaLabel: 'Risk manager trade levels chart',
+        });
         stage.append(
-          h('div', { class: 'row row--sm', style: { gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' } },
-            sampleCandle('bull', { width: 28, height: 42 }),
-            miniChart(tinySeries(rng.int(1, 80), 'up', 16), { width: 140, height: 48, ariaLabel: 'Risk session thumb' }),
-          ),
+          h('div', { class: 'daily-chart', style: { marginBottom: '0.55rem' } }, riskChart),
           h('div', { class: 'callout callout--tip risk-hud', role: 'status' },
             h('p', null,
               h('strong', null, 'Desk blotter: '),

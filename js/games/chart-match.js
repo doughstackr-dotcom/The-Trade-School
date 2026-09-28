@@ -5,12 +5,12 @@ import { miniChart } from '../core/chart.js';
 import { gameplayPreview, memoryBoard, sampleCandle, tinySeries, verdictFlourish } from '../core/game-ui.js';
 
 const PAIRS = [
-  { key: 'bull', label: 'Bullish candle', face: () => sampleCandle('bull', { width: 32, height: 48 }) },
-  { key: 'bear', label: 'Bearish candle', face: () => sampleCandle('bear', { width: 32, height: 48 }) },
-  { key: 'doji', label: 'Doji', face: () => sampleCandle('doji', { width: 32, height: 48 }) },
-  { key: 'hammer', label: 'Hammer', face: () => sampleCandle('hammer', { width: 32, height: 48 }) },
-  { key: 'uptrend', label: 'Uptrend', face: () => miniChart(tinySeries(11, 'up', 16), { width: 72, height: 48, ariaLabel: 'Uptrend thumb' }) },
-  { key: 'downtrend', label: 'Downtrend', face: () => miniChart(tinySeries(22, 'down', 16), { width: 72, height: 48, ariaLabel: 'Downtrend thumb' }) },
+  { key: 'bull', label: 'Bullish candle', face: () => sampleCandle('bull', { width: 48, height: 72 }) },
+  { key: 'bear', label: 'Bearish candle', face: () => sampleCandle('bear', { width: 48, height: 72 }) },
+  { key: 'doji', label: 'Doji', face: () => sampleCandle('doji', { width: 48, height: 72 }) },
+  { key: 'hammer', label: 'Hammer', face: () => sampleCandle('hammer', { width: 48, height: 72 }) },
+  { key: 'uptrend', label: 'Uptrend', face: () => miniChart(tinySeries(11, 'up', 18), { width: 96, height: 64, ariaLabel: 'Uptrend thumb' }) },
+  { key: 'downtrend', label: 'Downtrend', face: () => miniChart(tinySeries(22, 'down', 18), { width: 96, height: 64, ariaLabel: 'Downtrend thumb' }) },
 ];
 
 export default {

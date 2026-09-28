@@ -71,12 +71,12 @@ export default {
           h('span', { class: 'game-preview__pill' }, h('small', null, 'C'), h('strong', { class: 'mono' }, c.c.toFixed(2))),
           h('span', { class: ['game-preview__chip', bull ? 'game-preview__chip--bull' : 'game-preview__chip--bear'] }, bull ? 'Bull' : 'Bear'),
         );
-        const hero = candleSVG(c, { width: 52, height: 90, labels: true, prices: true, ariaLabel: 'Focus candle' });
+        const hero = candleSVG(c, { width: 64, height: 130, labels: true, prices: true, ariaLabel: 'Focus candle' });
         const dc = decisionChart(stage, {
           candles: sc.candles,
           visible: sc.end + 1,
           slots: sc.candles.length,
-          height: 260,
+          height: 320,
           yPad: 0.16,
           question: t.q,
           before: h('div', { class: 'row', style: { alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' } }, hero, pill),

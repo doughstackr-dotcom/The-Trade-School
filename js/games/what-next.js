@@ -40,7 +40,7 @@ export default {
         );
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, decimals: r.decimals ?? 2, yPad: 0.14,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.14,
           ariaLabel: 'Frozen decision chart',
         });
         g.setHint(advanced

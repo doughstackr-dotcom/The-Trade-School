@@ -55,7 +55,7 @@ export default {
             h('p', { class: 'quiz__q' }, want === 'ask'
               ? `Market BUY at mid ${mid.toFixed(2)}. Tap the ask you would lift.`
               : `Market SELL at mid ${mid.toFixed(2)}. Tap the bid you would hit.`),
-            h('div', { class: 'row row--sm', style: { marginBottom: '0.5rem' } }, sampleCandle(want === 'ask' ? 'bull' : 'bear', { width: 28, height: 44 })),
+            h('div', { class: 'row row--sm', style: { marginBottom: '0.5rem' } }, sampleCandle(want === 'ask' ? 'bull' : 'bear', { width: 56, height: 88 })),
           );
           let picked = null;
           const ladder = orderLadder({

@@ -33,7 +33,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, 'Price vs momentum at the latest swing — what do you see?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, decimals: r.decimals ?? 2, yPad: 0.14,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.14,
           ariaLabel: 'Chart for divergence reading',
         });
         g.setHint('Bearish div: higher high in price, lower high in momentum. Bullish: lower low in price, higher low in momentum.');

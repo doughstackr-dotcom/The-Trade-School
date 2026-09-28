@@ -49,7 +49,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, `Next ~${AHEAD} candles — up, down or range?`), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, decimals: r.decimals ?? 2, yPad: 0.12,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.12,
           ariaLabel: 'Live predict chart; future hidden',
         });
         g.setHint('Use structure at the freeze — do not invent a story from one wick.');

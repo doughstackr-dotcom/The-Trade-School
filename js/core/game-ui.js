@@ -4,10 +4,10 @@ import { CandleChart, miniChart, candleSVG } from './chart.js';
 import { trendSeries } from './data.js';
 import { makeRng } from './rng.js';
 
-export function candlePreview(el, { seed = 42, count = 28, direction = 'up', height = 120, width = 220 } = {}) {
+export function candlePreview(el, { seed = 42, count = 28, direction = 'up', height = 140, width = 260 } = {}) {
   if (!el) return () => {};
   const ts = trendSeries({ seed, count, direction, swings: 3, start: 100 });
-  const svgEl = miniChart(ts.candles, { width, height, yPad: 0.1, ariaLabel: 'Sample candlestick chart preview' });
+  const svgEl = miniChart(ts.candles, { width, height, yPad: 0.1, showAxis: width >= 200, ariaLabel: 'Sample candlestick chart preview' });
   svgEl.classList.add('game-preview-chart');
   el.append(svgEl);
   return () => svgEl.remove();
@@ -19,7 +19,7 @@ export function gameplayPreview(el, {
 } = {}) {
   if (!el) return () => {};
   const ts = trendSeries({ seed, count, direction, swings: 3, start: 100 });
-  const chart = miniChart(ts.candles, { width: 260, height: 118, yPad: 0.1, ariaLabel: `${title} gameplay preview` });
+  const chart = miniChart(ts.candles, { width: 280, height: 128, yPad: 0.1, showAxis: true, ariaLabel: `${title} gameplay preview` });
   chart.classList.add('game-preview-chart');
   const frame = h('div', { class: 'game-preview', 'aria-hidden': 'true' },
     h('div', { class: 'game-preview__hud' },
@@ -44,7 +44,7 @@ export function defaultGamePreview(el, gameId = '') {
 }
 
 export function decisionChart(stage, {
-  candles, visible, slots, height = 300, decimals = 2, yPad = 0.14,
+  candles, visible, slots, height = 340, decimals = 2, yPad = 0.14,
   showVolume = false, ariaLabel = 'Decision chart', question = '', className = '', before = null,
 } = {}) {
   const host = h('div', { class: 'chart-frame game-chart' });
@@ -65,7 +65,7 @@ export function decisionChart(stage, {
   };
 }
 
-export function sampleCandle(kind = 'bull', { width = 36, height = 56 } = {}) {
+export function sampleCandle(kind = 'bull', { width = 44, height = 72 } = {}) {
   const templates = {
     bull: { o: 100, h: 112, l: 98, c: 110 }, bear: { o: 110, h: 112, l: 96, c: 98 },
     doji: { o: 100, h: 108, l: 92, c: 100.2 }, hammer: { o: 104, h: 106, l: 90, c: 105 },

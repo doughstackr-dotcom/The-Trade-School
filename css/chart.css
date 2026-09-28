@@ -40,16 +40,18 @@
 .tc-axis-line,
 .tc-pane-div { fill: none; stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
 .tc-axis-text {
-  fill: var(--text-3);
+  fill: var(--text-2);
   font: 500 11px/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* Candles */
-.tc-bull { fill: var(--bull); stroke: var(--bull); }
-.tc-bear { fill: var(--bear); stroke: var(--bear); }
+/* Candles — strong bull/bear contrast so game answers stay readable */
+.tc-bull { fill: var(--bull); stroke: var(--bull-strong, var(--bull)); }
+.tc-bear { fill: var(--bear); stroke: var(--bear-strong, var(--bear)); }
 .tc-wick { fill: none; shape-rendering: crispEdges; }
 .tc-body { stroke: none; shape-rendering: crispEdges; }
+.tc-body.tc-bull { fill: var(--bull); }
+.tc-body.tc-bear { fill: var(--bear); }
 .tc-vol { stroke: none; opacity: 0.26; shape-rendering: crispEdges; }
 .tc-bar { fill: none; stroke-linecap: butt; shape-rendering: crispEdges; }
 
@@ -205,8 +207,20 @@
   height: auto;
   overflow: hidden;
   font-family: var(--font-mono);
+  border-radius: 8px;
+}
+.tc-mini--axis {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 .tc-mini-hl { fill: var(--accent-soft); }
+.tc-mini .tc-axis-text { font-size: 11px; fill: var(--text-2); }
+.tc-mini .tc-pill text {
+  fill: var(--surface);
+  font: 600 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
 
 /* candleSVG */
 .tc-candle-svg {

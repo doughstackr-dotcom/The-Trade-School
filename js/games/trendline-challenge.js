@@ -41,7 +41,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, 'Status of the drawn trend line at the freeze?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, yPad: 0.14, ariaLabel: 'Chart with trend line',
+          height: 340, yPad: 0.14, ariaLabel: 'Chart with trend line',
         });
         chart.addSegment({
           a: { idx: r.i1, price: r.p1 },

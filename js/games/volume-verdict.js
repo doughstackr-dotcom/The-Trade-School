@@ -47,7 +47,7 @@ export default {
           candles: r.candles,
           visible: r.decisionIdx + 1,
           slots: r.candles.length,
-          height: 280,
+          height: 340,
           showVolume: true,
           decimals: r.decimals ?? 2,
           question: q,

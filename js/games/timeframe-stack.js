@@ -45,8 +45,8 @@ export default {
           h('p', { class: 'quiz__q' }, `HTF bias looks ${r.bias === 'up' ? 'bullish' : 'bearish'}. What is the disciplined plan?`),
           row,
         );
-        const c1 = new CandleChart(left, { candles: r.htf, height: 220, yPad: 0.12, ariaLabel: 'Higher timeframe chart' });
-        const c2 = new CandleChart(right, { candles: r.ltf, height: 220, yPad: 0.12, ariaLabel: 'Lower timeframe chart' });
+        const c1 = new CandleChart(left, { candles: r.htf, height: 260, yPad: 0.12, ariaLabel: 'Higher timeframe chart' });
+        const c2 = new CandleChart(right, { candles: r.ltf, height: 260, yPad: 0.12, ariaLabel: 'Lower timeframe chart' });
         g.setHint('Pullbacks against HTF bias are often buys/sells with the larger trend — if your plan defines them.');
         g.ask({
           options: rng.shuffle([

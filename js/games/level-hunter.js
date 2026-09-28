@@ -46,7 +46,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, 'How is price interacting with the key level?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, decimals: r.decimals ?? 2, yPad: 0.14,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.14,
           ariaLabel: 'Chart with a horizontal level to classify',
         });
         if (Number.isFinite(r.level)) chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });

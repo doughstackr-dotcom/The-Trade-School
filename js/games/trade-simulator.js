@@ -75,7 +75,7 @@ export default {
         stage.append(host);
         const chart = new CandleChart(host, {
           candles, visible: decisionIdx + 1, slots: candles.length,
-          height: 300, yPad: 0.14, ariaLabel: 'Trade simulator chart',
+          height: 340, yPad: 0.14, ariaLabel: 'Trade simulator chart',
         });
         chart.addHLine({ price: entry, color: 'accent', label: 'Entry' });
         chart.addHLine({ price: stop, color: 'bear', label: 'Stop' });

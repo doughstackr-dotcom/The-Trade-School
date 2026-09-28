@@ -46,7 +46,7 @@ export default {
         );
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, yPad: 0.16, ariaLabel: 'Uptrend with Fibonacci retracement level',
+          height: 340, yPad: 0.16, ariaLabel: 'Uptrend with Fibonacci retracement level',
         });
         chart.addSegment({ a: { idx: r.loIdx, price: r.lo }, b: { idx: r.hiIdx, price: r.hi }, color: 'bull', arrow: true, label: 'Swing' });
         chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Fib?' });

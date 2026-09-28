@@ -51,7 +51,7 @@ export default {
           h('span', { class: 'game-meter__track' }, h('span', { class: 'game-meter__fill', style: { transform: `scaleX(${tilt / 100})`, background: tilt > 60 ? 'var(--bear)' : 'var(--accent)' } })),
           h('span', { class: 'game-meter__label mono' }, `Tilt ${tilt}%`),
         );
-        const backdrop = miniChart(tinySeries(40 + current, tilt > 50 ? 'down' : 'up', 22), { width: 260, height: 70, ariaLabel: 'Session backdrop' });
+        const backdrop = miniChart(tinySeries(40 + current, tilt > 50 ? 'down' : 'up', 30), { width: 420, height: 160, yPad: 0.1, showAxis: true, ariaLabel: 'Session backdrop chart' });
         stage.append(
           h('div', { class: 'row', style: { justifyContent: 'space-between', marginBottom: '0.5rem' } }, meter),
           h('div', { class: 'swipe-card__chart', style: { marginBottom: '0.6rem' } }, backdrop),

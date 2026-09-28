@@ -46,7 +46,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, 'What is the dominant structure?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 300, decimals: r.decimals ?? 2, yPad: 0.12,
+          height: 340, decimals: r.decimals ?? 2, yPad: 0.12,
           ariaLabel: 'Price chart for trend reading; future hidden.',
         });
         g.setHint('Mark the last two or three swing highs and lows in your head.');

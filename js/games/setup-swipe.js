@@ -44,7 +44,7 @@ export default {
       onRound(g, { difficulty, retry, stage }) {
         if (!retry) current = pickQuestion(deck, used, difficulty);
         const q = BANK[current];
-        const thumb = miniChart(tinySeries(30 + current, q[5], 20), { width: 220, height: 90, ariaLabel: 'Setup thumbnail' });
+        const thumb = miniChart(tinySeries(30 + current, q[5], 28), { width: 420, height: 180, yPad: 0.1, showAxis: true, ariaLabel: 'Setup chart' });
         let answered = false;
         const finish = (take) => {
           if (answered) return;

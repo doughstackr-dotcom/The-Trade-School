@@ -101,6 +101,12 @@
   position: relative; aspect-ratio: 1; border: 0; padding: 0;
   border-radius: 12px; cursor: pointer;
   background: transparent; perspective: 600px;
+  min-height: 72px;
+}
+.memory-card__face--back .tc-mini,
+.memory-card__face--back .tc-candle-svg {
+  max-width: 88%;
+  max-height: 88%;
 }
 .memory-card__face {
   position: absolute; inset: 0; display: grid; place-items: center;
@@ -161,7 +167,24 @@
   margin: 0.15rem 0;
 }
 
-.game-chart { min-height: 200px; }
+.game-chart { min-height: 240px; }
+.game-round .tc-mini--axis,
+.swipe-card__chart .tc-mini,
+.daily-chart {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.daily-chart {
+  margin-bottom: 0.65rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface, #0f131c);
+  border: 1px solid var(--border, #2a3344);
+}
+.daily-chart .tc-mini,
+.daily-chart .tc-candle-svg { margin-inline: auto; }
 .bull { color: var(--bull, #22c55e); }
 .bear { color: var(--bear, #ef4444); }
 

@@ -70,7 +70,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, 'Break of the level — trade it, fade the trap, or wait?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 310, showVolume: true, decimals: r.decimals ?? 2, yPad: 0.14,
+          height: 350, showVolume: true, decimals: r.decimals ?? 2, yPad: 0.14,
           ariaLabel: 'Breakout decision chart with volume',
         });
         if (Number.isFinite(r.level)) chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
