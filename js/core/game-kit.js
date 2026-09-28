@@ -10,7 +10,7 @@ import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMo
 import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
 import {
-  findEntry, findTier, nextItem, unitOf, findBadge, hashFor, tiersOf,
+  findEntry, nextItem, unitOf, findBadge, hashFor, tiersOf,
   STYLES, DIFFICULTY_LEVELS, SOURCES, findStyle,
 } from '../registry.js';
 
@@ -1177,9 +1177,8 @@ export class GameShell {
   }
 
   _backLink() {
-    const tier = this.tier;
-    const t = findTier(tier);
-    return h('a', { class: 'link-btn', href: `#${tier}` }, icon('arrow-left', { size: 16 }), t ? t.title : 'Back');
+    // Always return to the Games hub, regardless of entry point (Games tiles, home arcade, or track).
+    return h('a', { class: 'link-btn', href: '#games' }, icon('arrow-left', { size: 16 }), 'Games');
   }
 
   /** Segmented radio picker. options: [{ id, label, iconEl?, note?, locked?, lockNote? }]. */
@@ -1647,7 +1646,6 @@ export class GameShell {
   _renderResults(s) {
     const e = this.entry;
     const tier = this.tier;
-    const tierEntry = findTier(tier);
     const survival = s.style === 'survival';
     const [headline, sub0] = (survival ? SURVIVAL_LINES : STAR_LINES)[s.stars];
     let sub = sub0;
@@ -1715,7 +1713,7 @@ export class GameShell {
           this._startBtn.focus({ preventScroll: true });
         } } }, icon('grid'), 'Change style')
         : null,
-      h('a', { class: 'btn btn--lg', href: `#${tier}` }, icon('arrow-left'), `Back to ${tierEntry ? tierEntry.title : 'track'}`),
+      h('a', { class: 'btn btn--lg', href: '#games' }, icon('arrow-left'), 'Back to Games'),
       nextEntry ? h('a', { class: 'btn btn--lg btn--ghost results__next', href: `#${hashFor(nextEntry.id)}` },
         h('span', null, h('small', null, `Next ${nextEntry.type}`), nextEntry.title), icon('arrow-right')) : null);
 

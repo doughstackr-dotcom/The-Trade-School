@@ -310,6 +310,15 @@ export function navigate(hash) {
         render(target);
         return;
       }
+      // Games always back out to the Games hub: if we are opening a game from
+      // somewhere else (Beginner track, home arcade, etc.), rewrite the current
+      // history entry to #games first so browser Back lands on Games, not the entry page.
+      if (token.startsWith('g.')) {
+        const cur = (location.hash || '#home').replace(/^#/, '') || 'home';
+        if (cur !== 'games' && !cur.startsWith('g.')) {
+          try { history.replaceState(null, '', '#games'); } catch { /* ignore */ }
+        }
+      }
       location.hash = target;
       ok = location.hash === target;
     } catch {
