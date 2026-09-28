@@ -1,5 +1,5 @@
 // What Happens Next? — predict direction / trade decision from a frozen setup.
-import { GameShell } from '../core/game-kit.js';
+import { GameShell, explainChoice } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
@@ -28,8 +28,11 @@ export default {
           : ['bull-flag', 'bear-flag', 'double-top', 'double-bottom', 'breakout-up', 'breakout-down', 'fakeout-up', 'fakeout-down'];
         const q = { kinds, before: Math.round(70 - 15 * difficulty), after: 18 };
         const real = await g.realRound(q);
-        const r = real || simRound(rng, q);
+        const r = real || simRound(rng, q) || simRound(rng.fork('retry'), { ...q, kinds: ['bull-flag', 'bear-flag', 'breakout-up', 'breakout-down'] });
+        if (!r) throw new Error('no round could be generated');
+        const setupName = r.setup?.meta?.name || r.setup?.kind || 'this setup';
         const dir = r.setup?.direction === 'bearish' ? 'down' : r.setup?.direction === 'bullish' ? 'up' : 'sideways';
+        const bias = dir === 'up' ? 'bullish' : dir === 'down' ? 'bearish' : 'neutral';
         const host = h('div', { class: 'chart-frame' });
         const advanced = mode === 'advanced';
         stage.append(
@@ -56,7 +59,16 @@ export default {
               { label: 'Wait', value: 'wait' },
             ],
             answer: ans,
-            explain: `<strong>${ans}</strong> · ${r.setup?.meta?.name || r.setup?.kind || 'setup'}. Sample: ${r.outcome?.result || 'n/a'}.`,
+            explain: explainChoice(
+              `<strong>${ans}</strong> · ${r.setup?.meta?.name || r.setup?.kind || 'setup'}. Sample: ${r.outcome?.result || 'n/a'}.`,
+              (pick) => {
+                if (ans === 'wait') {
+                  return `This is a ${setupName}: a level just broke and then reversed back through it. After a whipsaw like that, chasing either side is a coin flip; wait for the next move to prove itself (or trade a planned fade with a tight stop).`;
+                }
+                if (pick === 'wait') return `Waiting is never a disaster, but this ${setupName} gives a defined ${ans} plan: a clear trigger with a stop just beyond the pattern.`;
+                return `A ${setupName} is a ${bias} setup; going ${pick} fights it. You could be right on the outcome, but the read on the chart points ${ans}.`;
+              },
+            ),
             onAnswer: (ok) => {
               chart.reveal({ to: r.candles.length, interval: 40 });
               try { annotateSetup(r.setup, chart, r); } catch { /* */ }
@@ -71,7 +83,14 @@ export default {
               { label: 'Sideways / unclear', value: 'sideways' },
             ],
             answer: dir,
-            explain: `Lean <strong>${dir}</strong> from ${r.setup?.meta?.name || r.setup?.kind || 'structure'}. Not a guarantee.`,
+            explain: explainChoice(
+              `Lean <strong>${dir}</strong> from ${r.setup?.meta?.name || r.setup?.kind || 'structure'}. Not a guarantee.`,
+              (pick) => (pick === 'sideways'
+                ? `Sideways fits when trend, level and trigger disagree. Here a ${setupName} (a ${bias} setup) gives a clear lean ${dir}.`
+                : dir === 'sideways'
+                  ? `Nothing on this chart gives a clear directional edge, so calling ${pick} is a guess.`
+                  : `A ${setupName} is a ${bias} setup, so the odds lean ${dir}, not ${pick}. Odds, not certainty: the reveal may still go either way.`),
+            ),
             onAnswer: (ok) => {
               chart.reveal({ to: r.candles.length, interval: 40 });
               try { annotateSetup(r.setup, chart, r); } catch { /* */ }

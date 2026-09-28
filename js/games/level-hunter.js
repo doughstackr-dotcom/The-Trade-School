@@ -1,5 +1,5 @@
 // Level Hunter — pick whether price is reacting at support, resistance, or neither.
-import { GameShell } from '../core/game-kit.js';
+import { GameShell, explainChoice } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
@@ -9,8 +9,11 @@ function textbook(rng, difficulty) {
   const ids = ['double-bottom', 'double-top', 'ascending-triangle', 'descending-triangle'];
   const id = rng.pick(ids);
   const sc = chartScenario(id, { seed: rng.int(1, 1e9), count: Math.round(90 - 10 * difficulty), after: 12, outcome: rng.chance(0.55) ? 'success' : 'fail' });
-  const kind = /bottom|ascending/.test(id) ? 'support' : 'resistance';
-  return { candles: sc.candles, decisionIdx: Math.max(10, sc.breakoutIdx - 1), level: sc.level, kind, name: sc.name };
+  const decisionIdx = Math.max(10, sc.breakoutIdx - 1);
+  // The marked level is the pattern's breakout line, not yet broken at the freeze: above price
+  // (the neckline / flat top of a bullish pattern) it is resistance, below price it is support.
+  const kind = sc.candles[decisionIdx].c < sc.level ? 'resistance' : 'support';
+  return { candles: sc.candles, decisionIdx, level: sc.level, kind, name: sc.name };
 }
 
 export default {
@@ -58,7 +61,15 @@ export default {
             { label: 'Unclear / transitioning', value: 'unclear' },
           ],
           answer: r.kind === 'unclear' ? 'unclear' : r.kind,
-          explain: `<strong>${r.kind}</strong>${r.name ? ` · ${r.name}` : ''}. Levels flip roles after decisive breaks.`,
+          explain: explainChoice(
+            `<strong>${r.kind}</strong>${r.name ? ` · ${r.name}` : ''}. Levels flip roles after decisive breaks.`,
+            (pick) => {
+              if (r.kind === 'unclear') return 'Price keeps closing on both sides of this level, so neither side is clearly defending it.';
+              const where = r.kind === 'support' ? 'below price, acting as a floor that buyers defend' : 'above price, acting as a ceiling that sellers defend';
+              if (pick === 'unclear') return `The level is clear enough: it sits ${where}.`;
+              return `${r.kind === 'support' ? 'Resistance is a ceiling above price' : 'Support is a floor below price'}. Here the level sits ${where}: ${r.kind}.`;
+            },
+          ),
           onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });

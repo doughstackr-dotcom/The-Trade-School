@@ -1,9 +1,17 @@
 // Volume Verdict — Confirm or Trap with swipe + volume chart.
-import { GameShell } from '../core/game-kit.js';
+import { GameShell, bindSwipeCard } from '../core/game-kit.js';
 import { chartScenario } from '../core/patterns.js';
 import { gameplayPreview, decisionChart, swipeCard, verdictFlourish } from '../core/game-ui.js';
 
 const TEXTBOOK_PATTERNS = ['ascending-triangle', 'descending-triangle', 'double-top', 'double-bottom', 'bull-flag', 'bear-flag'];
+
+/** Volume of candle i ÷ the average volume of the 10 candles before it (NaN without volume). */
+export function volumeRatio(candles, i, n = 10) {
+  const prev = candles.slice(Math.max(0, i - n), i).map((k) => k.v).filter((v) => Number.isFinite(v) && v > 0);
+  const v = candles[i]?.v;
+  if (!prev.length || !Number.isFinite(v)) return NaN;
+  return v / (prev.reduce((a, b) => a + b, 0) / prev.length);
+}
 
 function textbookRound(rng, difficulty) {
   const trap = rng.chance(0.5);
@@ -55,30 +63,41 @@ export default {
         });
         if (Number.isFinite(r.level)) dc.chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
         dc.chart.addMarker({ idx: r.decisionIdx, position: r.direction < 0 ? 'below' : 'above', shape: 'dot', color: 'accent' });
+        const vr = volumeRatio(r.candles, r.decisionIdx);
+        const vText = Number.isFinite(vr) ? `Breakout volume was ${vr.toFixed(1)}× the average of the 10 candles before it.` : '';
         let answered = false;
         const finish = (sayTrap) => {
           if (answered) return;
           answered = true;
           const ok = sayTrap === r.trap;
-          const explain = r.trap
-            ? '<strong>Trap.</strong> The break came on weak participation and price fell back inside the range.'
-            : '<strong>Confirmed.</strong> Volume expanded on the break and price followed through.';
+          const base = r.trap
+            ? `<strong>Trap.</strong> Price could not hold beyond the level and fell back inside. ${vText}`
+            : `<strong>Confirmed.</strong> Price held beyond the level and followed through. ${vText}`;
+          let explain = base;
+          if (!ok) {
+            const why = r.trap
+              ? (vr < 1.3
+                ? 'You called Confirm, but volume barely expanded on the break: without real participation a poke through a level often fails.'
+                : 'You called Confirm, and volume did expand, but the break still failed. Volume raises the odds; it guarantees nothing, which is why the stop goes back inside the level.')
+              : (vr >= 1.3
+                ? 'You called Trap, but the breakout candle came on clearly above-average volume and price kept going: that is what participation looks like.'
+                : 'You called Trap, and volume was modest, but price still followed through. Thin volume is a warning sign, not proof of a trap.');
+            explain = `<span class="game__why">${why}</span><br>${explain}`;
+          }
           if (ok) g.correct(explain);
           else g.wrong(explain);
           dc.reveal();
-          verdictFlourish(stage, { ok, title: ok ? 'Volume read' : 'Missed the tape', detail: explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
+          verdictFlourish(stage, { ok, title: ok ? 'Volume read' : 'Missed the tape', detail: base.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
           g.nextButton();
         };
-        stage.append(swipeCard({
+        stage.append(bindSwipeCard(swipeCard({
           title: 'Volume call',
           body: 'Strong participation = Confirm. Thin poke = Trap.',
           takeLabel: 'Confirm',
           skipLabel: 'Trap',
           takeClass: 'btn--bull',
           skipClass: 'btn--bear',
-          onTake: () => finish(false),
-          onSkip: () => finish(true),
-        }));
+        }), { onTake: () => finish(false), onSkip: () => finish(true) }));
         g.setHint('Compare the breakout candle’s volume bar with the ten bars before it.');
         return () => dc.destroy();
       },
