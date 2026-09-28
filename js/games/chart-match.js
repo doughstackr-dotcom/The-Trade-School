@@ -1,52 +1,53 @@
-// Chart Match — interactive GameShell module.
+// Chart Match — flip cards to pair candle shapes and chart facts.
 import { GameShell } from '../core/game-kit.js';
+import { h } from '../core/ui.js';
+import { miniChart } from '../core/chart.js';
+import { gameplayPreview, memoryBoard, sampleCandle, tinySeries, verdictFlourish } from '../core/game-ui.js';
 
-// [difficulty 0–2, question, options (the first is correct; shown shuffled), explanation, hint]
-const BANK = [
-  [0, "Which chart type joins only the closing prices?", ["Line chart", "Candlestick chart", "Bar chart", "Volume chart"], "<strong>Line chart.</strong> One point per period, the close, joined by a line.", "The simplest chart: one number per period."],
-  [0, "A candle that closes above its open is…", ["Bullish (an up candle)", "Bearish (a down candle)", "Always a doji", "A gap"], "<strong>Bullish.</strong> Buyers pushed price up from the open to the close.", "Compare where it ended with where it started."],
-  [1, "On a log-scale chart, a move from 10 to 20 is the same height as a move from…", ["50 to 100", "50 to 60", "100 to 110", "20 to 30"], "<strong>50 to 100.</strong> Both double. Log scale draws equal percentage moves at equal heights.", "Log scale cares about percentages, not points."],
-  [1, "Almost no body, long wicks on both sides:", ["Doji / spinning top", "Marubozu", "Hammer", "Engulfing candle"], "<strong>A doji or spinning top:</strong> indecision, neither side won the period.", "Open and close ended up almost equal."],
-  [1, "One daily candle of a stock shows…", ["One trading day's open, high, low and close", "One hour of trading", "One week of trading", "Only the close"], "<strong>One trading day.</strong> The timeframe decides how much time each candle covers.", "The timeframe name tells you."],
-  [2, "On a bar chart, the small tick on the LEFT of each bar marks the…", ["Open", "Close", "High", "Low"], "<strong>The open.</strong> Left tick = open, right tick = close, the bar's ends = high and low.", "Left comes first in time."],
-  [2, "Which chart gives the best first view of the bigger trend?", ["Weekly", "5-minute", "1-minute", "Tick chart"], "<strong>Weekly.</strong> Start high for context, then zoom in for timing.", "Zoom out before you zoom in."],
+const PAIRS = [
+  { key: 'bull', label: 'Bullish candle', face: () => sampleCandle('bull', { width: 32, height: 48 }) },
+  { key: 'bear', label: 'Bearish candle', face: () => sampleCandle('bear', { width: 32, height: 48 }) },
+  { key: 'doji', label: 'Doji', face: () => sampleCandle('doji', { width: 32, height: 48 }) },
+  { key: 'hammer', label: 'Hammer', face: () => sampleCandle('hammer', { width: 32, height: 48 }) },
+  { key: 'uptrend', label: 'Uptrend', face: () => miniChart(tinySeries(11, 'up', 16), { width: 72, height: 48, ariaLabel: 'Uptrend thumb' }) },
+  { key: 'downtrend', label: 'Downtrend', face: () => miniChart(tinySeries(22, 'down', 16), { width: 72, height: 48, ariaLabel: 'Downtrend thumb' }) },
 ];
-const CORRECT = BANK.map(() => 0);
-
-/** Next unused question closest to the target difficulty; reuses the deck once it runs out. */
-function pickQuestion(deck, used, difficulty) {
-  if (used.size >= deck.length) used.clear();
-  const target = Math.round(difficulty * 2);
-  const open = deck.filter((i) => !used.has(i));
-  const best = open.find((i) => BANK[i][0] === target) ?? open.find((i) => Math.abs(BANK[i][0] - target) === 1) ?? open[0];
-  used.add(best);
-  return best;
-}
 
 export default {
   id: 'chart-match',
   mount(root, ctx) {
-    let deck = [];
-    const used = new Set();
-    let current = 0;
     const game = new GameShell(root, ctx, {
-      rounds: 6,
-      timer: { seconds: 20, perRound: true },
-      howTo: ["Match each description to the right chart type, candle or pattern.", "Fewer misses, higher score. Streaks multiply your points.", "The full game flips cards memory-style."],
-      onStart(g, { rng }) {
-        deck = rng.shuffle(BANK.map((_, i) => i));
-        used.clear();
-      },
-      onRound(g, { rng, difficulty, retry }) {
-        if (!retry) current = pickQuestion(deck, used, difficulty);
-        const q = BANK[current];
-        g.ask({
-          question: q[1],
-          options: rng.shuffle(q[2].map((label, i) => ({ label, value: i }))),
-          answer: CORRECT[current],
-          explain: q[3],
-          hint: q[4],
+      rounds: 5,
+      timer: { seconds: 45, perRound: true },
+      howTo: [
+        'Flip two cards at a time to find matching chart concepts.',
+        'Candle colours follow the theme: green bullish, red bearish.',
+        'Clear the board before the clock runs out.',
+      ],
+      preview: (el) => gameplayPreview(el, { seed: 77, direction: 'up', title: 'Chart Match', score: 380, streak: 2, round: '1/5' }),
+      onRound(g, { rng, stage, difficulty }) {
+        const n = difficulty < 0.35 ? 3 : difficulty < 0.7 ? 4 : 6;
+        const pick = rng.shuffle(PAIRS.slice()).slice(0, n);
+        const faces = rng.shuffle(pick.flatMap((p) => [
+          { key: p.key, label: p.label, node: p.face },
+          { key: p.key, label: p.label, node: p.face },
+        ]));
+        stage.append(h('p', { class: 'quiz__q' }, `Match ${n} pairs — candles and trend thumbs.`));
+        let done = false;
+        const board = memoryBoard({
+          faces,
+          columns: n <= 3 ? 3 : 4,
+          onDone: () => {
+            if (done) return;
+            done = true;
+            g.correct('Board cleared — sharp reading.');
+            verdictFlourish(stage, { ok: true, title: 'Board cleared', detail: 'Every pair matched.', scoreDelta: 100 });
+            g.nextButton();
+          },
         });
+        stage.append(board);
+        g.setHint('Remember positions: green = bullish, red = bearish.');
+        return () => board.remove();
       },
     });
     return () => game.destroy();

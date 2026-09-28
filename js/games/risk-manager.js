@@ -1,5 +1,7 @@
 // Risk Manager — position sizing, R-multiples, expectancy and portfolio heat.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish, sampleCandle, tinySeries } from '../core/game-ui.js';
+import { miniChart } from '../core/chart.js';
 import { h } from '../core/ui.js';
 
 function scenario(rng, difficulty) {
@@ -21,6 +23,7 @@ export default {
   id: 'risk-manager',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 59, direction: 'up', title: 'risk-manager', score: 300, streak: 1, round: '2/8' }),
       rounds: 8,
       timer: { seconds: 40, perRound: true },
       howTo: [
@@ -31,6 +34,10 @@ export default {
       onRound(g, { rng, stage, difficulty }) {
         const s = scenario(rng, difficulty);
         stage.append(
+          h('div', { class: 'row row--sm', style: { gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' } },
+            sampleCandle('bull', { width: 28, height: 42 }),
+            miniChart(tinySeries(rng.int(1, 80), 'up', 16), { width: 140, height: 48, ariaLabel: 'Risk session thumb' }),
+          ),
           h('div', { class: 'callout callout--tip risk-hud', role: 'status' },
             h('p', null,
               h('strong', null, 'Desk blotter: '),
@@ -48,6 +55,7 @@ export default {
             options: rng.shuffle([...opts].map((n) => ({ label: `${n} shares`, value: n }))),
             answer: correct,
             explain: `$${s.risk$.toFixed(0)} ÷ ${s.riskPerShare} ≈ <strong>${correct} shares</strong>.`,
+            onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Sized right' : 'Recheck sizing', scoreDelta: ok ? 100 : 0 }),
           });
         } else if (roll < 0.62) {
           g.setHint('(Target − entry) ÷ (entry − stop).');
@@ -61,6 +69,7 @@ export default {
             ]),
             answer: s.targetR,
             explain: `≈ <strong>${s.targetR}R</strong> of reward per 1R risked.`,
+            onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'R locked' : 'Recheck R', scoreDelta: ok ? 100 : 0 }),
           });
         } else if (roll < 0.82) {
           g.setHint('p(win)×avgWin − p(loss)×avgLoss.');
@@ -74,6 +83,7 @@ export default {
             ]),
             answer: 0.2,
             explain: '0.4×2 − 0.6×1 = <strong>+0.2R</strong>.',
+            onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Expectancy ok' : 'Recheck math', scoreDelta: ok ? 100 : 0 }),
           });
         } else {
           const ok = s.openR + 1 <= s.dailyLimitR;
@@ -88,6 +98,7 @@ export default {
             explain: ok
               ? `${s.openR} + 1 ≤ ${s.dailyLimitR} — allowed at plan size.`
               : `${s.openR} + 1 > ${s.dailyLimitR} — skip or reduce. Protect the book.`,
+            onAnswer: (ok2) => verdictFlourish(stage, { ok: ok2, title: ok2 ? 'Heat checked' : 'Protect the book', scoreDelta: ok2 ? 100 : 0 }),
           });
         }
       },

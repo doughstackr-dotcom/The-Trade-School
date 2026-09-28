@@ -1,5 +1,6 @@
 // Trade Simulator — multi-step trade management: entry, stop, trail, journal.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -29,6 +30,7 @@ export default {
   mount(root, ctx) {
     const state = book();
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 66, direction: 'up', title: 'trade-simulator', score: 780, streak: 6, round: '2/8' }),
       rounds: 6,
       timer: { seconds: 45, perRound: true },
       howTo: [
@@ -134,6 +136,7 @@ export default {
               state.dayR -= 1;
             }
             chart.reveal({ to: candles.length, interval: 35 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
         });
         return () => chart.destroy();

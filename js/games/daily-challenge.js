@@ -1,5 +1,8 @@
 // Daily Challenge — interactive GameShell module.
 import { GameShell } from '../core/game-kit.js';
+import { h } from '../core/ui.js';
+import { miniChart } from '../core/chart.js';
+import { gameplayPreview, tinySeries, verdictFlourish, sampleCandle } from '../core/game-ui.js';
 
 // [difficulty 0–2, question, options (the first is correct; shown shuffled), explanation, hint]
 const BANK = [
@@ -34,6 +37,7 @@ export default {
     const used = new Set();
     let current = 0;
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 99, direction: 'up', title: 'Daily Challenge', score: 880, streak: 7, round: '1/1' }),
       rounds: 5,
       timer: { seconds: 25, perRound: true },
       howTo: ["Five questions, the same for everyone today.", "Answer fast: streaks multiply your score.", "Come back tomorrow to keep your streak alive."],
@@ -41,15 +45,22 @@ export default {
         deck = rng.shuffle(BANK.map((_, i) => i));
         used.clear();
       },
-      onRound(g, { rng, difficulty, retry }) {
+      onRound(g, { rng, difficulty, retry, stage }) {
         if (!retry) current = pickQuestion(deck, used, difficulty);
         const q = BANK[current];
+        stage.append(
+          h('div', { class: 'row row--sm', style: { gap: '0.6rem', marginBottom: '0.55rem', alignItems: 'center' } },
+            sampleCandle(rng.chance(0.5) ? 'bull' : 'bear', { width: 30, height: 46 }),
+            miniChart(tinySeries(rng.int(1, 90), rng.chance(0.5) ? 'up' : 'down', 18), { width: 160, height: 56, ariaLabel: 'Daily thumb' }),
+          ),
+        );
         g.ask({
           question: q[1],
           options: rng.shuffle(q[2].map((label, i) => ({ label, value: i }))),
           answer: CORRECT[current],
           explain: q[3],
           hint: q[4],
+          onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Daily locked' : 'Review & retry', detail: (q[3] || '').replace(/<[^>]+>/g, ' ').slice(0, 140), scoreDelta: ok ? 100 : 0 }),
         });
       },
     });

@@ -1,5 +1,6 @@
 // What Happens Next? — predict direction / trade decision from a frozen setup.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { simRound } from '../core/scanner.js';
@@ -9,6 +10,7 @@ export default {
   id: 'what-next',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 82, direction: 'down', title: 'what-next', score: 480, streak: 2, round: '2/8' }),
       rounds: 8,
       timer: { seconds: 30, perRound: true },
       modes: [
@@ -55,10 +57,11 @@ export default {
             ],
             answer: ans,
             explain: `<strong>${ans}</strong> · ${r.setup?.meta?.name || r.setup?.kind || 'setup'}. Sample: ${r.outcome?.result || 'n/a'}.`,
-            onAnswer: () => {
+            onAnswer: (ok) => {
               chart.reveal({ to: r.candles.length, interval: 40 });
               try { annotateSetup(r.setup, chart, r); } catch { /* */ }
-            },
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
           });
         } else {
           g.ask({
@@ -69,10 +72,11 @@ export default {
             ],
             answer: dir,
             explain: `Lean <strong>${dir}</strong> from ${r.setup?.meta?.name || r.setup?.kind || 'structure'}. Not a guarantee.`,
-            onAnswer: () => {
+            onAnswer: (ok) => {
               chart.reveal({ to: r.candles.length, interval: 40 });
               try { annotateSetup(r.setup, chart, r); } catch { /* */ }
-            },
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
           });
         }
         return () => chart.destroy();

@@ -1,5 +1,6 @@
 // Pattern Flash — name the candlestick pattern on a mystery chart.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { simRound } from '../core/scanner.js';
@@ -17,6 +18,7 @@ export default {
   id: 'pattern-flash',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 31, direction: 'up', title: 'pattern-flash', score: 510, streak: 4, round: '2/8' }),
       rounds: 8,
       timer: { seconds: 22, perRound: true },
       howTo: [
@@ -44,9 +46,10 @@ export default {
           options: opts,
           answer: kind,
           explain: `<strong>${labelOf(kind)}</strong>. Next move in this sample: ${r.outcome?.result || 'n/a'}.`,
-          onAnswer: () => {
+          onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             try { annotateSetup(r.setup, chart, r); } catch { /* */ }
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
         });
         return () => chart.destroy();

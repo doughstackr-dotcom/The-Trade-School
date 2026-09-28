@@ -1,5 +1,6 @@
 // Cross Catcher — spot golden / death-style MA crosses and price/MA relationships.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -25,6 +26,7 @@ export default {
   id: 'cross-catcher',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 71, direction: 'up', title: 'cross-catcher', score: 520, streak: 4, round: '2/8' }),
       rounds: 6,
       timer: { seconds: 24, perRound: true },
       howTo: [
@@ -69,7 +71,10 @@ export default {
           ],
           answer: r.answer,
           explain: `<strong>Price ${r.answer} MA</strong> at the freeze. Filters lag; combine with structure.`,
-          onAnswer: () => chart.reveal({ to: r.candles.length, interval: 40 }),
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
         });
         return () => chart.destroy();
       },

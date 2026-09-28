@@ -1,8 +1,9 @@
-// Candle Builder — read OHLC geometry: bodies, wicks and the story they tell.
+// Candle Builder — read OHLC geometry with labelled candle + chart.
 import { GameShell } from '../core/game-kit.js';
 import { h } from '../core/ui.js';
-import { CandleChart } from '../core/chart.js';
+import { candleSVG } from '../core/chart.js';
 import { candleScenario } from '../core/patterns.js';
+import { gameplayPreview, decisionChart, verdictFlourish } from '../core/game-ui.js';
 
 function roundFromDifficulty(rng, difficulty) {
   const ids = difficulty < 0.4 ? ['hammer', 'doji', 'shooting-star'] : ['hammer', 'doji', 'shooting-star', 'bullish-engulfing', 'bearish-engulfing', 'hanging-man'];
@@ -46,7 +47,7 @@ function roundFromDifficulty(rng, difficulty) {
     },
   ];
   const t = rng.pick(types);
-  return { sc, c, t };
+  return { sc, c, t, bull };
 }
 
 export default {
@@ -60,23 +61,39 @@ export default {
         'Answer the geometry question (wick length, direction, etc.).',
         'Build the habit of reading numbers, not just colours.',
       ],
+      preview: (el) => gameplayPreview(el, { seed: 12, direction: 'up', title: 'Candle Builder', score: 720, streak: 6, round: '5/8' }),
       onRound(g, { rng, stage, difficulty }) {
-        const { sc, t } = roundFromDifficulty(rng, difficulty);
-        const host = h('div', { class: 'chart-frame' });
-        stage.append(h('p', { class: 'quiz__q' }, t.q), host);
-        const chart = new CandleChart(host, {
-          candles: sc.candles, visible: sc.end + 1, slots: sc.candles.length,
-          height: 280, yPad: 0.16, ariaLabel: 'Chart with a highlighted candle to measure',
+        const { sc, c, t, bull } = roundFromDifficulty(rng, difficulty);
+        const pill = h('div', { class: 'row row--sm', style: { gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap' } },
+          h('span', { class: 'game-preview__pill' }, h('small', null, 'O'), h('strong', { class: 'mono' }, c.o.toFixed(2))),
+          h('span', { class: 'game-preview__pill' }, h('small', null, 'H'), h('strong', { class: 'mono' }, c.h.toFixed(2))),
+          h('span', { class: 'game-preview__pill' }, h('small', null, 'L'), h('strong', { class: 'mono' }, c.l.toFixed(2))),
+          h('span', { class: 'game-preview__pill' }, h('small', null, 'C'), h('strong', { class: 'mono' }, c.c.toFixed(2))),
+          h('span', { class: ['game-preview__chip', bull ? 'game-preview__chip--bull' : 'game-preview__chip--bear'] }, bull ? 'Bull' : 'Bear'),
+        );
+        const hero = candleSVG(c, { width: 52, height: 90, labels: true, prices: true, ariaLabel: 'Focus candle' });
+        const dc = decisionChart(stage, {
+          candles: sc.candles,
+          visible: sc.end + 1,
+          slots: sc.candles.length,
+          height: 260,
+          yPad: 0.16,
+          question: t.q,
+          before: h('div', { class: 'row', style: { alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' } }, hero, pill),
+          ariaLabel: 'Chart with a highlighted candle to measure',
         });
-        chart.addBox({ from: sc.start, to: sc.end, color: 'accent', label: 'Focus' });
+        dc.chart.addBox({ from: sc.start, to: sc.end, color: 'accent', label: 'Focus' });
         g.setHint(t.hint);
         g.ask({
           options: rng.shuffle(t.options()),
           answer: t.answer,
           explain: t.explain,
-          onAnswer: () => chart.reveal({ to: sc.candles.length, interval: 45 }),
+          onAnswer: (ok) => {
+            dc.reveal();
+            verdictFlourish(stage, { ok, title: ok ? 'Geometry locked' : 'Recheck OHLC', detail: t.explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
+          },
         });
-        return () => chart.destroy();
+        return () => dc.destroy();
       },
     });
     return () => game.destroy();

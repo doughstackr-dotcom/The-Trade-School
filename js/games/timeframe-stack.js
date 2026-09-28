@@ -1,5 +1,6 @@
 // Timeframe Stack — align higher-timeframe bias with a lower-timeframe decision.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -23,6 +24,7 @@ export default {
   id: 'timeframe-stack',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 39, direction: 'up', title: 'timeframe-stack', score: 350, streak: 1, round: '2/8' }),
       rounds: 6,
       timer: { seconds: 35, perRound: true },
       howTo: [
@@ -58,6 +60,7 @@ export default {
           explain: r.pullback
             ? `<strong>Trade the pullback with HTF bias (${r.bias})</strong>. Counter-trend LTF movement inside an HTF trend is often a location, not a new thesis.`
             : `<strong>${r.answer}</strong>. LTF already agrees with HTF — continuation or wait for a fresh trigger rather than inventing a fade.`,
+          onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Stacked well' : 'Re-check HTF vs LTF', scoreDelta: ok ? 100 : 0 }),
         });
         return () => { c1.destroy(); c2.destroy(); };
       },

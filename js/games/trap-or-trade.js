@@ -1,5 +1,6 @@
 // Trap or Trade — breakout, fakeout or wait on a live decision chart.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { annotateSetup } from '../core/lesson-kit.js';
@@ -32,6 +33,7 @@ export default {
   id: 'trap-or-trade',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 48, direction: 'down', title: 'trap-or-trade', score: 590, streak: 4, round: '2/8' }),
       rounds: 8,
       timer: { seconds: 28, perRound: true },
       howTo: [
@@ -82,9 +84,10 @@ export default {
           ],
           answer: r.answer,
           explain: `<strong>${r.answer === 'trade' ? 'Trade' : r.answer === 'fade' ? 'Fade' : 'Wait'}</strong> · ${r.name || ''}. Sample result: ${r.outcome?.result || 'see reveal'}.`,
-          onAnswer: () => {
+          onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             try { if (r.setup) annotateSetup(r.setup, chart, r); } catch { /* */ }
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
         });
         return () => chart.destroy();

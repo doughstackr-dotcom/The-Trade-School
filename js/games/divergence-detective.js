@@ -1,5 +1,6 @@
 // Divergence Detective — spot bullish / bearish divergence vs confirmation.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { simRound } from '../core/scanner.js';
@@ -11,6 +12,7 @@ export default {
   id: 'divergence-detective',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 28, direction: 'down', title: 'divergence-detective', score: 410, streak: 2, round: '2/8' }),
       rounds: 6,
       timer: { seconds: 30, perRound: true },
       howTo: [
@@ -43,9 +45,10 @@ export default {
           ],
           answer,
           explain: `<strong>${answer}</strong> (${r.setup?.meta?.name || k || 'setup'}). Sample follow-through: ${r.outcome?.result || 'n/a'}.`,
-          onAnswer: () => {
+          onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             try { annotateSetup(r.setup, chart, r); } catch { /* */ }
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
         });
         return () => chart.destroy();

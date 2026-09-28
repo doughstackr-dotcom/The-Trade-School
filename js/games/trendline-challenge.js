@@ -1,5 +1,6 @@
 // Trendline Challenge — is the line intact, broken, or not yet valid?
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -26,6 +27,7 @@ export default {
   id: 'trendline-challenge',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 63, direction: 'up', title: 'trendline-challenge', score: 460, streak: 3, round: '2/8' }),
       rounds: 7,
       timer: { seconds: 26, perRound: true },
       howTo: [
@@ -56,7 +58,10 @@ export default {
           ],
           answer: r.answer,
           explain: `<strong>${r.answer}</strong> on this ${r.direction}trend line. Re-validate after new swings.`,
-          onAnswer: () => chart.reveal({ to: r.candles.length, interval: 40 }),
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
         });
         return () => chart.destroy();
       },

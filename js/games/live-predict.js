@@ -1,5 +1,6 @@
 // Live Predict — call the next move on a real (or textbook) chart; reveal the market after.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -25,6 +26,7 @@ export default {
   id: 'live-predict',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 74, direction: 'down', title: 'live-predict', score: 450, streak: 3, round: '2/8' }),
       rounds: 6,
       timer: { seconds: 25, perRound: true },
       howTo: [
@@ -59,7 +61,10 @@ export default {
           ],
           answer,
           explain: `This window moved <strong>${answer}</strong>. One sample path — grade your process, not a single call.`,
-          onAnswer: () => chart.reveal({ to: r.candles.length, interval: 40 }),
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
         });
         return () => chart.destroy();
       },

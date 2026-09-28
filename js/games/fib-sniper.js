@@ -1,5 +1,6 @@
 // Fib Sniper — pick the right retracement level for a marked swing.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -28,6 +29,7 @@ export default {
   id: 'fib-sniper',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 17, direction: 'up', title: 'fib-sniper', score: 570, streak: 3, round: '2/8' }),
       rounds: 7,
       timer: { seconds: 28, perRound: true },
       howTo: [
@@ -55,12 +57,13 @@ export default {
           options: rng.shuffle(RATIOS.map((x) => ({ label: x.label, value: x.id }))),
           answer: r.pick.id,
           explain: `<strong>${r.pick.label}</strong> at ${r.level.toFixed(2)} (range ${(r.hi - r.lo).toFixed(2)}). Confluence still required to trade it.`,
-          onAnswer: () => {
+          onAnswer: (ok) => {
             for (const x of RATIOS) {
               const px = r.hi - (r.hi - r.lo) * x.r;
               chart.addHLine({ price: px, color: x.id === r.pick.id ? 'accent' : 'info', dashed: true, label: x.label });
             }
             chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
         });
         return () => chart.destroy();

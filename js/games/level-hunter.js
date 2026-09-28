@@ -1,5 +1,6 @@
 // Level Hunter — pick whether price is reacting at support, resistance, or neither.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { chartScenario } from '../core/patterns.js';
@@ -16,6 +17,7 @@ export default {
   id: 'level-hunter',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 52, direction: 'down', title: 'level-hunter', score: 390, streak: 2, round: '2/8' }),
       rounds: 7,
       timer: { seconds: 26, perRound: true },
       howTo: [
@@ -57,7 +59,10 @@ export default {
           ],
           answer: r.kind === 'unclear' ? 'unclear' : r.kind,
           explain: `<strong>${r.kind}</strong>${r.name ? ` · ${r.name}` : ''}. Levels flip roles after decisive breaks.`,
-          onAnswer: () => chart.reveal({ to: r.candles.length, interval: 40 }),
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
         });
         return () => chart.destroy();
       },

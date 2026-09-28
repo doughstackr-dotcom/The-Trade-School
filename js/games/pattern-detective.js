@@ -1,5 +1,6 @@
 // Pattern Detective — identify chart patterns and estimate measured-move direction.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { simRound } from '../core/scanner.js';
@@ -17,6 +18,7 @@ export default {
   id: 'pattern-detective',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 91, direction: 'up', title: 'pattern-detective', score: 640, streak: 5, round: '2/8' }),
       rounds: 7,
       timer: { seconds: 30, perRound: true },
       howTo: [
@@ -43,9 +45,10 @@ export default {
           options: rng.shuffle([kind, ...distractors].map((k) => ({ label: nameOf(k), value: k }))),
           answer: kind,
           explain: `<strong>${nameOf(kind)}</strong>. Sample outcome: ${r.outcome?.result || 'n/a'} (${r.outcome?.r ?? '?'} ATR). Measured targets are guidelines.`,
-          onAnswer: () => {
+          onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 35 });
             try { annotateSetup(r.setup, chart, r); } catch { /* */ }
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
           },
         });
         return () => chart.destroy();

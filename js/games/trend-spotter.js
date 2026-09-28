@@ -1,5 +1,6 @@
 // Trend Spotter — call up, down or range from structure on a mystery chart.
 import { GameShell } from '../core/game-kit.js';
+import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
@@ -15,6 +16,7 @@ export default {
   id: 'trend-spotter',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
+      preview: (el) => gameplayPreview(el, { seed: 44, direction: 'up', title: 'trend-spotter', score: 430, streak: 3, round: '2/8' }),
       rounds: 7,
       timer: { seconds: 25, perRound: true },
       howTo: [
@@ -56,7 +58,10 @@ export default {
           ],
           answer: r.direction,
           explain: `<strong>${r.direction}</strong> structure at the freeze. Always re-check after new swings print.`,
-          onAnswer: () => chart.reveal({ to: r.candles.length, interval: 40 }),
+          onAnswer: (ok) => {
+            chart.reveal({ to: r.candles.length, interval: 40 });
+            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+          },
         });
         return () => chart.destroy();
       },
