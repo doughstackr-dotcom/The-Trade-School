@@ -20,6 +20,27 @@ Already done for you:
   (`supabase/functions/`).
 - A private `premium` Storage bucket that only paying members can read.
 
+### Stripe test mode: already created (account "New business")
+
+These were created through the Stripe API on 2026-09-28, so steps 1–3 below are done for
+**test mode**:
+
+| object | id |
+|---|---|
+| Product "The Trade School — Beginner" | `prod_VLIzZYlR7gtphI` |
+| Price Beginner $19.99/month (lookup key `beginner_monthly`) | `price_1UKcNeDCFUwEFxvd7qT1FkOQ` |
+| Product "The Trade School — Advanced" | `prod_VLIzoSPe7LgLgt` |
+| Price Advanced $29.99/month (lookup key `advanced_monthly`) | `price_1UKcNjDCFUwEFxvdwWKmnR5t` |
+| Customer portal configuration (default: switch plans with proration, cancel at period end, card + invoices) | `bpc_1UKcOcDCFUwEFxvd7k4EcKoj` |
+| Webhook endpoint → `…/functions/v1/stripe-webhook` (8 events) | `we_1UKcP1DCFUwEFxvdZ2g6wmkw` |
+
+What's left for test mode is step 4 (Supabase secrets): `STRIPE_PRICE_BEGINNER` and
+`STRIPE_PRICE_ADVANCED` are the two price ids above; `STRIPE_SECRET_KEY` is your test secret
+key (Stripe → Developers → API keys); `STRIPE_WEBHOOK_SECRET` is the endpoint's signing
+secret (Stripe → Developers → Webhooks → the endpoint → Signing secret → Reveal); `SITE_URL`
+is your live site address. When you go live, repeat steps 1–3 in live mode (or ask for them to
+be created) and swap every `STRIPE_*` secret for its live value.
+
 What you need to do is below. Do it in Stripe **test mode** first, then repeat the Stripe
 parts in live mode when you launch. Never paste secret keys into chat, code or GitHub —
 they only go into the Supabase dashboard.
