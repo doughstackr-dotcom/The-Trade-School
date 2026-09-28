@@ -53,6 +53,22 @@ jobs:
       - run: npm run build
       - run: node tests/smoke.mjs --dist --no-shots
 
+  smoke-premium:
+    name: Smoke (PREMIUM_SOURCE=storage build, paid modules via blob:)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+        env:
+          PREMIUM_SOURCE: storage
+      - run: node tests/smoke.mjs --premium --no-shots --desktop
+
   functions:
     name: Edge Function tests (Deno)
     runs-on: ubuntu-latest

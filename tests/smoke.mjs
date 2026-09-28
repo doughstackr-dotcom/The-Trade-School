@@ -17,6 +17,15 @@
 //            --no-storage (every localStorage/sessionStorage call throws, as in some private modes)
 //            --real-market (do NOT use the offline market fixtures: real-data routes then call the
 //            market-data Edge Function, which needs network access to supabase.co)
+//   node tests/smoke.mjs --premium       test a PREMIUM_SOURCE=storage build (implies --dist; run
+//                                        `PREMIUM_SOURCE=storage npm run build` first): checks that
+//                                        paid modules are absent from dist/ and free ones present,
+//                                        then serves dist-premium/ at /__premium/ and opens pages
+//                                        with ?premium=local, so js/core/premium-loader.js imports
+//                                        every paid route from a blob: URL under the real CSP
+//                                        (no Supabase: the signed-URL step is skipped on localhost);
+//                                        plus "premium-refused": a 403 for a paid module shows
+//                                        the error card once, without reloading
 //
 // Market data: by default every page is opened with `?market=mock` (localhost only), so
 // js/core/market.js serves tests/fixtures/market/*.json and the run needs no network (with --dist the
@@ -50,8 +59,10 @@ const interact = !flag('no-interact');
 const withFonts = flag('fonts');
 const noStorage = flag('no-storage');
 const realMarket = flag('real-market');
-const dist = flag('dist');
+const premium = flag('premium');
+const dist = flag('dist') || premium;
 const DIST = path.join(ROOT, 'dist');
+const DIST_PREMIUM = path.join(ROOT, 'dist-premium');
 const concurrency = Math.max(1, Number(opt('concurrency', 3)) || 3);
 
 const ALL_VIEWPORTS = [
@@ -155,11 +166,73 @@ async function legacyCheck(page, base, query, check, errors) {
   await page.waitForSelector(`[data-mounted="${check.token}"]`, { timeout: 15000 });
 }
 
+/**
+ * --premium: the build must be a storage build, paid modules absent from dist/, free ones and the
+ * shared chunks present. Returns the route tokens of paid lessons / games.
+ */
+async function checkPremiumBuild() {
+  const file = path.join(DIST_PREMIUM, 'premium-manifest.json');
+  if (!fs.existsSync(file)) {
+    console.error('dist-premium/premium-manifest.json not found: run `PREMIUM_SOURCE=storage npm run build` first.');
+    process.exit(2);
+  }
+  const objects = JSON.parse(fs.readFileSync(file, 'utf8')).objects;
+  const assets = JSON.parse(fs.readFileSync(path.join(DIST, 'asset-manifest.json'), 'utf8'));
+  const paidSources = new Set(Object.values(objects));
+  const reg = await import(pathToFileURL(path.join(ROOT, 'js', 'registry.js')).href);
+  const { FREE_IDS } = await import(pathToFileURL(path.join(ROOT, 'js', 'config.js')).href);
+  const problems = [];
+  const paid = new Set();
+  for (const e of [...reg.LESSONS, ...reg.GAMES]) {
+    const rel = `js/${e.path.replace(/^\.\//, '')}`;
+    const token = `${e.type === 'game' ? 'g' : 'l'}.${e.id}`;
+    if (FREE_IDS.includes(e.id)) {
+      if (!assets[rel] || !fs.existsSync(path.join(DIST, assets[rel]))) problems.push(`free ${rel} missing from dist/`);
+      if (paidSources.has(rel)) problems.push(`free ${rel} is in dist-premium/`);
+    } else {
+      paid.add(token);
+      if (assets[rel]) problems.push(`paid ${rel} is in dist/ (${assets[rel]})`);
+      if (!paidSources.has(rel)) problems.push(`paid ${rel} missing from dist-premium/`);
+    }
+  }
+  for (const f of fs.readdirSync(DIST, { recursive: true }).map(String)) {
+    const rel = f.split(path.sep).join('/').replace(/\.[0-9a-f]{10}\.js$/, '.js');
+    if (paidSources.has(rel)) problems.push(`paid ${rel} is in dist/ (${f})`);
+  }
+  const cfg = assets['js/config.js'] && fs.readFileSync(path.join(DIST, assets['js/config.js']), 'utf8');
+  if (!/PREMIUM_SOURCE="storage"/.test(cfg || '')) problems.push('dist/ config is not PREMIUM_SOURCE="storage"');
+  if (problems.length) {
+    console.error(`Premium build check failed:\n  ${problems.join('\n  ')}`);
+    process.exit(1);
+  }
+  console.log(`Premium build: ${paidSources.size} paid files only in dist-premium/, ${FREE_IDS.length} free modules in dist/.`);
+  return paid;
+}
+
+/**
+ * --premium: Storage refuses a paid module (403). On localhost nothing is enforced, so the plan
+ * still "covers" it: the router must show its error card with a neutral message, once — never
+ * reload (a reload loop on refusals would be the bug).
+ */
+async function refusedCheck(page, url, token, errors) {
+  let navigations = 0;
+  page.on('framenavigated', (f) => {
+    if (f === page.mainFrame()) navigations += 1;
+  });
+  await page.route('**/__premium/**', (r) => r.fulfill({ status: 403, contentType: 'text/plain', body: 'refused' }));
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector(`[data-mounted="${token}"][data-route-error]`, { timeout: 15000 });
+  await page.waitForTimeout(1500);
+  const text = (await page.textContent('.route-error')) || '';
+  if (!/not available right now/.test(text)) errors.push(`refused module: unexpected error card: ${text.trim().slice(0, 160)}`);
+  if (navigations !== 1) errors.push(`refused module: page navigated ${navigations} times (reload loop?)`);
+}
+
 // ------------------------------------------------------------------ main
 
 async function main() {
   const list = await routes();
-  if (!list.length && !filters.includes('legacy')) {
+  if (!list.length && !filters.includes('legacy') && !filters.includes('premium-refused')) {
     console.error(`No routes match: ${filters.join(' ')}`);
     process.exit(2);
   }
@@ -169,10 +242,11 @@ async function main() {
     console.error('dist/index.html not found: run `npm run build` first.');
     process.exit(2);
   }
+  const paidRoutes = premium ? await checkPremiumBuild() : new Set();
   const { chromium } = loadPlaywright();
-  const { server, port } = await startServer(dist
-    ? { dir: DIST, vercel: true, overlay: { '/tests/fixtures/': path.join(ROOT, 'tests', 'fixtures') } }
-    : { dir: ROOT });
+  const overlay = { '/tests/fixtures/': path.join(ROOT, 'tests', 'fixtures') };
+  if (premium) overlay['/__premium/'] = DIST_PREMIUM;
+  const { server, port } = await startServer(dist ? { dir: DIST, vercel: true, overlay } : { dir: ROOT });
   const base = `http://127.0.0.1:${port}`;
   // --fonts behind a proxy: pass it straight to Chromium (which keeps loopback direct).
   const proxy = withFonts ? process.env.HTTPS_PROXY || process.env.https_proxy || '' : '';
@@ -220,36 +294,46 @@ async function main() {
   if (!filters.length || filters.includes('legacy')) {
     for (const check of LEGACY_CHECKS) tasks.push({ route: check.hash, legacy: check, ...combos[0] });
   }
+  if (premium && (!filters.length || filters.includes('premium-refused'))) {
+    tasks.push({ route: 'premium-refused', refused: 'l.fibonacci', ...combos[0] });
+  }
 
   const failures = [];
   let done = 0;
   const t0 = Date.now();
 
   async function run(task) {
-    const { route, vp, theme, context, legacy } = task;
+    const { route, vp, theme, context, legacy, refused } = task;
     const label = `${legacy ? `legacy ${route}` : route} [${vp.name}/${theme}]`;
     const errors = [];
+    // The refused-module check expects a 403 and the router's logged failure: it is judged by
+    // its own assertions (CSP violations still count).
+    const sink = refused ? [] : errors;
     const page = await context.newPage();
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
       const loc = msg.location()?.url || '';
       const csp = /Content Security Policy/i.test(msg.text());
       if (!csp && (IGNORE_HOSTS.test(loc) || IGNORE_HOSTS.test(msg.text()))) return;
-      errors.push(`console.error: ${msg.text()}${loc ? `  (${loc.replace(base, '')})` : ''}`);
+      sink.push(`console.error: ${msg.text()}${loc ? `  (${loc.replace(base, '')})` : ''}`);
     });
-    page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+    page.on('pageerror', (err) => sink.push(`pageerror: ${err.message}`));
     page.on('requestfailed', (req) => {
       if (IGNORE_HOSTS.test(req.url())) return;
-      errors.push(`request failed: ${req.url().replace(base, '')} (${req.failure()?.errorText || '?'})`);
+      sink.push(`request failed: ${req.url().replace(base, '')} (${req.failure()?.errorText || '?'})`);
     });
     page.on('response', (res) => {
-      if (res.status() >= 400 && !IGNORE_HOSTS.test(res.url())) errors.push(`HTTP ${res.status()}: ${res.url().replace(base, '')}`);
+      if (res.status() >= 400 && !IGNORE_HOSTS.test(res.url())) sink.push(`HTTP ${res.status()}: ${res.url().replace(base, '')}`);
     });
 
-    const query = `?smoke=${encodeURIComponent(route)}${realMarket ? '' : '&market=mock'}`;
+    const query = `?smoke=${encodeURIComponent(route)}${realMarket ? '' : '&market=mock'}${premium ? '&premium=local' : ''}`;
+    let premiumHits = 0;
+    if (premium) page.on('response', (res) => { if (res.url().startsWith(`${base}/__premium/`) && res.ok()) premiumHits += 1; });
     try {
-      if (legacy) await legacyCheck(page, base, query, legacy, errors);
+      if (refused) await refusedCheck(page, `${base}${tokenToPath(refused)}${query}`, refused, errors);
+      else if (legacy) await legacyCheck(page, base, query, legacy, errors);
       else await routeCheck(page, `${base}${tokenToPath(route)}${query}`, task, errors);
+      if (!legacy && !refused && paidRoutes.has(route) && !premiumHits) errors.push('paid route did not load its module from /__premium/');
     } catch (err) {
       errors.push(`exception: ${err.message.split('\n')[0]}`);
     } finally {
