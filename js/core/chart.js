@@ -8,6 +8,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const TOKENS = new Set([
   'accent', 'bull', 'bear', 'info', 'warn', 'support', 'resistance', 'ma1', 'ma2', 'ma3', 'fib', 'muted',
   'text', 'text-2', 'text-3', 'line', 'grid', 'surface', 'surface-2', 'focus', 'accent-soft', 'bull-soft', 'bear-soft',
+  'live-indicator', 'live-indicator-soft',
 ]);
 const DRAW_COLORS = { hline: 'accent', segment: 'info', fib: 'fib', zone: 'accent' };
 const FIB_RATIOS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];

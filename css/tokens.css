@@ -1,6 +1,8 @@
 /* The Trade School — design tokens.
-   "Chart paper by day, trading desk by night": blue-slate neutrals, Fibonacci gold as the
-   single accent, bull/bear colours reserved for meaning (up/down, correct/wrong). */
+   "Chart paper by day, trading desk by night": blue-slate neutrals.
+   Light: green primary accent (bullish lean) + red bearish semantics.
+   Dark: blue primary accent. Bull/bear stay green/red for meaning.
+   Yellow (--live-indicator) is reserved for real Live Market Lab chart indicators only. */
 
 :root {
   color-scheme: light;
@@ -13,9 +15,9 @@
   --text: #0F1B2D;
   --text-2: #46546B;
   --text-3: #64718A;
-  --accent: #B7790F;
+  --accent: #0A8F6A;
   --accent-ink: #FFFFFF;
-  --accent-soft: #F6E7C8;
+  --accent-soft: #D5F1E7;
   --bull: #0A8F6A;
   --bull-soft: #D5F1E7;
   --bear: #D23F4A;
@@ -25,19 +27,21 @@
   --support: #0A8F6A;
   --resistance: #D23F4A;
   --ma1: #2F66D9;
-  --ma2: #B7790F;
+  --ma2: #0A8F6A;
   --ma3: #8E44C9;
-  --fib: #B7790F;
+  --fib: #0A8F6A;
   --muted: #76839A;
   --focus: #2F66D9;
+  /* Yellow reserved for Massive-backed Live Market Lab indicators only. */
+  --live-indicator: #B7790F;
+  --live-indicator-soft: #F6E7C8;
 
-  /* Additions (not in the spec table): text-safe variants for small text on light grounds,
-     and the primary-button fill (the gold darkened just enough for 4.5:1 with white ink). */
-  --accent-strong: #8F5E07;
+  /* Additions: text-safe variants and primary-button fill (green darkened for 4.5:1 with white ink). */
+  --accent-strong: #07704F;
   --bull-strong: #07704F;
   --bear-strong: #B3303B;
-  --btn-primary: #9A6508;
-  --btn-primary-hover: #875807;
+  --btn-primary: #0A8F6A;
+  --btn-primary-hover: #066548;
   --bull-ink: #FFFFFF;
   --bear-ink: #FFFFFF;
   --topbar-bg: rgba(243, 245, 249, 0.86);
@@ -71,9 +75,9 @@
     --text: #E7EDF6;
     --text-2: #A5B1C6;
     --text-3: #7F8DA5;
-    --accent: #F2B53A;
-    --accent-ink: #1A1204;
-    --accent-soft: #3A2C10;
+    --accent: #5B8CFF;
+    --accent-ink: #061018;
+    --accent-soft: #1A2744;
     --bull: #27C990;
     --bull-soft: #0F3A2E;
     --bear: #F2646E;
@@ -83,17 +87,19 @@
     --support: #27C990;
     --resistance: #F2646E;
     --ma1: #6C9CFF;
-    --ma2: #F2B53A;
+    --ma2: #27C990;
     --ma3: #C08BFF;
-    --fib: #F2B53A;
+    --fib: #5B8CFF;
     --muted: #6F7D96;
     --focus: #8DB3FF;
+    --live-indicator: #F2B53A;
+    --live-indicator-soft: #3A2C10;
 
-    --accent-strong: #F2B53A;
+    --accent-strong: #8DB3FF;
     --bull-strong: #3DD69E;
     --bear-strong: #FF7C85;
-    --btn-primary: #F2B53A;
-    --btn-primary-hover: #FFC65A;
+    --btn-primary: #5B8CFF;
+    --btn-primary-hover: #7AA3FF;
     --bull-ink: #04140E;
     --bear-ink: #1C0507;
     --topbar-bg: rgba(11, 18, 32, 0.82);
@@ -115,9 +121,9 @@
   --text: #E7EDF6;
   --text-2: #A5B1C6;
   --text-3: #7F8DA5;
-  --accent: #F2B53A;
-  --accent-ink: #1A1204;
-  --accent-soft: #3A2C10;
+  --accent: #5B8CFF;
+  --accent-ink: #061018;
+  --accent-soft: #1A2744;
   --bull: #27C990;
   --bull-soft: #0F3A2E;
   --bear: #F2646E;
@@ -127,17 +133,19 @@
   --support: #27C990;
   --resistance: #F2646E;
   --ma1: #6C9CFF;
-  --ma2: #F2B53A;
+  --ma2: #27C990;
   --ma3: #C08BFF;
-  --fib: #F2B53A;
+  --fib: #5B8CFF;
   --muted: #6F7D96;
   --focus: #8DB3FF;
+  --live-indicator: #F2B53A;
+  --live-indicator-soft: #3A2C10;
 
-  --accent-strong: #F2B53A;
+  --accent-strong: #8DB3FF;
   --bull-strong: #3DD69E;
   --bear-strong: #FF7C85;
-  --btn-primary: #F2B53A;
-  --btn-primary-hover: #FFC65A;
+  --btn-primary: #5B8CFF;
+  --btn-primary-hover: #7AA3FF;
   --bull-ink: #04140E;
   --bear-ink: #1C0507;
   --topbar-bg: rgba(11, 18, 32, 0.82);

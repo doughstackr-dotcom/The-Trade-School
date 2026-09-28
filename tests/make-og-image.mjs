@@ -20,7 +20,7 @@ const card = `<!doctype html><meta charset="utf-8"><style>
   .up .wick, .up .body { background:#3DBB77 }
   .down .wick, .down .body { background:#E5484D }
   h1 { font-size:88px; font-weight:800; letter-spacing:-2px; line-height:1.02 }
-  .gold { color:#F2B53A }
+  .accent { color:#5B8CFF }
   p { margin-top:22px; font-size:30px; color:#A5B1C6; font-weight:400 }
 </style>
 <div class="candles">
@@ -30,7 +30,7 @@ const card = `<!doctype html><meta charset="utf-8"><style>
   <div class="c up"><div class="wick" style="top:0;height:50px"></div><div class="body" style="top:50px;height:210px"></div></div>
   <div class="c down"><div class="wick" style="top:30px;height:60px"></div><div class="body" style="top:90px;height:120px"></div></div>
 </div>
-<div><h1>The <span class="gold">Trade</span><br>School</h1>
+<div><h1>The <span class="accent">Trade</span><br>School</h1>
 <p>Learn trading fundamentals by playing.</p></div>`;
 
 const browser = await chromium.launch();

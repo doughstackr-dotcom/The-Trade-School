@@ -27,7 +27,7 @@ const THEMES = ['system', 'light', 'dark'];
 const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' };
 const THEME_ICON = { system: 'system', light: 'sun', dark: 'moon' };
 
-/** Brand mark: a hollow bear candle and a gold bull candle. */
+/** Brand mark: a hollow bear candle and a filled bull candle (theme accent). */
 export function brandMark(size = 28) {
   return svg('svg', { class: 'brand__mark', width: size, height: size, viewBox: '0 0 28 28', 'aria-hidden': 'true', focusable: 'false' },
     svg('path', { class: 'brand__wick brand__wick--bear', d: 'M9 4v5M9 21v3' }),

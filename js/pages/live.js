@@ -3,6 +3,7 @@
 // every second from the client clock. Educational only.
 import { h, icon, svg } from '../core/ui.js';
 import { getMarketHoursSnapshot } from '../core/market-hours.js';
+import { sma } from '../core/indicators.js';
 
 const POLL_MS = 45_000;
 const HOURS_TICK_MS = 1_000;
@@ -116,6 +117,7 @@ export default {
     let stale = false;
     let attribution = '';
     let chart = null;
+    let liveMaId = null;
     let pollTimer = null;
     let hoursTimer = null;
     let destroyed = false;
@@ -209,6 +211,22 @@ export default {
       clientTzEl.textContent = `Times use each venue’s local zone (DST-aware via your browser). Your clock: ${snap.clientTz}. Exchange holidays not tracked.`;
     };
 
+    /** Yellow SMA 20 only on real Massive-backed daily bars (not simulated fallback). */
+    const syncLiveIndicator = (candles, isReal) => {
+      if (!chart) return;
+      if (liveMaId) {
+        chart.remove(liveMaId);
+        liveMaId = null;
+      }
+      if (!isReal || !candles?.length) return;
+      liveMaId = chart.addSeries({
+        values: sma(candles.map((c) => c.c), 20),
+        color: 'live-indicator',
+        width: 1.75,
+        label: 'SMA 20',
+      });
+    };
+
     const loadChart = async (symbol) => {
       if (!chartMod) return;
       chartHost.classList.add('is-switching');
@@ -228,11 +246,14 @@ export default {
           candles = null;
         }
       }
+      let isRealMassive = !!(candles?.length);
       if (!candles?.length && dataMod) {
         candles = dataMod.randomWalk({ seed: symbol.length * 99, count: 90, drift: 0.0003, vol: 0.012 });
         attrib.textContent = [attribution, 'Chart: simulated (real daily history unavailable)'].filter(Boolean).join(' · ');
+        isRealMassive = false;
       }
       if (!candles?.length) {
+        syncLiveIndicator(null, false);
         chartHost.classList.remove('is-switching');
         return;
       }
@@ -243,6 +264,7 @@ export default {
       } else {
         chart.setCandles(candles);
       }
+      syncLiveIndicator(candles, isRealMassive);
       // Allow CSS fade to settle
       requestAnimationFrame(() => {
         if (!destroyed) chartHost.classList.remove('is-switching');
