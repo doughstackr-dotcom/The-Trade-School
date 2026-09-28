@@ -60,6 +60,9 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   --topbar-h: 60px;
+  /* Single-line risk marquee (padding + text + border); sticky chrome stacks this above the topbar. */
+  --risk-ticker-h: 42px;
+  --chrome-h: calc(var(--risk-ticker-h) + var(--topbar-h));
   --tabbar-h: 0px;
 }
 

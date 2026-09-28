@@ -5,8 +5,11 @@
   --risk-red-text: #c62828;
   --risk-red-bg: color-mix(in oklab, #c62828 12%, var(--bg, #fff));
   flex: 0 0 auto;
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
   overflow: hidden;
   width: 100%;
+  min-height: var(--risk-ticker-h);
   box-sizing: border-box;
   border-bottom: 2px solid var(--risk-red);
   background: var(--risk-red-bg);

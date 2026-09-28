@@ -46,7 +46,8 @@
 
 .topbar {
   position: sticky;
-  top: env(safe-area-inset-top, 0px);
+  /* Sit just under the sticky risk ticker */
+  top: calc(env(safe-area-inset-top, 0px) + var(--risk-ticker-h));
   z-index: 50;
   background: var(--topbar-bg);
   -webkit-backdrop-filter: saturate(1.4) blur(14px);
@@ -1710,7 +1711,7 @@ figcaption {
 
 .game-intro__preview {
   position: sticky;
-  top: calc(var(--topbar-h) + 24px);
+  top: calc(var(--chrome-h) + 24px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2267,7 +2268,7 @@ figcaption {
 
 .lesson__rail {
   position: sticky;
-  top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 24px);
+  top: calc(var(--chrome-h) + env(safe-area-inset-top, 0px) + 24px);
 }
 
 .rail-compact {
@@ -2534,7 +2535,7 @@ figcaption {
   }
 
   .lesson__rail {
-    top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+    top: calc(var(--chrome-h) + env(safe-area-inset-top, 0px));
     z-index: 5;
     margin-inline: -16px;
     padding: 10px 16px 12px;
@@ -3996,7 +3997,7 @@ figcaption {
 
 .glossary__tools {
   position: sticky;
-  top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  top: calc(var(--chrome-h) + env(safe-area-inset-top, 0px));
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -4077,7 +4078,7 @@ figcaption {
   gap: 16px;
   padding: 24px 0;
   border-bottom: 1px solid var(--line);
-  scroll-margin-top: calc(var(--topbar-h) + 150px);
+  scroll-margin-top: calc(var(--chrome-h) + 150px);
 }
 
 .glossary__letter {
@@ -4158,7 +4159,7 @@ figcaption {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 18px 0;
-    scroll-margin-top: calc(var(--topbar-h) + 120px);
+    scroll-margin-top: calc(var(--chrome-h) + 120px);
   }
 
   .glossary__letter {
@@ -5919,12 +5920,12 @@ figcaption {
 
 .playbook-section {
   margin-bottom: 28px;
-  scroll-margin-top: calc(var(--topbar-h) + 12px);
+  scroll-margin-top: calc(var(--chrome-h) + 12px);
 }
 
 .playbook-section__head {
   position: sticky;
-  top: var(--topbar-h);
+  top: var(--chrome-h);
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -6122,7 +6123,7 @@ figcaption {
 
 .playbook-guide {
   margin-bottom: 32px;
-  scroll-margin-top: calc(var(--topbar-h) + 12px);
+  scroll-margin-top: calc(var(--chrome-h) + 12px);
 }
 
 .playbook-guide__grid {

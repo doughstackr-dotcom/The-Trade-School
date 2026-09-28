@@ -70,7 +70,7 @@ function navKeyFor(route) {
 const RISK_DISCLAIMER =
   'This is not financial advice. The Trade School is educational material only. Trade at your own risk.';
 
-/** Site-wide scrolling risk disclaimer (marquee). Mounted once above the top nav. */
+/** Site-wide risk disclaimer (marquee). Sticky at the top of the viewport above the top nav. */
 function riskTicker() {
   // Even count: first half === second half so translateX(-50%) loops seamlessly.
   // Enough copies to cover wide viewports without a visible gap.
