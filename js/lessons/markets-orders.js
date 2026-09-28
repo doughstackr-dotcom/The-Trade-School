@@ -176,8 +176,54 @@ export default {
                 'In thin names, prefer limits when you can wait; use markets when timing matters more than a few ticks.',
               ]),
               h('div', { class: 'callout callout--tip' }, icon('info'),
-                h('p', null, 'Educational only: real venues add time-in-force, partial fills and fees. Practise order choice in Order Desk before you risk real money.')),
+                h('p', null, 'Educational only: real venues add partial fills, fees and their own order rules. Practise order choice in Order Desk before you risk real money.')),
             );
+          },
+        },
+        {
+          title: 'Stop-limit, trailing stops and time in force',
+          render(el) {
+            el.append(
+              h('ul', { class: 'lesson-list' },
+                h('li', null, h('strong', null, 'Stop-limit'), ' — two prices: a stop that triggers and a limit that caps the fill. Sell stop 97, limit 96.50 means “once 97 trades, sell — but not below 96.50.” You control the price, but if price drops straight through 96.50 you may ',
+                  h('em', null, 'not get out at all'), '.'),
+                h('li', null, h('strong', null, 'Trailing stop'), ' — a stop that follows price by a set distance (for example $2 or 3%) as it moves in your favour and never moves back. Long at 100 with a $2 trail: the stop starts at 98; if price reaches 105 it has moved to 103.'),
+                h('li', null, h('strong', null, 'Time in force'), ' — how long an order stays live. ', h('strong', null, 'Day'),
+                  ' orders expire at the session close; ', h('strong', null, 'GTC'), ' (good-till-cancelled) orders stay until filled or cancelled, though many brokers cap them (often around 60–90 days). Forgotten GTC orders can fill months later.'),
+              ),
+              takeaway([
+                'Stop = likely exit, uncertain price. Stop-limit = capped price, uncertain exit.',
+                'Trailing stops lock in some open profit but can be shaken out by normal pullbacks — set the distance with volatility in mind.',
+                'Check what time in force your order uses; defaults differ between brokers.',
+              ]),
+            );
+          },
+        },
+        {
+          title: 'Gaps: when stops cannot protect you',
+          render(el) {
+            el.append(
+              h('p', null,
+                'A ', h('strong', null, 'gap'), ' is a jump between one close and the next open with no trading in between. Earnings reports, economic data, company news and weekend events often cause them, especially in individual stocks.'),
+              h('p', null,
+                'Example: long at 50 with a sell stop at 48. Earnings come out overnight and the stock opens at 42. Your stop triggers at the open and fills near 42 — a loss of about 4R instead of 1R. A stop-limit at 48/47.50 would not fill at all, leaving you in the trade as it falls.'),
+              takeaway([
+                'Stops limit losses in continuous trading; they cannot guarantee a price through a gap.',
+                'Know the calendar: earnings dates and major data releases are scheduled in advance.',
+                'Common choices before a known event: smaller size, no position, or accept the gap risk knowingly.',
+              ]),
+            );
+          },
+          quiz: {
+            question: 'Long at 50, sell stop at 48. Bad news overnight; the stock opens at 44. What most likely happens?',
+            options: [
+              { label: 'You are filled at 48 — that is what a stop guarantees', value: 0 },
+              { label: 'The stop is cancelled because price skipped it', value: 1 },
+              { label: 'The stop triggers at the open and fills near 44', value: 2 },
+              { label: 'The broker covers the difference below 48', value: 3 },
+            ],
+            answer: 2,
+            explain: 'Price skipped 48, so the stop triggers on the first trade at or below it — the open — and becomes a market order <strong>near 44</strong>. The planned 1R loss becomes about 3R.',
           },
         },
         {
@@ -191,7 +237,7 @@ export default {
               { label: 'Sell limit at 98.50', value: 3 },
             ],
             answer: 2,
-            explain: '<strong>Buy limit at 98.50.</strong> A limit waits for your price or better. A buy stop at 98.50 would only fire if price rose up to it.',
+            explain: '<strong>Buy limit at 98.50.</strong> A limit waits for your price or better. A buy stop belongs <em>above</em> the current price (it fires when price rises to it); placed below the market, most brokers would trigger it at once or reject it.',
           },
         },
         {
@@ -205,7 +251,7 @@ export default {
               { label: 'Buy limit at 97', value: 3 },
             ],
             answer: 0,
-            explain: '<strong>Sell stop at 97.</strong> It triggers only if price drops to your level, then sells at the market. A sell limit at 97 would sit below and might never fill on the way down.',
+            explain: '<strong>Sell stop at 97.</strong> It triggers only if price drops to your level, then sells at the market. A sell limit at 97 means “sell at 97 <em>or better</em>” — with price at 100 it is already marketable and would sell right away, near 100.',
           },
         },
         {

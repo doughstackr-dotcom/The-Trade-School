@@ -87,6 +87,35 @@ const steps = [
     },
   },
   {
+    title: 'Keep a trading journal',
+    render(el) {
+      el.append(
+        h('p', null, 'Memory flatters. A ', h('strong', null, 'trading journal'), ' records each trade while it is fresh, so you can review what actually happened instead of what you remember.'),
+        h('ul', { class: 'lesson-list' },
+          h('li', null, h('strong', null, 'Before:'), ' setup name, why it qualifies, entry, stop, target, size, risk in R, a chart screenshot.'),
+          h('li', null, h('strong', null, 'After:'), ' exit price and reason, result in R, costs, whether you followed the plan, one word for your state (calm / rushed / revenge).'),
+          h('li', null, h('strong', null, 'Weekly review:'), ' sort by setup and by “followed plan: yes / no”. Which setups pay? Which mistakes repeat? Change one thing at a time.'),
+        ),
+        takeaway([
+          'Grade each trade on process (did I follow the plan?) separately from outcome (did it make money?).',
+          'A good trade can lose and a bad trade can win — only many journaled trades show which is which.',
+          'Tag rule-breaks honestly; they are usually the cheapest improvement available.',
+        ]),
+      );
+    },
+    quiz: {
+      question: 'Your journal shows a trade that broke two plan rules but made +3R. How should you grade it?',
+      options: [
+        { label: 'Good trade — the result proves the read was right', value: 0 },
+        { label: 'Leave it out of the review; it was a one-off', value: 1 },
+        { label: 'Add the rule-breaks to the plan, since they worked', value: 2 },
+        { label: 'Poor process, lucky outcome — log it as a rule-break', value: 3 },
+      ],
+      answer: 3,
+      explain: '<strong>Process and outcome are separate grades.</strong> Rewarding rule-breaks that happened to win teaches the habits that cause big losses later.',
+    },
+  },
+  {
     title: 'Quick check',
     render(el) {
       const ts = trendSeries({ seed: 13, count: 50, direction: 'down', swings: 2 });
@@ -111,9 +140,9 @@ const steps = [
       question: 'Two planned losses; daily limit 3R; you are at −2R. Next?',
       options: [
         { label: 'A+ setups only at normal size — or stop', value: 0 },
-        { label: 'Double size to recover', value: 1 },
-        { label: 'Trade everything that moves', value: 2 },
-        { label: 'Ignore the limit today', value: 3 },
+        { label: 'Double size on the next trade to get back to breakeven', value: 1 },
+        { label: 'Drop to a 1-minute chart to find more trades quickly', value: 2 },
+        { label: 'Raise today’s limit to 5R — the setups look good', value: 3 },
       ],
       answer: 0,
       explain: '<strong>Tighten or stop.</strong> One more full loss ends the day by design.',

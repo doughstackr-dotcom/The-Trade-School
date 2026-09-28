@@ -113,8 +113,8 @@ export const LESSONS = [
   {
     id: 'markets-orders', type: 'lesson', tier: 'beginner', minutes: 10,
     title: 'Markets, orders and the spread',
-    blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
-    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
+    blurb: 'What a market is, who is on the other side of your trade, and how market, limit, stop, stop-limit and trailing orders fill. Read the bid, the ask and the spread, and know what a gap does to a stop, before you ever click Buy.',
+    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market & limit orders', 'Stop, stop-limit & trailing stops', 'Time in force', 'Gaps & slippage'],
     path: './lessons/markets-orders.js',
   },
   {
@@ -155,15 +155,15 @@ export const LESSONS = [
   {
     id: 'confluence-risk', type: 'lesson', tier: 'advanced', minutes: 15,
     title: 'Confluence, timing & risk',
-    blurb: 'Stack independent reasons for a trade, choose the moment to act, then size the position so one loss never hurts much. Stops, targets, R-multiples and expectancy.',
-    topics: ['Confluence', 'Entry triggers', 'Stop placement', 'Position sizing', 'R-multiples & expectancy'],
+    blurb: 'Stack independent reasons for a trade, choose the moment to act, place stops with structure and ATR, and test an idea (backtest, forward test) before you trust it. Builds on Beginner risk & sizing.',
+    topics: ['Confluence', 'Entry triggers', 'ATR-based stops', 'Sizing recap', 'Backtesting & its pitfalls'],
     path: './lessons/confluence-risk.js',
   },
   {
     id: 'psychology', type: 'lesson', tier: 'advanced', minutes: 12,
     title: 'Trading psychology and your plan',
-    blurb: 'Fear, greed, revenge trading and tilt: the mistakes that cost more than any bad setup. Write a trading plan and a checklist you will actually follow.',
-    topics: ['Fear & greed', 'Tilt & revenge trading', 'Trading plan', 'Journaling', 'Process over outcome'],
+    blurb: 'Fear, greed, revenge trading and tilt: the mistakes that cost more than any bad setup. Write a trading plan you will actually follow, keep a trading journal, and review your trades honestly.',
+    topics: ['Fear & greed', 'Tilt & revenge trading', 'Trading plan', 'Trading journal & reviews', 'Process over outcome'],
     path: './lessons/psychology.js',
   },
 ];
