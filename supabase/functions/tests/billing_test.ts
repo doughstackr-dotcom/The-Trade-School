@@ -312,7 +312,7 @@ Deno.test('create-checkout: new user → one Stripe customer, customers row, cor
   assertEquals(session.client_reference_id, user.id);
   assertEquals(session.line_items, [{ price: PRICE_BEGINNER, quantity: '1' }]);
   assertEquals(session.subscription_data, { metadata: { user_id: user.id, plan: 'beginner' } });
-  assertEquals(session.success_url, `${SITE_URL}?checkout=success#account`);
+  assertEquals(session.success_url, `${SITE_URL}account?checkout=success`);
   assertEquals(session.cancel_url, `${SITE_URL}?checkout=cancel#pricing`);
   assertEquals(session.allow_promotion_codes, 'true');
 });
@@ -325,7 +325,7 @@ Deno.test('create-checkout: advanced plan uses the advanced price; localhost ret
   let session = sessionsOf(user).at(-1);
   assertEquals(session.line_items[0].price, PRICE_ADVANCED);
   assertEquals(session.subscription_data.metadata.plan, 'advanced');
-  assertEquals(session.success_url, `${LOCAL_ORIGIN}/?checkout=success#account`);
+  assertEquals(session.success_url, `${LOCAL_ORIGIN}/account?checkout=success`);
   assertEquals(session.cancel_url, `${LOCAL_ORIGIN}/?checkout=cancel#pricing`);
 
   for (const returnTo of ['https://evil.example/', 'javascript:alert(1)', 'blob:https://example.github.io/x', '%%%']) {
@@ -333,7 +333,7 @@ Deno.test('create-checkout: advanced plan uses the advanced price; localhost ret
     const b = await call(checkout, { token: other.token, body: { plan: 'advanced', returnTo } });
     assertEquals(b.res.status, 200, `${returnTo}: ${Deno.inspect(b.body)}`);
     session = sessionsOf(other).at(-1);
-    assertEquals(session.success_url, `${SITE_URL}?checkout=success#account`, returnTo);
+    assertEquals(session.success_url, `${SITE_URL}account?checkout=success`, returnTo);
   }
   // Only ever one customer for this user.
   assertEquals(stripeCustomersOf(user).length, 1);
@@ -525,7 +525,7 @@ Deno.test('create-checkout: member asking for their current plan gets the billin
     const ps = h.stripe.portalSessions.at(-1);
     assertEquals(body, { url: ps.url });
     assertEquals(ps.customer, cus.id);
-    assertEquals(ps.return_url, `${LOCAL_ORIGIN}/#account`);
+    assertEquals(ps.return_url, `${LOCAL_ORIGIN}/account`);
     assertEquals(sessionsOf(user).length, 0, 'no new checkout');
     assertEquals(h.stripe.subscriptions.get(sub.id)!.updates.length, 0, 'no subscription change');
   }
@@ -614,11 +614,11 @@ Deno.test('customer-portal: never-subscribed user → 404 and no Stripe call', a
 Deno.test('customer-portal: member gets a portal URL; return_url follows returnTo rules', async () => {
   const { user, cus } = seedSubscriber('advanced');
   const cases: [unknown, string][] = [
-    [`${SITE_URL}index.html`, `${SITE_URL}#account`],
-    [`${LOCAL_ORIGIN}/`, `${LOCAL_ORIGIN}/#account`],
-    ['https://evil.example/', `${SITE_URL}#account`],
-    ['javascript:alert(1)', `${SITE_URL}#account`],
-    [undefined, `${SITE_URL}#account`],
+    [`${SITE_URL}index.html`, `${SITE_URL}account`],
+    [`${LOCAL_ORIGIN}/`, `${LOCAL_ORIGIN}/account`],
+    ['https://evil.example/', `${SITE_URL}account`],
+    ['javascript:alert(1)', `${SITE_URL}account`],
+    [undefined, `${SITE_URL}account`],
   ];
   for (const [returnTo, expected] of cases) {
     const { res, body } = await call(portal, { token: user.token, body: { returnTo } });
@@ -631,7 +631,7 @@ Deno.test('customer-portal: member gets a portal URL; return_url follows returnT
   // Malformed body is tolerated.
   const raw = await call(portal, { token: user.token, rawBody: '{oops' });
   assertEquals(raw.res.status, 200);
-  assertEquals(h.stripe.portalSessions.at(-1).return_url, `${SITE_URL}#account`);
+  assertEquals(h.stripe.portalSessions.at(-1).return_url, `${SITE_URL}account`);
 });
 
 Deno.test('customer-portal: Stripe error → 500 with a friendly message, logged', async () => {

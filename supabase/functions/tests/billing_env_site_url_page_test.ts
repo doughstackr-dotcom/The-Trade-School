@@ -25,6 +25,6 @@ Deno.test('without ALLOWED_ORIGINS only the site origin is echoed and used for r
   assertEquals(res.headers.get('Access-Control-Allow-Origin'), SITE_ORIGIN);
   await res.body?.cancel();
   const session = h.stripe.checkoutSessions.at(-1);
-  assertEquals(session.success_url, `${SITE_URL}?checkout=success#account`);
+  assertEquals(session.success_url, `${SITE_URL}account?checkout=success`);
   assertEquals(session.cancel_url, `${SITE_URL}?checkout=cancel#pricing`);
 });

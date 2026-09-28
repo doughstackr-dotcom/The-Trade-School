@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${returnBase(body?.returnTo)}#account`,
+      return_url: `${returnBase(body?.returnTo)}account`,
     });
     return json(req, { url: portal.url });
   } catch (err) {

@@ -120,6 +120,17 @@ function reloadOnceForStaleChunk() {
   }
 }
 
+/** A page opened with an in-page fragment (/?checkout=cancel#pricing) scrolls to it once mounted. */
+function scrollToFragment() {
+  try {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (!id || id.includes('=')) return; // auth callbacks (#access_token=…) are not anchors
+    document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  } catch {
+    /* ignore */
+  }
+}
+
 function clearReloadFlag() {
   try {
     globalThis.sessionStorage?.removeItem(RELOAD_KEY);
@@ -368,6 +379,7 @@ async function render(token, { initial = false, retry = false } = {}) {
     cleanup = typeof result === 'function' ? result : null;
     clearReloadFlag();
     root.setAttribute('data-mounted', route.key);
+    if (initial) scrollToFragment();
     if (!initial) {
       const main = document.getElementById('main');
       main?.focus({ preventScroll: true });

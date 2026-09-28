@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
         }
         const portal = await stripe.billingPortal.sessions.create({
           customer: customerId,
-          return_url: `${base}#account`,
+          return_url: `${base}account`,
         });
         return json(req, { url: portal.url });
       }
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
         metadata: { user_id: user.id, plan },
         subscription_data: { metadata: { user_id: user.id, plan } },
         allow_promotion_codes: true,
-        success_url: `${base}?checkout=success#account`,
+        success_url: `${base}account?checkout=success`,
         cancel_url: `${base}?checkout=cancel#pricing`,
       },
       { idempotencyKey: await checkoutKey(user.id, plan, price, base, resume.seen) },
