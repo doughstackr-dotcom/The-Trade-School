@@ -1,5 +1,5 @@
 /* Platforms page (file: affiliate.*)
-   Hierarchy: intro → Trading platforms rails → coming soon → disclosure → full-width risk banner.
+   Hierarchy: full-width risk banner (top) → intro → disclosure → Trading platforms rails → coming soon.
    Surfaces/text/borders use design tokens so light & dark themes stay native.
    Brand logos sit on a near-white pad (official marks assume a light ground);
    no invert filter — pad keeps marks readable in both themes. */
@@ -33,7 +33,7 @@
   display: block;
   width: 100%;
   box-sizing: border-box;
-  margin: 8px 0 0;
+  margin: 0 0 4px;
   padding: 20px 24px;
   border: 2px solid #c62828;
   border-radius: 0;

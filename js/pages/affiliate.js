@@ -222,12 +222,27 @@ export default {
     }
 
     root.append(h('div', { class: 'container affiliate' },
+      h('aside', {
+        class: 'aff-risk',
+        role: 'alert',
+        'aria-label': 'Risk and educational disclaimer',
+      },
+        h('p', { class: 'aff-risk__text' },
+          'This is not financial advice. The Trade School is educational material only. '
+          + 'Trade at your own risk.')),
       h('header', { class: 'page-head aff-intro' },
         h('p', { class: 'eyebrow eyebrow--accent' }, 'Partners'),
         h('h1', null, 'Platforms'),
         h('p', { class: 'lead' },
           'Platforms and tools we partner with. Some links below are affiliate / referral links — '
           + 'if you sign up through them, The Trade School may earn a commission at no extra cost to you.')),
+      h('div', { class: 'callout callout--warn aff-disclaimer', role: 'note' },
+        icon('info', { size: 18 }),
+        h('div', null,
+          h('p', null, h('strong', null, 'Affiliate disclosure.')),
+          h('p', { class: 'muted' },
+            'These are educational partnerships, not endorsements. Always do your own research, '
+            + 'read each platform’s terms, and never risk money you cannot afford to lose.'))),
       h('section', {
         class: 'aff-partners',
         'aria-labelledby': 'aff-trading-platforms',
@@ -246,21 +261,6 @@ export default {
             'Partner TBD — more trading platforms and tools will land here.')),
         h('div', { class: 'aff-soon', role: 'list' },
           coming.map((p) => h('div', { role: 'listitem' }, comingTile(p)))))
-        : null,
-      h('div', { class: 'callout callout--warn aff-disclaimer', role: 'note' },
-        icon('info', { size: 18 }),
-        h('div', null,
-          h('p', null, h('strong', null, 'Affiliate disclosure.')),
-          h('p', { class: 'muted' },
-            'These are educational partnerships, not endorsements. Always do your own research, '
-            + 'read each platform’s terms, and never risk money you cannot afford to lose.'))),
-      h('aside', {
-        class: 'aff-risk',
-        role: 'alert',
-        'aria-label': 'Risk and educational disclaimer',
-      },
-        h('p', { class: 'aff-risk__text' },
-          'This is not financial advice. The Trade School is educational material only. '
-          + 'Trade at your own risk.'))));
+        : null));
   },
 };
