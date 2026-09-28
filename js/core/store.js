@@ -117,32 +117,203 @@ function readTheme() {
   }
 }
 
-function load() {
+/**
+ * Fills a migrated save out to the full current shape (missing or malformed fields fall back to
+ * defaults). `saved` must already be migrate()d. Returns a new object; never throws.
+ */
+function normalize(saved) {
   const base = defaults();
+  if (!saved) return base;
+  Object.assign(base, saved);
+  base.settings = { ...defaults().settings, ...(saved.settings || {}) };
+  for (const k of ['lessons', 'games', 'badgeDates', 'lessonSteps', 'gamePrefs']) {
+    if (!base[k] || typeof base[k] !== 'object') base[k] = {};
+  }
+  const dd = defaults().daily;
+  base.daily = base.daily && typeof base.daily === 'object' ? { ...dd, ...base.daily } : dd;
+  if (!base.daily.history || typeof base.daily.history !== 'object') base.daily.history = {};
+  if (!Array.isArray(base.badges)) base.badges = [];
+  if (!base.recent || typeof base.recent !== 'object' || Array.isArray(base.recent)) base.recent = {};
+  base.misses = Array.isArray(base.misses) ? base.misses.filter((m) => m && m.bank && m.id != null).slice(-MAX_MISSES) : [];
+  base.xp = Number.isFinite(base.xp) ? base.xp : 0;
+  return base;
+}
+
+function load() {
+  let base = defaults();
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
     if (raw) {
       const saved = migrate(JSON.parse(raw));
-      if (saved) {
-        Object.assign(base, saved);
-        base.settings = { ...defaults().settings, ...(saved.settings || {}) };
-        for (const k of ['lessons', 'games', 'badgeDates', 'lessonSteps', 'gamePrefs']) {
-          if (!base[k] || typeof base[k] !== 'object') base[k] = {};
-        }
-        const dd = defaults().daily;
-        base.daily = base.daily && typeof base.daily === 'object' ? { ...dd, ...base.daily } : dd;
-        if (!base.daily.history || typeof base.daily.history !== 'object') base.daily.history = {};
-        if (!Array.isArray(base.badges)) base.badges = [];
-        if (!base.recent || typeof base.recent !== 'object' || Array.isArray(base.recent)) base.recent = {};
-        base.misses = Array.isArray(base.misses) ? base.misses.filter((m) => m && m.bank && m.id != null).slice(-MAX_MISSES) : [];
-        base.xp = Number.isFinite(base.xp) ? base.xp : 0;
-      }
+      if (saved) base = normalize(saved);
     }
   } catch {
     /* corrupted or blocked storage: start fresh in memory */
   }
   base.settings.theme = readTheme();
   return base;
+}
+
+// ---------------------------------------------------------------- cross-device merge
+// mergeProgress(local, remote) combines two saves (this device + the signed-in account's copy in
+// Supabase, see js/core/progress-sync.js). Pure and deterministic: no storage, no clock, inputs
+// are not mutated, and merging the result with the remote side again changes nothing.
+
+const num = (v) => (Number.isFinite(v) ? v : 0);
+const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+const maxAt = (a, b) => (a == null ? (b ?? null) : b == null ? a : Math.max(a, b));
+const minAt = (a, b) => (a == null ? (b ?? null) : b == null ? a : Math.min(a, b));
+
+/** Merge two per-key maps with `fn(a, b)` for every key present in both (keys of `a` first). */
+function mergeMaps(a, b, fn) {
+  const A = obj(a);
+  const B = obj(b);
+  const out = {};
+  for (const k of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    out[k] = A[k] == null ? B[k] : B[k] == null ? A[k] : fn(A[k], B[k]);
+  }
+  return out;
+}
+
+/** The later of two { at } records (ties keep `a`). */
+const later = (a, b) => (num(b?.at) > num(a?.at) ? b : a);
+
+function mergeStyleRecord(a, b) {
+  const out = {
+    ...a,
+    ...b,
+    best: Math.max(num(a.best), num(b.best)),
+    stars: Math.max(num(a.stars), num(b.stars)),
+    plays: Math.max(num(a.plays), num(b.plays)),
+    at: maxAt(a.at, b.at),
+  };
+  if (a.rounds != null || b.rounds != null) out.rounds = Math.max(num(a.rounds), num(b.rounds));
+  const lr = later(a, b).lastRounds ?? a.lastRounds ?? b.lastRounds;
+  if (lr != null) out.lastRounds = lr;
+  else delete out.lastRounds;
+  return out;
+}
+
+function mergeGame(a, b) {
+  const recent = later(a, b);
+  const out = {
+    ...a,
+    ...b,
+    best: Math.max(num(a.best), num(b.best)),
+    stars: Math.max(num(a.stars), num(b.stars)),
+    plays: Math.max(num(a.plays), num(b.plays)),
+    at: maxAt(a.at, b.at),
+    styles: mergeMaps(stylesOf({ ...a }), stylesOf({ ...b }), mergeStyleRecord),
+  };
+  if (a.modes || b.modes) out.modes = mergeMaps(a.modes, b.modes, (x, y) => Math.max(num(x), num(y)));
+  const ls = recent.lastStyle ?? a.lastStyle ?? b.lastStyle;
+  if (ls != null) out.lastStyle = ls;
+  return out;
+}
+
+/** Length of the run of consecutive daily keys ending at `last` in `history`. */
+function streakEndingAt(history, last) {
+  let n = 0;
+  for (let k = last; k && history[k] != null; k = shiftKey(k, -1)) n++;
+  return n;
+}
+
+function mergeDaily(a, b) {
+  const A = obj(a);
+  const B = obj(b);
+  const history = mergeMaps(A.history, B.history, (x, y) => Math.max(num(x), num(y)));
+  const keys = Object.keys(history).sort();
+  for (const old of keys.slice(0, Math.max(0, keys.length - 90))) delete history[old];
+  const last = [A.last, B.last].filter(Boolean).sort().pop() || null;
+  let streak = last ? streakEndingAt(history, last) : 0;
+  for (const side of [A, B]) if (side.last === last) streak = Math.max(streak, num(side.streak));
+  return {
+    ...A,
+    ...B,
+    last,
+    streak,
+    best: Math.max(num(A.best), num(B.best), streak),
+    history,
+  };
+}
+
+function mergeRecent(a, b) {
+  return mergeMaps(a, b, (x, y) => {
+    const list = [...(Array.isArray(y) ? y : []), ...(Array.isArray(x) ? x : [])];
+    const seen = new Set();
+    const out = [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (seen.has(list[i])) continue;
+      seen.add(list[i]);
+      out.unshift(list[i]);
+    }
+    return out.slice(-RECENT_PER_BANK);
+  });
+}
+
+function mergeMisses(a, b) {
+  const byKey = new Map();
+  for (const m of [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]) {
+    if (!m || !m.bank || m.id == null) continue;
+    const key = `${m.bank}\u0000${m.id}`;
+    const prev = byKey.get(key);
+    byKey.set(key, prev ? { ...prev, n: Math.max(num(prev.n), num(m.n)), at: maxAt(prev.at, m.at) } : { ...m });
+  }
+  const cmp = (x, y) => num(x.at) - num(y.at) || (`${x.bank}\u0000${x.id}` < `${y.bank}\u0000${y.id}` ? -1 : 1);
+  return [...byKey.values()].sort(cmp).slice(-MAX_MISSES);
+}
+
+/**
+ * Merges two progress saves (e.g. this device and the account's cloud copy) into one:
+ *   xp, bestStreak → max · lessons → union (done if done anywhere, latest `at`)
+ *   games → per game and per style: best / stars / plays / rounds = max, latest `at`
+ *   badges → union, ordered by earliest earned date then id · badgeDates → earliest
+ *   lessonSteps → furthest · last → most recent · daily → history union (max score per date),
+ *   streak recomputed from the merged history · recent / misses → union, bounded
+ *   settings, gamePrefs, lastTier → this device (`local`) wins, `remote` fills gaps.
+ * Both inputs are migrate()d first. Returns null when either is from a newer schema than this
+ * build understands (the caller must not overwrite it); a missing side returns the other.
+ */
+export function mergeProgress(local, remote) {
+  const L = migrate(local);
+  const R = migrate(remote);
+  if (!L && !R) return null;
+  if ((L && L.v > SCHEMA_VERSION) || (R && R.v > SCHEMA_VERSION)) return null;
+  const a = normalize(L);
+  const b = normalize(R);
+  if (!L) return b;
+  if (!R) return a;
+
+  const badgeDates = mergeMaps(a.badgeDates, b.badgeDates, minAt);
+  const badges = [...new Set([...a.badges, ...b.badges])].sort((x, y) => {
+    const dx = badgeDates[x] ?? Infinity;
+    const dy = badgeDates[y] ?? Infinity;
+    return dx === dy ? (x < y ? -1 : x > y ? 1 : 0) : dx < dy ? -1 : 1;
+  });
+
+  return {
+    ...b,
+    ...a,
+    v: SCHEMA_VERSION,
+    xp: Math.max(num(a.xp), num(b.xp)),
+    lessons: mergeMaps(a.lessons, b.lessons, (x, y) => ({
+      ...x, ...y, done: !!(x.done || y.done), at: maxAt(x.at, y.at),
+    })),
+    games: mergeMaps(a.games, b.games, mergeGame),
+    badges,
+    badgeDates,
+    lessonSteps: mergeMaps(a.lessonSteps, b.lessonSteps, (x, y) => ({
+      step: Math.max(num(x.step), num(y.step)), max: Math.max(num(x.max), num(y.max)),
+    })),
+    last: a.last && b.last ? later(a.last, b.last) : a.last || b.last || null,
+    lastTier: a.lastTier || b.lastTier || null,
+    bestStreak: Math.max(num(a.bestStreak), num(b.bestStreak)),
+    gamePrefs: mergeMaps(a.gamePrefs, b.gamePrefs, (mine, theirs) => ({ ...theirs, ...mine })),
+    daily: mergeDaily(a.daily, b.daily),
+    recent: mergeRecent(a.recent, b.recent),
+    misses: mergeMisses(a.misses, b.misses),
+    settings: a.settings,
+  };
 }
 
 let state = load();
@@ -152,6 +323,7 @@ let collecting = null; // array while recordGame collects newly earned badges
 let warnedSaveFailed = false;
 
 function save() {
+  emit('save', state);
   try {
     globalThis.localStorage?.setItem(KEY, JSON.stringify(state));
   } catch {
@@ -565,6 +737,22 @@ export const store = {
 
   off(event, fn) {
     listeners.get(event)?.delete(fn);
+  },
+
+  /**
+   * Replaces progress with `next` (e.g. merged with the account's cloud copy by
+   * js/core/progress-sync.js), keeping this device's settings. Saves and emits 'change' — no
+   * toasts, level-up modal or badge checks. Returns false (and changes nothing) for junk or a
+   * save from a newer schema.
+   */
+  replace(next) {
+    const saved = migrate(next);
+    if (!saved || saved.v > SCHEMA_VERSION) return false;
+    const settings = state.settings;
+    state = normalize(saved);
+    state.settings = settings;
+    changed();
+    return true;
   },
 
   /** Wipes progress (keeps sound/theme settings). */

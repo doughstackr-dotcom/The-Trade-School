@@ -2,6 +2,7 @@
 import { store } from './core/store.js';
 import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
+import { startProgressSync } from './core/progress-sync.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
 
@@ -388,6 +389,8 @@ function boot() {
     });
   }
   wireGate();
+  // Signed-in users: progress follows the account across devices (no-op while signed out).
+  startProgressSync();
   access.ready.then(() => {
     /* re-render current route once session/level is known */
     wireGate();

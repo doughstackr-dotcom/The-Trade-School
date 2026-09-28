@@ -240,6 +240,15 @@ export function getAccess() {
   return snapshot();
 }
 
+/**
+ * The Supabase client if it has already been loaded, else null. Never downloads the vendor
+ * bundle: a signed-in user always has a loaded client, a signed-out visitor never needs one.
+ * Used by js/core/progress-sync.js.
+ */
+export function loadedClient() {
+  return client;
+}
+
 export function onChange(fn) {
   if (typeof fn === 'function') listeners.add(fn);
   return () => listeners.delete(fn);
