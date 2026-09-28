@@ -7,13 +7,14 @@ const SEEDS = Array.from({ length: 200 }, (_, i) => i * 7727 + 11);
 const REQUIRED = [
   'head-and-shoulders', 'inverse-head-and-shoulders', 'double-top', 'double-bottom', 'triple-top', 'triple-bottom',
   'rising-wedge', 'falling-wedge', 'ascending-triangle', 'descending-triangle', 'symmetrical-triangle', 'bull-flag',
-  'bear-flag', 'cup-and-handle', 'rounding-bottom',
+  'bear-flag', 'cup-and-handle', 'rounding-bottom', 'rounding-top', 'bull-pennant', 'bear-pennant',
+  'bull-rectangle', 'bear-rectangle',
 ];
 const kp = (sc, label) => sc.keyPoints.filter((k) => k.label === label);
 const lineAt = (ln, x) => ln.y1 + ((ln.y2 - ln.y1) * (x - ln.x1)) / (ln.x2 - ln.x1 || 1);
 const pct = (a, b) => Math.abs(a - b) / b;
 
-test('all 15 chart patterns exist with complete text', () => {
+test('all chart patterns exist with complete text', () => {
   assert.deepEqual([...CHART_PATTERN_IDS].sort(), [...REQUIRED].sort());
   for (const id of REQUIRED) {
     const p = CHART_PATTERNS[id];
@@ -209,6 +210,26 @@ test('flags: steep pole, shallow counter-sloped flag, pole projected from the br
   }
 });
 
+test('pennants: steep pole, short converging consolidation, pole projected from the breakout', () => {
+  for (const [id, s] of [['bull-pennant', 1], ['bear-pennant', -1]]) {
+    for (const seed of SEEDS) {
+      const sc = chartScenario(id, { seed });
+      const [ps] = kp(sc, 'Flagpole start');
+      const [pt] = kp(sc, s > 0 ? 'Flagpole top' : 'Flagpole bottom');
+      assert.ok(ps && pt);
+      const pole = (pt.price - ps.price) * s;
+      assert.ok(pole > 0);
+      assert.ok(Math.abs(sc.height - pole) < 1e-9);
+      const { upper, lower } = sc.boundaries;
+      const w0 = Math.abs(upper.y1 - lower.y1);
+      const w1 = Math.abs(upper.y2 - lower.y2);
+      assert.ok(w1 < w0 * 0.85, `${id} seed ${seed}: pennant should converge (${w1} vs ${w0})`);
+      const flagDepth = Math.max(...sc.keyPoints.filter((k) => k.label === 'Pennant').map((k) => (pt.price - k.price) * s));
+      assert.ok(flagDepth < pole * 0.5, `${id} seed ${seed}: pennant retraces less than half the pole`);
+    }
+  }
+});
+
 test('cup and handle / rounding bottom: rounded base, rim neckline', () => {
   for (const seed of SEEDS) {
     const sc = chartScenario('cup-and-handle', { seed });
@@ -231,6 +252,11 @@ test('cup and handle / rounding bottom: rounded base, rim neckline', () => {
     const [b2] = kp(rb, 'Bottom');
     assert.ok(lip && b2 && b2.price < lip.price * 0.92);
     assert.equal(rb.neckline.y1, lip.price);
+    const rt = chartScenario('rounding-top', { seed });
+    const [rtLip] = kp(rt, 'Left lip');
+    const [top] = kp(rt, 'Top');
+    assert.ok(rtLip && top && top.price > rtLip.price * 1.08);
+    assert.equal(rt.neckline.y1, rtLip.price);
   }
 });
 
