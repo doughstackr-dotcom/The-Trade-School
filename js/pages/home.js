@@ -753,7 +753,7 @@ function showWelcome(store) {
   const body = h('div', { class: 'welcome-modal' },
     h('p', null, 'Short visual lessons and games teach chart reading — then you can test your eye on textbook or real-market charts.'),
     h('ol', { class: 'welcome-modal__steps' },
-      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner track; Markets, orders & the spread is later (Daily Challenge stays free).'),
+      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner track; Markets, orders & the spread comes late, then Put it together (Daily Challenge stays free).'),
       h('li', null, h('strong', null, 'Play styles:'), ' Practice, Arcade, or Survival on every game.'),
       h('li', null, h('strong', null, 'Dashboard:'), ' See the full map anytime under Dashboard.')),
     h('p', { class: 'faint' }, 'Educational only — not financial advice. You can skip this tour.'),

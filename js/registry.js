@@ -30,8 +30,8 @@ export const UNITS = [
   { id: 'u-trendlines', tier: 'beginner', title: 'Trend lines & channels', lesson: 'trendlines', games: ['trendline-challenge'] },
   { id: 'u-moving-averages', tier: 'beginner', title: 'Moving averages', lesson: 'moving-averages', games: ['cross-catcher'] },
   { id: 'u-volume', tier: 'beginner', title: 'Volume', lesson: 'volume', games: ['volume-verdict'] },
-  { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
   { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
+  { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
 
   { id: 'u-chart-patterns', tier: 'advanced', title: 'Reversal & continuation chart patterns', lesson: 'chart-patterns', games: ['pattern-detective'] },
   { id: 'u-fibonacci', tier: 'advanced', title: 'Fibonacci retracements & extensions', lesson: 'fibonacci', games: ['fib-sniper'] },
@@ -44,13 +44,6 @@ export const UNITS = [
 ];
 
 export const LESSONS = [
-  {
-    id: 'markets-orders', type: 'lesson', tier: 'beginner', minutes: 10,
-    title: 'Markets, orders and the spread',
-    blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
-    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
-    path: './lessons/markets-orders.js',
-  },
   {
     id: 'candle-anatomy', type: 'lesson', tier: 'beginner', minutes: 8,
     title: 'Anatomy of a candlestick',
@@ -106,6 +99,13 @@ export const LESSONS = [
     blurb: 'Volume shows how much conviction sits behind a move. Read volume spikes, dry-ups and climaxes, and learn why breakouts on thin volume so often fail.',
     topics: ['Reading volume bars', 'Confirmation', 'Climax & exhaustion', 'Breakout volume'],
     path: './lessons/volume.js',
+  },
+  {
+    id: 'markets-orders', type: 'lesson', tier: 'beginner', minutes: 10,
+    title: 'Markets, orders and the spread',
+    blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
+    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
+    path: './lessons/markets-orders.js',
   },
   {
     id: 'chart-patterns', type: 'lesson', tier: 'advanced', minutes: 16,

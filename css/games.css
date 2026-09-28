@@ -212,3 +212,35 @@
 .games-hub__disclaimer {
   margin-top: var(--space-6, 1.5rem);
 }
+
+/* Daily Challenge only: right-side intro chart fills the preview column (no empty white box beside it). */
+.game[data-game="daily-challenge"] .game-intro__preview-art {
+  width: 100%;
+}
+.game[data-game="daily-challenge"] .game-preview {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+.game[data-game="daily-challenge"] .game-preview__chart {
+  width: 100%;
+}
+.game[data-game="daily-challenge"] .game-preview-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Daily Challenge play stage: chart SVG stretches across the full .daily-chart panel. */
+.game[data-game="daily-challenge"] .daily-chart {
+  width: 100%;
+  display: block;
+}
+.game[data-game="daily-challenge"] .daily-chart .tc-mini,
+.game[data-game="daily-challenge"] .daily-chart .tc-candle-svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin-inline: 0;
+  display: block;
+}

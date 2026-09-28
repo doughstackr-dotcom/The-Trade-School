@@ -1540,8 +1540,8 @@ Curriculum (registry `UNITS`, recommended order; ids fixed):
 | `u-candle-patterns` Candlestick patterns | `candle-patterns` | `pattern-flash` |
 | `u-trends` · `u-support-resistance` · `u-trendlines` · `u-moving-averages` | as §4 | as §4 |
 | `u-volume` Volume | `volume` | `volume-verdict` (swipe) |
-| `u-beginner-capstone` Put it together | — | `what-next`, `setup-swipe` (swipe, tier both), `daily-challenge` (quiz, tier both, daily) |
 | `u-markets-orders` Markets, orders & the spread | `markets-orders` | `order-desk` (simulation) |
+| `u-beginner-capstone` Put it together | — | `what-next`, `setup-swipe` (swipe, tier both), `daily-challenge` (quiz, tier both, daily) |
 
 | Advanced unit | lesson | game(s) |
 |---|---|---|

@@ -27,7 +27,7 @@ test('registry: every unit item exists, every lesson/game sits in a unit, kinds/
 test('registry: curriculum order and the new entries', () => {
   assert.deepEqual(reg.unitsOf('beginner').map((u) => u.id), [
     'u-candle-anatomy', 'u-chart-basics', 'u-candle-patterns', 'u-trends', 'u-support-resistance',
-    'u-trendlines', 'u-moving-averages', 'u-volume', 'u-beginner-capstone', 'u-markets-orders',
+    'u-trendlines', 'u-moving-averages', 'u-volume', 'u-markets-orders', 'u-beginner-capstone',
   ]);
   assert.deepEqual(reg.unitsOf('advanced').map((u) => u.id), [
     'u-chart-patterns', 'u-fibonacci', 'u-indicators', 'u-multi-timeframe', 'u-breakouts', 'u-confluence-risk',
@@ -41,8 +41,8 @@ test('registry: curriculum order and the new entries', () => {
   assert.deepEqual(reg.tiersOf('live-predict'), ['advanced']);
   // A 'both' game that only sits in the Advanced capstone continues within Advanced.
   assert.equal(reg.nextItem('live-predict'), null);
-  assert.equal(reg.nextItem('daily-challenge').id, 'markets-orders');
-  assert.equal(reg.nextItem('order-desk').id, 'chart-patterns');
+  assert.equal(reg.nextItem('daily-challenge').id, 'chart-patterns');
+  assert.equal(reg.nextItem('order-desk').id, 'what-next');
   assert.equal(reg.findPage('playbook').hash, 'playbook');
   assert.equal(reg.findPage('games').hash, 'games');
   assert.equal(reg.findEntry('_kit-demo').dev, true);

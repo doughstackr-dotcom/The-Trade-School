@@ -16,10 +16,11 @@ export function candlePreview(el, { seed = 42, count = 28, direction = 'up', hei
 export function gameplayPreview(el, {
   seed = 42, direction = 'up', count = 36, title = 'Arcade',
   score = 420, streak = 3, round = '2/8',
+  width = 280, height = 128,
 } = {}) {
   if (!el) return () => {};
   const ts = trendSeries({ seed, count, direction, swings: 3, start: 100 });
-  const chart = miniChart(ts.candles, { width: 280, height: 128, yPad: 0.1, showAxis: true, ariaLabel: `${title} gameplay preview` });
+  const chart = miniChart(ts.candles, { width, height, yPad: 0.1, showAxis: true, ariaLabel: `${title} gameplay preview` });
   chart.classList.add('game-preview-chart');
   const frame = h('div', { class: 'game-preview', 'aria-hidden': 'true' },
     h('div', { class: 'game-preview__hud' },

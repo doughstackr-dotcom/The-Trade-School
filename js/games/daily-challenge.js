@@ -23,7 +23,7 @@ const BANK = [
 ];
 const CORRECT = BANK.map(() => 0);
 
-const CHART_W = 440;
+const CHART_W = 720;
 const CHART_H = 220;
 
 /** Next unused question closest to the target difficulty; reuses the deck once it runs out. */
@@ -220,7 +220,7 @@ export default {
     const used = new Set();
     let current = 0;
     const game = new GameShell(root, ctx, {
-      preview: (el) => gameplayPreview(el, { seed: 99, direction: 'up', title: 'Daily Challenge', score: 880, streak: 7, round: '1/1' }),
+      preview: (el) => gameplayPreview(el, { seed: 99, direction: 'up', title: 'Daily Challenge', score: 880, streak: 7, round: '1/1', width: 520, height: 200 }),
       rounds: 5,
       timer: { seconds: 25, perRound: true },
       howTo: ["Five questions, the same for everyone today.", "Answer fast: streaks multiply your score.", "Come back tomorrow to keep your streak alive."],
