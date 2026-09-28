@@ -8,10 +8,10 @@ import { trendSeries } from '../core/data.js';
 import { sma, rsi } from '../core/indicators.js';
 import { chartScenario, candleScenario, CANDLE_PATTERNS, CHART_PATTERNS } from '../core/patterns.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
-import { QUESTIONS as ORDER_QUESTIONS } from './order-desk.js';
-import { QUESTIONS as TILT_QUESTIONS } from './tilt-control.js';
-import { CARDS as SETUP_CARDS } from './setup-swipe.js';
-import { candleWhy, lookalikesOf } from './pattern-flash.js';
+import { QUESTIONS as ORDER_QUESTIONS } from './banks/order-desk-questions.js';
+import { QUESTIONS as TILT_QUESTIONS } from './banks/tilt-control-questions.js';
+import { CARDS as SETUP_CARDS } from './banks/setup-swipe-cards.js';
+import { candleWhy, lookalikesOf } from './banks/candle-lookalikes.js';
 
 export const DAILY_COUNT = 5;
 export const MAX_REVIEWS = 2;
