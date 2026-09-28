@@ -1,6 +1,7 @@
 // Account: session status, plan, subscribe / manage billing, sign in & out.
-// Supports #account.signup (emphasize create-account) and return-after-login via
-// access.rememberReturn / consumeReturn (set by the router gate for Beginner/Advanced).
+// Default signed-out view is Sign in; Create account swaps in via toggle or
+// #account.signup (auth-gate deep-link). Return-after-login via
+// access.rememberReturn / consumeReturn.
 import { h, icon, toast } from '../core/ui.js';
 import { PLANS, FREE_IDS } from '../config.js';
 import * as access from '../core/access.js';
@@ -21,6 +22,10 @@ function goAfterAuth(ctx) {
   return false;
 }
 
+function kids(...nodes) {
+  return nodes.filter((n) => n != null && n !== false);
+}
+
 export default {
   mount(root, ctx) {
     const body = h('div', { class: 'account-body' });
@@ -28,18 +33,32 @@ export default {
     const msg = h('p', { class: 'muted account__msg', role: 'status' }, '');
     const mode = (ctx.param || ctx.route?.param || '').toLowerCase(); // 'signup' | 'signin' | ''
     const preferSignup = mode === 'signup' || mode === 'sign-up';
+    // Local view so toggle can swap without a full remount; URL stays in sync.
+    let view = preferSignup ? 'signup' : 'signin';
 
-    function renderSignedOut() {
-      const pending = access.peekReturn();
-      const returnNote = pending
-        ? h('p', { class: 'account__return muted' },
-          'After you sign in we will take you back to ',
-          h('code', { class: 'mono' }, `#${pending}`),
-          '.')
-        : null;
+    function syncHash() {
+      const target = view === 'signup' ? 'account.signup' : 'account';
+      const want = `#${target}`;
+      if (location.hash === want) return;
+      try {
+        // replaceState avoids hashchange remount while keeping deep-links shareable.
+        history.replaceState(null, '', want);
+      } catch {
+        /* ignore */
+      }
+    }
 
-      const signInForm = h('form', {
-        class: ['card', 'account-card', !preferSignup && 'account-card--focus'],
+    function setView(next) {
+      if (next !== 'signin' && next !== 'signup') return;
+      view = next;
+      syncHash();
+      paint();
+    }
+
+    function renderSignInForm() {
+      return h('form', {
+        class: 'card account-card account-card--auth',
+        id: 'account-signin',
         on: {
           submit: async (e) => {
             e.preventDefault();
@@ -59,25 +78,52 @@ export default {
           },
         },
       },
-        h('h2', null, 'Sign in'),
-        h('label', { class: 'field' }, h('span', null, 'Email'),
-          h('input', { type: 'email', name: 'email', required: true, class: 'input', autocomplete: 'email', 'aria-label': 'Email' })),
-        h('label', { class: 'field' }, h('span', null, 'Password'),
-          h('input', { type: 'password', name: 'password', required: true, class: 'input', autocomplete: 'current-password', 'aria-label': 'Password', minlength: '6' })),
-        h('button', { type: 'submit', class: 'btn btn--primary' }, 'Sign in'),
+        h('h2', { class: 'account-card__title' }, 'Sign in'),
+        h('p', { class: 'muted account-card__hint' },
+          'Use your email and password to open Beginner and Advanced lessons.'),
+        h('label', { class: 'field' },
+          h('span', null, 'Email'),
+          h('input', {
+            type: 'email', name: 'email', required: true, class: 'input',
+            autocomplete: 'email', 'aria-label': 'Email',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Password'),
+          h('input', {
+            type: 'password', name: 'password', required: true, class: 'input',
+            autocomplete: 'current-password', 'aria-label': 'Password', minlength: '6',
+          })),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Sign in'),
+        h('p', { class: 'account__switch' },
+          h('span', { class: 'muted' }, 'New here?'),
+          ' ',
+          h('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm account__switch-btn',
+            on: { click: () => setView('signup') },
+          }, 'Create account')),
       );
+    }
 
-      const signUpForm = h('form', {
-        class: ['card', 'account-card', preferSignup && 'account-card--focus'],
-        id: preferSignup ? 'account-signup' : undefined,
+    function renderSignUpForm() {
+      return h('form', {
+        class: 'card account-card account-card--auth',
+        id: 'account-signup',
         on: {
           submit: async (e) => {
             e.preventDefault();
             const fd = new FormData(e.target);
+            const password = String(fd.get('password') || '');
+            const confirm = String(fd.get('confirm') || '');
+            if (password !== confirm) {
+              msg.textContent = 'Passwords do not match';
+              toast('Passwords do not match', { type: 'warn' });
+              return;
+            }
             msg.textContent = 'Creating account…';
             const res = await access.signUp({
               email: String(fd.get('email') || '').trim(),
-              password: String(fd.get('password') || ''),
+              password,
               displayName: String(fd.get('displayName') || '').trim() || undefined,
             });
             if (!res.ok) {
@@ -88,6 +134,7 @@ export default {
             if (res.needsConfirmation) {
               msg.textContent = 'Check your email to confirm, then sign in.';
               toast('Confirm your email to finish sign-up', { type: 'info', duration: 6000 });
+              setView('signin');
             } else {
               toast('Account created', { type: 'info' });
               if (!goAfterAuth(ctx)) paint();
@@ -95,35 +142,74 @@ export default {
           },
         },
       },
-        h('h2', null, 'Create account'),
-        h('label', { class: 'field' }, h('span', null, 'Display name'),
-          h('input', { type: 'text', name: 'displayName', class: 'input', autocomplete: 'nickname', 'aria-label': 'Display name' })),
-        h('label', { class: 'field' }, h('span', null, 'Email'),
-          h('input', { type: 'email', name: 'email', required: true, class: 'input', autocomplete: 'email', 'aria-label': 'Email' })),
-        h('label', { class: 'field' }, h('span', null, 'Password'),
-          h('input', { type: 'password', name: 'password', required: true, class: 'input', autocomplete: 'new-password', 'aria-label': 'Password', minlength: '6' })),
-        h('button', { type: 'submit', class: preferSignup ? 'btn btn--primary' : 'btn btn--ghost' }, 'Create account'),
+        h('h2', { class: 'account-card__title' }, 'Create account'),
+        h('p', { class: 'muted account-card__hint' },
+          'Free account — no card required. Beginner and Advanced tracks unlock after you sign in.'),
+        h('label', { class: 'field' },
+          h('span', null, 'Display name'),
+          h('input', {
+            type: 'text', name: 'displayName', class: 'input',
+            autocomplete: 'nickname', 'aria-label': 'Display name',
+            placeholder: 'Optional',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Email'),
+          h('input', {
+            type: 'email', name: 'email', required: true, class: 'input',
+            autocomplete: 'email', 'aria-label': 'Email',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Password'),
+          h('input', {
+            type: 'password', name: 'password', required: true, class: 'input',
+            autocomplete: 'new-password', 'aria-label': 'Password', minlength: '6',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Confirm password'),
+          h('input', {
+            type: 'password', name: 'confirm', required: true, class: 'input',
+            autocomplete: 'new-password', 'aria-label': 'Confirm password', minlength: '6',
+          })),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Create account'),
+        h('p', { class: 'account__switch' },
+          h('span', { class: 'muted' }, 'Already have an account?'),
+          ' ',
+          h('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm account__switch-btn',
+            on: { click: () => setView('signin') },
+          }, 'Sign in')),
       );
+    }
 
-      // Sign-up mode (from gated Beginner/Advanced): put Create account first.
-      const forms = preferSignup ? [signUpForm, signInForm] : [signInForm, signUpForm];
+    function renderSignedOut() {
+      const pending = access.peekReturn();
+      const returnNote = pending
+        ? h('p', { class: 'account__return muted' },
+          'After you sign in we will take you back to ',
+          h('code', { class: 'mono' }, `#${pending}`),
+          '.')
+        : null;
 
-      formWrap.replaceChildren(
+      const gateNote = view === 'signup'
+        ? h('p', { class: 'lead account__gate-note' },
+          'Create a free account to open the Beginner and Advanced tracks. Home, Dashboard and the other tools stay open without signing in.')
+        : null;
+
+      formWrap.replaceChildren(...kids(
         returnNote,
-        preferSignup
-          ? h('p', { class: 'lead account__gate-note' },
-            'Create a free account to open the Beginner and Advanced tracks. Sign-in is below if you already have one.')
-          : null,
-        h('div', { class: 'account-grid' }, ...forms),
+        gateNote,
+        h('div', { class: 'account-auth' },
+          view === 'signup' ? renderSignUpForm() : renderSignInForm()),
         msg,
-        h('p', { class: 'faint' }, 'If subscribe buttons say “Subscriptions not open yet”, Stripe secrets are not configured — see docs/SECRETS.md.'),
-      );
+        h('p', { class: 'faint account__footnote' },
+          'If subscribe buttons say “Subscriptions not open yet”, Stripe secrets are not configured — see docs/SECRETS.md.'),
+      ));
 
-      // Focus the preferred form's first email field.
       queueMicrotask(() => {
-        const sel = preferSignup
-          ? '#account-signup input[name="email"], .account-card--focus input[name="email"]'
-          : '.account-card--focus input[name="email"]';
+        const sel = view === 'signup'
+          ? '#account-signup input[name="email"]'
+          : '#account-signin input[name="email"]';
         formWrap.querySelector(sel)?.focus?.();
       });
     }
@@ -194,13 +280,16 @@ export default {
       const a = access.getAccess();
       // Already signed in with a pending return (e.g. session restored after gate redirect).
       if (a.user && goAfterAuth(ctx)) return;
+      const signupMode = !a.user && view === 'signup';
       body.replaceChildren(
-        h('p', { class: 'eyebrow' }, preferSignup && !a.user ? 'Join The Trade School' : 'Account'),
-        h('h1', null, preferSignup && !a.user ? 'Create your account' : 'Your account'),
+        h('p', { class: 'eyebrow' }, signupMode ? 'Join The Trade School' : 'Account'),
+        h('h1', null, signupMode ? 'Create your account' : a.user ? 'Your account' : 'Sign in'),
         h('p', { class: 'lead' },
-          preferSignup && !a.user
+          signupMode
             ? 'Beginner and Advanced lessons need a free account. Home, Dashboard and the other tools stay open without signing in. Educational use only — not financial advice.'
-            : 'Sign in with email and password to open Beginner and Advanced lessons and games. Plan status and billing live here too. Educational use only — not financial advice.'),
+            : a.user
+              ? 'Plan status and billing live here. Educational use only — not financial advice.'
+              : 'Sign in with email and password to open Beginner and Advanced lessons and games. Educational use only — not financial advice.'),
       );
       msg.textContent = '';
       if (a.user) renderSignedIn(a);
