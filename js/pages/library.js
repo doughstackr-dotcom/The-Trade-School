@@ -6,6 +6,8 @@ import {
   CANDLE_PATTERNS, CHART_PATTERNS, candleScenario, chartScenario,
 } from '../core/patterns.js';
 import { mountPatternPlayback } from '../core/pattern-playback.js';
+import { toolsTeaser } from '../core/teaser.js';
+import * as access from '../core/access.js';
 
 const BIAS_TONE = { bullish: 'bull', bearish: 'bear', neutral: 'outline' };
 
@@ -276,11 +278,26 @@ export default {
       );
     };
 
-    root.append(host);
+    const gate = toolsTeaser('Pattern Library');
     const param = ctx.param || ctx.route?.param;
-    if (param && (CANDLE_PATTERNS[param] || CHART_PATTERNS[param])) showDetail(param);
-    else renderList();
+    const wantDetail = !!(param && (CANDLE_PATTERNS[param] || CHART_PATTERNS[param]));
 
-    return () => { clearDetail(); };
+    if (gate.locked) {
+      // Teaser: list always visible; detail deep-links stay on the locked list preview.
+      access.rememberReturn(wantDetail ? `library.${param}` : 'library');
+      root.append(gate.banner, gate.wrap(host));
+      renderList();
+    } else {
+      root.append(host);
+      if (wantDetail) showDetail(param);
+      else renderList();
+    }
+
+    const unsub = access.onChange(() => {
+      const nowLocked = access.isEnforcing() && !access.hasPaidAccess();
+      if (nowLocked === gate.locked) return;
+      try { ctx.navigate(ctx.route?.key || 'library'); } catch { /* ignore */ }
+    });
+    return () => { clearDetail(); unsub?.(); };
   },
 };

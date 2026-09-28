@@ -7093,3 +7093,92 @@ figcaption {
 @media (prefers-reduced-motion: reduce) {
   .pps__step-bar > span { transition: none; }
 }
+
+
+/* ------------------------------------------------------------------ Access teasers + Dashboard hub */
+.teaser-banner {
+  margin: var(--space-5) auto var(--space-4);
+  max-width: var(--container, 1120px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.teaser-banner__title { margin: 0.15rem 0 0.35rem; font-size: 1.25rem; }
+.teaser-banner__actions { flex-wrap: wrap; }
+
+.teaser-lock {
+  position: relative;
+  margin-bottom: var(--space-8);
+}
+.teaser-lock__body {
+  filter: blur(2.5px);
+  opacity: 0.72;
+  pointer-events: none;
+  user-select: none;
+  max-height: min(70vh, 920px);
+  overflow: hidden;
+}
+.teaser-lock__veil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--bg) 15%, transparent) 0%,
+    color-mix(in oklab, var(--bg) 55%, transparent) 45%,
+    color-mix(in oklab, var(--bg) 88%, transparent) 100%
+  );
+}
+.teaser-lock__panel {
+  max-width: 22rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  box-shadow: var(--shadow-2, 0 12px 40px color-mix(in oklab, #000 18%, transparent));
+}
+.teaser-lock__icon {
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.unit-row.is-locked {
+  opacity: 0.92;
+  background: color-mix(in oklab, var(--surface-2) 80%, var(--accent-soft));
+}
+.unit-row.is-locked .unit-row__title { color: var(--text); }
+.unit-row__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.dash-account { margin-bottom: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3); }
+.dash-account__highlights {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+.dash-account__stat {
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.dash-account__actions { flex-wrap: wrap; margin-top: 0.25rem; }
+.dash-curriculum-section { padding-inline: 0; }
+.dashboard-hub .tracks__grid { margin-top: var(--space-4); }

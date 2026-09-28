@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PUBLIC_PAGES,
+  TEASER_PAGES,
   isCurriculumGated,
   requiredPlan,
   rememberReturn,
   consumeReturn,
   peekReturn,
   canOpen,
+  hasPaidAccess,
 } from '../../js/core/access.js';
 
 function memStorage() {
@@ -29,6 +31,20 @@ test('PUBLIC_PAGES keeps home, dashboard, tools and platforms open', () => {
   assert.equal(PUBLIC_PAGES.includes('beginner'), false);
   assert.equal(PUBLIC_PAGES.includes('advanced'), false);
   assert.equal(PUBLIC_PAGES.includes('track'), false);
+});
+
+test('TEASER_PAGES are routable tools that self-gate; Platforms is not teaser-locked', () => {
+  for (const p of ['library', 'glossary', 'playbook']) {
+    assert.ok(TEASER_PAGES.includes(p), `expected ${p} in TEASER_PAGES`);
+    assert.ok(PUBLIC_PAGES.includes(p), `${p} stays publicly routable for teasers`);
+  }
+  assert.equal(TEASER_PAGES.includes('platforms'), false);
+  assert.ok(PUBLIC_PAGES.includes('platforms'));
+});
+
+test('hasPaidAccess is false when unsigned under enforcement', () => {
+  // ACCESS_MODE auto without localhost → enforcing in node test env; no session → no paid access.
+  assert.equal(hasPaidAccess(), false);
 });
 
 test('isCurriculumGated: only Beginner/Advanced tracks and their modules', () => {

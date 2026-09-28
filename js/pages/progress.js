@@ -1,13 +1,22 @@
-// Dashboard (#dashboard, aliased as #progress): Progress visual shell with curriculum map,
-// overall/unit bars, level, stats, badges, games, lessons, feature CTAs, and account links.
+// Dashboard hub (#dashboard, aliased as #progress; #beginner / #advanced scroll here):
+// 1) Account overview  2) Beginner + Advanced curriculum (shared with Home)  3) Progress extras.
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
 import {
-  TIERS, LESSONS, GAMES, BADGES, STYLES, UNITS, unitsOf, stylesOf, hashFor, findEntry,
+  LESSONS, GAMES, BADGES, STYLES, UNITS, stylesOf, hashFor, findEntry,
 } from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
+import { curriculumTracks } from '../core/curriculum.js';
+import * as access from '../core/access.js';
+import { PLANS, FREE_IDS } from '../config.js';
 
-/** One unit's completion from store: lesson done + games with ≥1 star (matches tierProgress). */
+function levelLabel(level) {
+  if (level === 'advanced') return 'Advanced';
+  if (level === 'beginner') return 'Beginner';
+  if (level === 'free') return 'Free';
+  return 'Guest';
+}
+
 function unitCompletion(store, unit) {
   const parts = [];
   if (unit.lesson) parts.push({ type: 'lesson', id: unit.lesson });
@@ -33,173 +42,85 @@ function courseCompletion(store) {
   return { done, total: total || 1, pct: total ? done / total : 0 };
 }
 
-function courseOverview(store) {
+function accountOverview(store, snap) {
   const overall = courseCompletion(store);
+  const lv = store.level();
   const beginner = store.tierProgress('beginner');
   const advanced = store.tierProgress('advanced');
-  return h('section', { class: 'card card--raised progress-overview', 'aria-labelledby': 'course-h' },
-    h('p', { class: 'eyebrow' }, 'Course completion'),
-    h('h2', { id: 'course-h' }, 'How far you have come'),
-    h('div', { class: 'progress-overview__overall' },
-      h('div', { class: 'row row--between' },
-        h('span', { class: 'progress-overview__label' }, 'Overall'),
-        h('span', { class: 'mono' }, `${Math.round(overall.pct * 100)}%`,
-          h('span', { class: 'faint' }, ` · ${overall.done}/${overall.total} items`))),
-      meter(overall.pct, { size: 'lg', label: 'Overall course completion' })),
-    h('div', { class: 'progress-overview__tiers' },
-      [['Beginner', beginner], ['Advanced', advanced]].map(([label, tp]) =>
-        h('div', { class: 'progress-tier' },
-          h('div', { class: 'row row--between' },
-            h('span', null, label),
-            h('span', { class: 'mono faint' }, `${Math.round((tp.pct || 0) * 100)}%`)),
-          meter(tp.pct || 0, { size: 'sm', label: `${label} track completion` }),
-          h('p', { class: 'faint' }, `${tp.lessonsDone || 0}/${tp.lessonsTotal || 0} lessons · ${tp.done || 0}/${tp.total || 0} path items`)))),
-  );
-}
+  const signedIn = !!snap.user;
+  const level = snap.level;
+  const enforcing = snap.enforcing;
+  const plan = level && PLANS[level];
 
-function quickActions() {
-  return h('div', { class: 'row progress-actions' },
-    h('a', { class: 'btn btn--primary', href: '#beginner' }, 'Start free unit', icon('arrow-right', { size: 16 })),
-    h('a', { class: 'btn btn--ghost', href: '#account' }, 'Account'),
-    h('a', { class: 'btn btn--ghost', href: '#g.daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
-  );
-}
+  let statusLine;
+  if (!enforcing) {
+    statusLine = 'Local preview — access checks are open on this host.';
+  } else if (!signedIn) {
+    statusLine = 'Browsing as a guest. Curriculum cards below are visible; open any locked lesson to see the paywall teaser.';
+  } else if (level === 'advanced') {
+    statusLine = 'Advanced plan active — full curriculum, Library, Playbook and Glossary unlocked.';
+  } else if (level === 'beginner') {
+    statusLine = 'Beginner plan active — Beginner track unlocked. Upgrade for Advanced plus full tools.';
+  } else {
+    statusLine = 'Signed in on the free tier. Free unit modules stay open after sign-in; subscribe for the full tracks and tools.';
+  }
 
-function unitBars(store) {
-  return h('div', { class: 'unit-progress' },
-    TIERS.map((t) => {
-      const units = unitsOf(t.id);
-      return h('section', { class: 'card unit-progress__tier', 'aria-labelledby': `up-${t.id}` },
-        h('div', { class: 'row row--between checklist__head' },
-          h('h3', { id: `up-${t.id}`, class: 't-18' }, t.title, ' units'),
-          tierChip(t.id, { small: true })),
-        h('ul', { class: 'unit-progress__list' },
-          units.map((u) => {
-            const c = unitCompletion(store, u);
-            const href = u.lesson ? `#${hashFor(u.lesson)}` : (u.games?.[0] ? `#${hashFor(u.games[0])}` : `#${t.id}`);
-            return h('li', { class: ['unit-progress__item', c.pct >= 1 && 'is-done'] },
-              h('a', { class: 'unit-progress__link', href },
-                h('div', { class: 'row row--between' },
-                  h('span', { class: 'unit-progress__title' }, u.title),
-                  h('span', { class: 'mono faint' }, `${Math.round(c.pct * 100)}%`)),
-                meter(c.pct, { size: 'sm', tone: c.pct >= 1 ? 'bull' : '', label: `${u.title} completion` }),
-                h('span', { class: 'faint unit-progress__meta' }, `${c.done}/${c.total} complete`)));
-          })));
-    }));
-}
-
-function topicChips(topics) {
-  if (!topics?.length) return null;
-  return h('ul', { class: 'dash-chips', 'aria-label': 'Topics' },
-    topics.slice(0, 5).map((t) => h('li', { class: 'chip chip--sm chip--outline' }, t)));
-}
-
-function unitBlock(unit, store) {
-  const lesson = unit.lesson ? findEntry(unit.lesson) : null;
-  const games = (unit.games || []).map((id) => findEntry(id)).filter(Boolean);
-  const done = lesson && store.isLessonDone(lesson.id);
-  return h('article', { class: ['dash-unit', 'card', done && 'is-done'] },
-    h('header', { class: 'dash-unit__head' },
-      h('h3', { class: 'dash-unit__title' }, unit.title),
-      done ? h('span', { class: 'chip chip--bull chip--sm' }, icon('check', { size: 12 }), ' Done') : null),
-    lesson ? h('a', {
-      class: 'dash-item',
-      href: `#${hashFor(lesson.id)}`,
-      'aria-label': `${lesson.title}, ${lesson.minutes} minutes${done ? ', completed' : ''}`,
-    },
-      h('span', { class: 'dash-item__kind faint' }, 'Lesson'),
-      h('span', { class: 'dash-item__title' }, lesson.title),
-      h('span', { class: 'dash-item__meta mono faint' }, `${lesson.minutes} min`),
-      topicChips(lesson.topics),
-    ) : null,
-    games.length ? h('ul', { class: 'dash-unit__games' },
-      games.map((g) => {
-        const st = store.gameStats(g.id);
-        return h('li', null,
-          h('a', {
-            class: 'dash-item dash-item--game',
-            href: `#${hashFor(g.id)}`,
-            'aria-label': `${g.title}${st?.plays ? `, best ${st.best}` : ''}`,
-          },
-            h('span', { class: 'dash-item__kind faint' }, 'Game'),
-            h('span', { class: 'dash-item__title' }, g.title),
-            st?.plays
-              ? h('span', { class: 'dash-item__score' }, starRow(st.stars || 0, { size: 12 }), h('span', { class: 'mono faint' }, fmt(st.best)))
-              : h('span', { class: 'chip chip--sm chip--outline' }, 'Play'),
-            g.skills?.length ? topicChips(g.skills) : null,
-          ));
-      })) : null,
-  );
-}
-
-function curriculumMap(store) {
-  return h('div', { class: 'dash-curriculum' },
-    TIERS.map((tier) => {
-      const units = unitsOf(tier.id);
-      return h('section', { class: 'dash-tier', 'aria-labelledby': `dash-tier-${tier.id}` },
-        h('header', { class: 'dash-tier__head' },
-          h('h3', { id: `dash-tier-${tier.id}`, class: 't-18' }, tierChip(tier.id), ' ', tier.title),
-          h('p', { class: 'muted' }, tier.blurb || tier.subtitle),
-          h('a', { class: 'link-btn', href: `#${tier.id}` }, `Open ${tier.title} track`, icon('arrow-right', { size: 14 }))),
-        h('div', { class: 'dash-units' }, units.map((u) => unitBlock(u, store))),
-      );
-    }));
-}
-
-function features() {
-  const items = [
-    { href: '#g.what-next', icon: 'gamepad', title: 'Practice · Arcade · Survival', blurb: 'Every game lets you pick a play style: learn, chase stars, or survive rising difficulty.' },
-    { href: '#g.volume-verdict', icon: 'chart', title: 'Textbook vs real market', blurb: 'Clean generated setups to learn the rules; real charts hide the ticker until you answer.' },
-    { href: '#playbook', icon: 'flag', title: 'Setup Playbook', blurb: 'Rule-based checklists with entry, stop and target for the patterns you study.' },
-    { href: '#live', icon: 'bolt', title: 'Live Market Lab', blurb: 'A live chart with indicator toggles and a plain-English read of structure.' },
-  ];
-  return h('section', { class: 'dash-features', 'aria-labelledby': 'dash-feat-h' },
-    h('div', { class: 'section-head' },
-      h('div', null, h('p', { class: 'eyebrow' }, 'Shortcuts'), h('h2', { id: 'dash-feat-h' }, 'Feature highlights'))),
-    h('ul', { class: 'dash-feature-grid' },
-      items.map((it) => h('li', null,
-        h('a', { class: 'dash-feature card', href: it.href },
-          h('span', { class: 'dash-feature__icon', 'aria-hidden': 'true' }, icon(it.icon, { size: 22 })),
-          h('strong', null, it.title),
-          h('p', { class: 'muted' }, it.blurb),
-          h('span', { class: 'dash-feature__go' }, 'Open', icon('arrow-right', { size: 14 })),
-        )))));
-}
-
-function ctaTracks() {
-  return h('section', { class: 'dash-cta card', 'aria-labelledby': 'dash-cta-h' },
-    h('h2', { id: 'dash-cta-h', class: 't-18' }, 'Pick a track'),
-    h('p', { class: 'muted' }, 'Free tier opens Markets & Orders plus Candlestick anatomy. Subscribe for the full Beginner or Advanced curriculum.'),
-    h('div', { class: 'dash-cta__row' },
-      TIERS.map((t) => h('a', { class: ['btn', t.id === 'beginner' ? 'btn--primary' : 'btn--ghost', 'btn--lg'], href: `#${t.id}` },
-        tierChip(t.id), ` ${t.title}: ${t.subtitle}`, icon('arrow-right'))),
+  return h('section', {
+    class: 'card card--raised dash-account',
+    'aria-labelledby': 'dash-account-h',
+    id: 'dash-account',
+  },
+    h('div', { class: 'dash-account__head row row--between' },
+      h('div', null,
+        h('p', { class: 'eyebrow' }, 'Account'),
+        h('h2', { id: 'dash-account-h' }, signedIn ? (snap.user.email || 'Member') : 'Welcome, guest')),
+      h('span', { class: ['chip', level === 'advanced' && 'chip--bull', level === 'beginner' && 'chip--accent'] },
+        levelLabel(level))),
+    h('p', { class: 'muted dash-account__status' }, statusLine),
+    h('div', { class: 'dash-account__highlights' },
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Course'),
+        h('span', { class: 'stat__value mono' }, `${Math.round(overall.pct * 100)}%`),
+        h('span', { class: 'faint' }, `${overall.done}/${overall.total} items`)),
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Level'),
+        h('span', { class: 'stat__value' }, lv.title),
+        h('span', { class: 'faint mono' }, `${fmt(lv.xp)} XP`)),
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Beginner'),
+        h('span', { class: 'stat__value mono' }, `${Math.round((beginner.pct || 0) * 100)}%`),
+        meter(beginner.pct || 0, { size: 'sm', label: 'Beginner completion' })),
+      h('div', { class: 'dash-account__stat' },
+        h('span', { class: 'stat__label' }, 'Advanced'),
+        h('span', { class: 'stat__value mono' }, `${Math.round((advanced.pct || 0) * 100)}%`),
+        meter(advanced.pct || 0, { size: 'sm', label: 'Advanced completion' })),
+    ),
+    h('div', { class: 'row dash-account__actions' },
+      signedIn
+        ? [
+          level !== 'advanced'
+            ? h('a', { class: 'btn btn--primary', href: '#paywall' },
+              icon('lock', { size: 16 }),
+              level === 'beginner' ? 'Upgrade to Advanced' : 'View plans')
+            : h('a', { class: 'btn btn--ghost', href: '#account' }, 'Manage account'),
+          h('a', { class: 'btn btn--ghost', href: '#account' }, 'Account'),
+        ]
+        : [
+          h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in / create account'),
+          h('a', { class: 'btn btn--ghost', href: '#paywall' }, 'See plans'),
+        ],
       h('a', { class: 'btn btn--ghost', href: '#g.daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
     ),
-  );
-}
-
-function gamesIndex(store) {
-  return h('section', { class: 'dash-games', 'aria-labelledby': 'dash-games-h' },
-    h('div', { class: 'section-head' },
-      h('div', null, h('p', { class: 'eyebrow' }, 'Every game'), h('h2', { id: 'dash-games-h' }, 'Games map'))),
-    h('ul', { class: 'dash-game-grid' },
-      GAMES.map((g) => {
-        const st = store.gameStats(g.id);
-        return h('li', null,
-          h('a', { class: 'dash-game card', href: `#${hashFor(g.id)}`, 'aria-label': g.title },
-            h('div', { class: 'dash-game__top' },
-              tierChip(g.tier, { small: true }),
-              h('span', { class: 'chip chip--sm chip--outline' }, g.kind || 'game')),
-            h('strong', null, g.title),
-            h('p', { class: 'muted dash-game__blurb' }, g.blurb),
-            topicChips(g.skills),
-            h('div', { class: 'dash-game__foot' },
-              st?.plays
-                ? [starRow(st.stars || 0, { size: 14 }), h('span', { class: 'mono faint' }, `Best ${fmt(st.best)}`)]
-                : h('span', { class: 'faint' }, `${g.minutes} min · not played yet`),
-            ),
-          ));
-      })),
+    signedIn && level === 'free'
+      ? h('p', { class: 'faint dash-account__free' },
+        'Free after sign-in: ',
+        FREE_IDS.map((id, i) => {
+          const e = findEntry(id);
+          if (!e) return null;
+          return [i ? ', ' : '', h('a', { href: `#${hashFor(id)}` }, e.title)];
+        }))
+      : null,
+    plan ? h('p', { class: 'faint' }, `${plan.name} · $${plan.price}/mo`) : null,
   );
 }
 
@@ -299,25 +220,6 @@ function gamesTable(store) {
       h('tbody', null, rows)));
 }
 
-function lessonChecklist(store) {
-  return h('div', { class: 'checklists' },
-    TIERS.map((t) => {
-      const lessons = unitsOf(t.id).filter((u) => u.lesson).map((u) => LESSONS.find((l) => l.id === u.lesson)).filter(Boolean);
-      return h('div', { class: 'checklist card' },
-        h('div', { class: 'row row--between checklist__head' }, h('h3', { class: 't-18' }, t.title), tierChip(t.id, { small: true })),
-        h('ul', { class: 'checklist__list' },
-          lessons.map((l) => {
-            const done = store.isLessonDone(l.id);
-            return h('li', null,
-              h('a', { class: ['checklist__item', done && 'is-done'], href: `#l.${l.id}` },
-                h('span', { class: 'checklist__box', 'aria-hidden': 'true' }, done ? icon('check', { size: 14 }) : null),
-                h('span', { class: 'checklist__title' }, l.title),
-                h('span', { class: 'visually-hidden' }, done ? '(done)' : '(not done)'),
-                h('span', { class: 'faint mono checklist__min' }, `${l.minutes} min`)));
-          })));
-    }));
-}
-
 function resetZone(store, rerender) {
   const confirmBox = h('div', { class: 'reset__confirm', hidden: true, role: 'alertdialog', 'aria-labelledby': 'reset-q', 'aria-describedby': 'reset-d' });
   const openBtn = h('button', { type: 'button', class: 'btn', 'data-action': 'reset', on: { click: () => {
@@ -347,6 +249,18 @@ function resetZone(store, rerender) {
     confirmBox);
 }
 
+function scrollToSection(section) {
+  if (!section) return;
+  const id = section === 'beginner' || section === 'advanced' ? `dash-${section}` : section;
+  const el = document.getElementById(id);
+  if (!el) return;
+  try {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    el.scrollIntoView();
+  }
+}
+
 export default {
   id: 'dashboard',
   mount(root, ctx) {
@@ -356,23 +270,27 @@ export default {
     } catch { /* badge may not exist yet */ }
 
     const render = () => {
+      const snap = access.getAccess();
       root.replaceChildren(
-        h('div', { class: 'container progress-page' },
+        h('div', { class: 'container progress-page dashboard-hub' },
           h('header', { class: 'page-head' },
             h('p', { class: 'eyebrow eyebrow--accent' }, 'Dashboard'),
-            h('h1', null, 'Progress & curriculum'),
-            h('p', { class: 'lead' }, 'Overall completion, per-unit bars, the full curriculum map, badges, and everything you have earned. Progress is stored on this device.')),
-          quickActions(),
-          courseOverview(store),
-          h('section', { class: 'section section--tight', 'aria-labelledby': 'units-h' },
+            h('h1', null, 'Your school hub'),
+            h('p', { class: 'lead' },
+              'Account status, the Beginner and Advanced curriculum (same cards as Home), and your progress. Locked lessons stay visible as teasers — subscribe to open them.')),
+          accountOverview(store, snap),
+          h('section', {
+            class: 'section tracks dash-curriculum-section',
+            'aria-labelledby': 'dash-curr-h',
+            id: 'dash-curriculum',
+          },
             h('div', { class: 'section-head' },
-              h('div', null, h('p', { class: 'eyebrow' }, 'By unit'), h('h2', { id: 'units-h' }, 'Unit progress'))),
-            unitBars(store)),
-          h('section', { class: 'section section--tight', 'aria-labelledby': 'map-h' },
-            h('div', { class: 'section-head' },
-              h('div', null, h('p', { class: 'eyebrow' }, 'Curriculum map'), h('h2', { id: 'map-h' }, 'Units, lessons & games')),
-              h('p', { class: 'muted' }, 'Every unit with its lesson and games — open anything from here.')),
-            curriculumMap(store)),
+              h('div', null,
+                h('p', { class: 'eyebrow' }, 'The curriculum'),
+                h('h2', { id: 'dash-curr-h' }, 'Beginner & Advanced lessons')),
+              h('p', { class: 'muted' },
+                'Same layout as Home. Cards are always visible; locked rows open the paywall until you are signed in with the right plan.')),
+            curriculumTracks(store, { cta: false, idPrefix: 'dash-' })),
           levelCard(store),
           statsRow(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'badges-h' },
@@ -384,19 +302,18 @@ export default {
               h('div', null, h('p', { class: 'eyebrow' }, 'Best runs per style'), h('h2', { id: 'games-h' }, 'Games')),
               h('p', { class: 'muted' }, 'Best score in Practice and Arcade, and the most rounds survived in Survival.')),
             gamesTable(store)),
-          gamesIndex(store),
-          h('section', { class: 'section section--tight', 'aria-labelledby': 'lessons-h' },
-            h('div', { class: 'section-head' },
-              h('div', null, h('p', { class: 'eyebrow' }, 'Checklist'), h('h2', { id: 'lessons-h' }, 'Lessons'))),
-            lessonChecklist(store)),
-          features(),
-          ctaTracks(),
           resetZone(store, () => {
             render();
             root.querySelector('h1')?.focus?.();
           }),
           h('p', { class: 'faint dash-disclaimer' }, 'Educational simulations only — not financial advice.')));
+
+      const section = ctx.route?.section;
+      if (section) {
+        requestAnimationFrame(() => scrollToSection(section));
+      }
     };
+
     render();
     let queued = 0;
     const onChange = () => {
@@ -407,8 +324,11 @@ export default {
       });
     };
     store.on('change', onChange);
+    const unsubAccess = access.onChange(() => onChange());
+    access.ready.then(() => onChange()).catch(() => {});
     return () => {
       store.off('change', onChange);
+      unsubAccess?.();
       if (queued) cancelAnimationFrame(queued);
     };
   },

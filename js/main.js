@@ -3,14 +3,12 @@ import { store } from './core/store.js';
 import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
 import { h, svg, icon, sfx } from './core/ui.js';
-import { findEntry, tiersOf } from './registry.js';
+import { findEntry } from './registry.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
   { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
-  { hash: 'beginner', label: 'Beginner', icon: 'candle' },
-  { hash: 'advanced', label: 'Advanced', icon: 'target' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
@@ -53,22 +51,17 @@ function applyTheme(pref) {
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', color));
 }
 
-function navKeyFor(route, entry) {
+function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
-    if (route.page === 'track') return route.tier;
-    if (route.page === 'progress') return 'dashboard';
-    if (['library', 'glossary', 'playbook', 'live', 'dashboard', 'account', 'platforms'].includes(route.page)) return route.page;
+    // Legacy #beginner / #advanced land on dashboard with a section.
+    if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
+    if (route.page === 'track') return 'dashboard';
+    if (['library', 'glossary', 'playbook', 'live', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
-  if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
-    if (entry.tier === 'both') {
-      // A 'both' game that sits in one track's units (e.g. Live Predict) belongs to that track.
-      const tiers = tiersOf(entry.id);
-      return tiers.length === 1 ? tiers[0] : store.state.lastTier || 'beginner';
-    }
-    return entry.tier;
-  }
+  // Lessons/games highlight Dashboard (Beginner/Advanced nav entries removed).
+  if (route.kind === 'lesson' || route.kind === 'game') return 'dashboard';
   return null;
 }
 
@@ -209,8 +202,6 @@ function buildShell(app) {
         h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#dashboard' }, 'Dashboard'),
-        h('a', { href: '#beginner' }, 'Beginner'),
-        h('a', { href: '#advanced' }, 'Advanced'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
@@ -263,11 +254,8 @@ function boot() {
       canOpen: (entry, route) => access.canOpen(entry, route),
       access: () => access.accessInfo(),
       paywallPath: '../pages/paywall.js',
-      onUnauthenticated: (route) => {
-        // Store intended hash, then send unsigned visitors to sign-up (not paywall).
-        access.rememberReturn(route?.key || '');
-        navigate('account.signup');
-      },
+      // No onUnauthenticated redirect: unsigned visitors see the paywall teaser
+      // (plans + sign-in CTA) instead of a hard hide-behind-login wall.
     });
   }
   wireGate();

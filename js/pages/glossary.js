@@ -1,6 +1,8 @@
 // Glossary: plain-English definitions with instant search and A–Z jump chips.
 import { h, icon } from '../core/ui.js';
 import { findEntry } from '../registry.js';
+import { toolsTeaser } from '../core/teaser.js';
+import * as access from '../core/access.js';
 
 // cat: candles | structure | patterns | indicators | timeframes | risk
 export const TERMS = [
@@ -116,7 +118,7 @@ const norm = (s) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
 
 export default {
   id: 'glossary',
-  mount(root) {
+  mount(root, ctx) {
     const sorted = [...TERMS].sort((a, b) => a.term.localeCompare(b.term, 'en', { sensitivity: 'base' }));
     const letterOf = (t) => {
       const c = t.term[0].toUpperCase();
@@ -198,7 +200,7 @@ export default {
       empty.hidden = shown > 0;
     }
 
-    root.append(h('div', { class: 'container glossary' },
+    const body = h('div', { class: 'container glossary' },
       h('header', { class: 'page-head' },
         h('p', { class: 'eyebrow eyebrow--accent' }, 'Reference'),
         h('h1', null, 'Glossary'),
@@ -207,8 +209,23 @@ export default {
         h('div', { class: 'glossary__searchwrap' }, icon('search', { size: 18 }), search, count),
         h('nav', { class: 'az', 'aria-label': 'Jump to letter' }, chips)),
       empty,
-      h('div', { class: 'glossary__list' }, [...sections.values()].map((s) => s.sec))));
+      h('div', { class: 'glossary__list' }, [...sections.values()].map((s) => s.sec)));
+
+    const gate = toolsTeaser('Glossary');
+    if (gate.locked) {
+      access.rememberReturn('glossary');
+      root.append(h('div', { class: 'container' }, gate.banner), gate.wrap(body));
+    } else {
+      root.append(body);
+    }
 
     apply();
+
+    const unsub = access.onChange(() => {
+      const nowLocked = access.isEnforcing() && !access.hasPaidAccess();
+      if (nowLocked === gate.locked) return;
+      try { ctx.navigate('glossary'); } catch { /* ignore */ }
+    });
+    return () => { unsub?.(); };
   },
 };

@@ -270,7 +270,7 @@ export default {
           ),
           h('p', { class: 'row' },
             h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
-            h('a', { class: 'btn btn--ghost', href: '#beginner' }, 'Beginner track')),
+            h('a', { class: 'btn btn--ghost', href: '#beginner' }, 'Beginner on Dashboard')),
         ),
         msg,
       );

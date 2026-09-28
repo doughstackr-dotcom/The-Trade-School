@@ -220,13 +220,30 @@ export function requiredPlan(entryOrMode) {
   return 'free';
 }
 
-/** Pages anyone may open without a session (home, dashboard, tools, auth). */
+/** Pages anyone may open without a session (home, dashboard, tools, auth).
+ *  library / glossary / playbook stay routable so unpaid & anonymous visitors see
+ *  in-page teasers; full interaction requires hasPaidAccess() (see pages).
+ *  Platforms stays fully public with no teaser lock.
+ */
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'dashboard', 'progress', // #progress aliases to dashboard
   'library', 'glossary', 'playbook', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);
+
+/** Tool pages that mount for everyone but self-gate full content behind a paid plan. */
+export const TEASER_PAGES = Object.freeze(['library', 'glossary', 'playbook']);
+
+/**
+ * True when the user may use paid tool pages (Library, Playbook, Glossary) and
+ * paid curriculum beyond FREE_IDS. When not enforcing (local open mode), always true.
+ * Requires a signed-in Beginner or Advanced subscription while enforcing.
+ */
+export function hasPaidAccess() {
+  if (!isEnforcing()) return true;
+  return can('beginner');
+}
 
 const RETURN_KEY = 'tts-return-hash';
 
@@ -403,5 +420,6 @@ export { FREE_IDS, PLANS, ACCESS_MODE, PREMIUM_SOURCE };
 export default {
   ready, getAccess, onChange, can, canOpen, requiredPlan, lockLabel, accessInfo,
   signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing, PUBLIC_PAGES,
+  TEASER_PAGES, hasPaidAccess,
   rememberReturn, consumeReturn, peekReturn, isCurriculumGated,
 };

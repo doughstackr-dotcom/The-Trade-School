@@ -49,7 +49,9 @@ export default {
     const need = access.requiredPlan(entry);
     const planName = PLANS[need]?.name || 'Paid';
     const title = entry?.title || 'This page';
-    const back = entry?.tier === 'advanced' ? 'advanced' : entry?.tier === 'beginner' ? 'beginner' : 'home';
+    const back = entry?.tier === 'advanced' || entry?.tier === 'beginner' || entry?.tier === 'both'
+      ? 'dashboard'
+      : 'home';
     const routeKey = ctx.route?.key || '';
 
     const status = h('p', { class: 'muted paywall__status', 'aria-live': 'polite' }, '');
@@ -125,7 +127,7 @@ export default {
           h('div', { class: 'row paywall__actions' },
             h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Account / sign in'),
             h('a', { class: 'btn btn--ghost', href: `#${back}` }, icon('arrow-left', { size: 16 }),
-              back === 'home' ? 'Back home' : `Back to ${back === 'advanced' ? 'Advanced' : 'Beginner'}`),
+              back === 'home' ? 'Back home' : 'Back to Dashboard'),
           ),
         ),
         plansHost,

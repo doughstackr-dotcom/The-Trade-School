@@ -1,5 +1,6 @@
-// Hash router. Routes are plain tokens: #home, #beginner, #advanced, #library(.<id>),
-// #dashboard (#progress aliases here), #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #live,
+// Hash router. Routes are plain tokens: #home, #library(.<id>),
+// #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
+// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #live,
 // #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
@@ -71,7 +72,10 @@ export function parseHash(hash) {
   }
   token = token.trim();
   if (!token || token === 'home') return { key: 'home', kind: 'page', page: 'home' };
-  if (token === 'beginner' || token === 'advanced') return { key: token, kind: 'page', page: 'track', tier: token };
+  // Legacy track hashes → unified Dashboard hub (scroll to section on mount).
+  if (token === 'beginner' || token === 'advanced') {
+    return { key: token, kind: 'page', page: 'dashboard', section: token };
+  }
   if (token === 'library' || token.startsWith('library.')) {
     return { key: token, kind: 'page', page: 'library', param: token.slice('library.'.length) || null };
   }
@@ -123,15 +127,17 @@ function newSeed() {
 }
 
 function backTarget(route, entry) {
-  if (entry && (entry.tier === 'beginner' || entry.tier === 'advanced')) return entry.tier;
-  if (entry && entry.tier === 'both') return storeRef?.state?.lastTier || 'beginner';
-  if (route.tier) return route.tier;
+  if (entry && (entry.tier === 'beginner' || entry.tier === 'advanced' || entry.tier === 'both')) {
+    return 'dashboard';
+  }
+  if (route.section === 'beginner' || route.section === 'advanced') return 'dashboard';
+  if (route.tier) return 'dashboard';
   return 'home';
 }
 
 function errorCard(route, entry, err, retry) {
   const back = backTarget(route, entry);
-  const backLabel = back === 'home' ? 'Back to home' : `Back to ${back === 'advanced' ? 'Advanced' : 'Beginner'} track`;
+  const backLabel = back === 'home' ? 'Back to home' : 'Back to Dashboard';
   return h('div', { class: 'container' },
     h('div', { class: 'route-error card', role: 'alert' },
       h('div', { class: 'route-error__icon', 'aria-hidden': 'true' }, icon('info', { size: 28 })),
@@ -151,7 +157,7 @@ function notFoundCard(route) {
       h('p', { class: 'muted' }, `We couldn't find “${route.key}”. It may have moved.`),
       h('div', { class: 'row' },
         h('button', { type: 'button', class: 'btn btn--primary', on: { click: () => navigate('home') } }, icon('home'), 'Go home'),
-        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('beginner') } }, 'Beginner track'))));
+        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('dashboard') } }, 'Dashboard'))));
 }
 
 function skeleton() {
@@ -214,9 +220,9 @@ async function render(hash, { initial = false, retry = false } = {}) {
     return;
   }
 
-  // Access gate: Beginner/Advanced curriculum is auth-gated; signed-in users who lack the
-  // plan see the paywall. Unsigned visitors are steered to account sign-up (with return URL)
-  // via gate.onUnauthenticated when provided — not the paywall.
+  // Access gate: paid lessons/games show the paywall teaser (visible to unsigned + unpaid).
+  // Optional gate.onUnauthenticated may still redirect, but the default shell leaves the
+  // paywall mounted so teasers are never hidden behind a hard login wall.
   let blocked = false;
   if (gate) {
     try {

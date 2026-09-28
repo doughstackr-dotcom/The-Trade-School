@@ -15,6 +15,8 @@ import {
   setupById,
 } from '../core/playbook-data.js';
 import { CANDLE_PATTERNS, CHART_PATTERNS } from '../core/patterns.js';
+import { toolsTeaser } from '../core/teaser.js';
+import * as access from '../core/access.js';
 
 const GUIDE_JUMPS = [
   { id: 'risk', label: 'Risk' },
@@ -383,6 +385,20 @@ export default {
           h('p', { class: 'muted' }, `There is no setup called “${ctx.param}” yet.`),
           h('a', { class: 'btn btn--primary', href: '#playbook' }, icon('arrow-left'), 'All setups'))));
       return undefined;
+    }
+    const gate = toolsTeaser('Setup Playbook');
+    if (gate.locked) {
+      access.rememberReturn(setup ? `playbook.${setup.id}` : 'playbook');
+      const host = h('div', { class: 'playbook-teaser-host' });
+      root.append(h('div', { class: 'container' }, gate.banner), gate.wrap(host));
+      // Always show the list teaser when locked (even for detail deep-links).
+      listView(host, mods);
+      const unsub = access.onChange(() => {
+        const nowLocked = access.isEnforcing() && !access.hasPaidAccess();
+        if (nowLocked === gate.locked) return;
+        try { ctx.navigate(ctx.route?.key || 'playbook'); } catch { /* ignore */ }
+      });
+      return () => { unsub?.(); };
     }
     if (setup) return detailView(root, setup, mods);
     listView(root, mods);

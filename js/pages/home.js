@@ -2,12 +2,14 @@
 // the two tracks, the three play styles, the arcade (filterable by kind) and your level.
 import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion, modal } from '../core/ui.js';
 import {
-  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, unitsOf, hashFor,
+  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, hashFor,
 } from '../registry.js';
 import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
 import { sma } from '../core/indicators.js';
 import { styleIcon } from '../core/game-kit.js';
+import { trackCard as sharedTrackCard } from '../core/curriculum.js';
+import * as access from '../core/access.js';
 
 const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate', memory: 'Memory', swipe: 'Swipe', story: 'Story', live: 'Live' };
 
@@ -570,39 +572,8 @@ function continueStrip(store) {
       h('span', { class: 'continue__go' }, 'Resume', icon('arrow-right'))));
 }
 
-function unitStatus(store, unit) {
-  const bits = [];
-  if (unit.lesson) {
-    bits.push(store.isLessonDone(unit.lesson)
-      ? h('span', { class: 'unit-row__check', title: 'Lesson complete' }, icon('check', { size: 14, label: 'Lesson complete' }))
-      : h('span', { class: 'unit-row__check is-empty', title: 'Lesson not done', 'aria-label': 'Lesson not done' }));
-  }
-  const best = Math.max(0, ...unit.games.map((g) => store.gameStats(g)?.stars || 0));
-  bits.push(starRow(best, { size: 13 }));
-  return h('span', { class: 'unit-row__status' }, bits);
-}
-
 function trackCard(store, tier) {
-  const p = store.tierProgress(tier.id);
-  const units = unitsOf(tier.id);
-  return h('article', { class: `track-card track-card--${tier.id}` },
-    h('header', { class: 'track-card__head' },
-      h('div', { class: 'row row--between' },
-        tierChip(tier.id),
-        h('span', { class: 'track-card__count mono' }, `${p.done}/${p.total}`)),
-      h('h3', { class: 'track-card__title' }, tier.title, h('span', { class: 'track-card__sub' }, ` — ${tier.subtitle}`)),
-      h('p', { class: 'muted track-card__blurb' }, tier.blurb),
-      meter(p.pct, { label: `${tier.title} track progress` })),
-    h('ol', { class: 'track-card__units' },
-      units.map((u, i) => {
-        const target = u.lesson ? `l.${u.lesson}` : `g.${u.games[0]}`;
-        return h('li', null,
-          h('a', { class: 'unit-row', href: `#${target}` },
-            h('span', { class: 'unit-row__n mono' }, String(i + 1).padStart(2, '0')),
-            h('span', { class: 'unit-row__title' }, u.title),
-            unitStatus(store, u)));
-      })),
-    h('a', { class: 'btn track-card__cta', href: `#${tier.id}` }, `Open the ${tier.title} track`, icon('arrow-right')));
+  return sharedTrackCard(store, tier, { cta: 'dashboard' });
 }
 
 function styleIcons(g) {
@@ -808,7 +779,7 @@ export default {
           h('div', { class: 'hero__ctas' },
             h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
             h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
-            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Dashboard')),
+            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
             h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),
@@ -851,6 +822,14 @@ export default {
       emptyNote.hidden = shown > 0;
     }
 
+    const tracksHost = h('div', { class: 'tracks__grid', id: 'home-tracks' });
+    const paintTracks = () => {
+      tracksHost.replaceChildren(...TIERS.map((tier) => trackCard(store, tier)));
+    };
+    paintTracks();
+    const unsubAccess = access.onChange(() => paintTracks());
+    access.ready.then(() => paintTracks()).catch(() => {});
+
     root.append(
       h('div', { class: 'home' },
         hero,
@@ -861,8 +840,8 @@ export default {
             h('div', null,
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
-            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology.')),
-          h('div', { class: 'tracks__grid' }, TIERS.map((t) => trackCard(store, t)))),
+            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible — open one to see the paywall teaser.')),
+          tracksHost),
         playYourWay(),
         arcade,
         levelStrip(store)));
@@ -915,6 +894,7 @@ export default {
       cleanups.dead = true;
       cleanups.forEach((fn) => fn());
       heroCleanup?.();
+      unsubAccess?.();
     };
   },
 };
