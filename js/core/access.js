@@ -228,12 +228,12 @@ export function requiredPlan(entryOrMode) {
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'dashboard', 'progress', // #progress aliases to dashboard
-  'library', 'glossary', 'playbook', 'live', 'platforms', 'affiliate', // #affiliate → platforms
+  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);
 
 /** Tool pages that mount for everyone but self-gate full content behind a paid plan. */
-export const TEASER_PAGES = Object.freeze(['library', 'glossary', 'playbook']);
+export const TEASER_PAGES = Object.freeze(['library', 'glossary', 'playbook', 'games']);
 
 /**
  * True when the user may use paid tool pages (Library, Playbook, Glossary) and
@@ -274,7 +274,7 @@ export function peekReturn() {
 
 /**
  * True for Beginner / Advanced lessons/games (tier beginner|advanced|both).
- * Only these are auth-gated; Home, Dashboard, Library, Playbook, Live, Glossary, Platforms stay public.
+ * Only these are auth-gated; Home, Dashboard, Games, Library, Playbook, Live, Glossary, Platforms stay public.
  */
 export function isCurriculumGated(entry, route = null) {
   // Standalone track pages are gone; #beginner / #advanced land on public Dashboard.

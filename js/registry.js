@@ -22,6 +22,7 @@ export const TIERS = [
 
 // Units pair a lesson with its game(s). Order = recommended learning order.
 export const UNITS = [
+  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
   { id: 'u-candle-anatomy', tier: 'beginner', title: 'Candlestick anatomy', lesson: 'candle-anatomy', games: ['candle-builder'] },
   { id: 'u-chart-basics', tier: 'beginner', title: 'Chart types, scales & timeframes', lesson: 'chart-basics', games: ['chart-match'] },
   { id: 'u-candle-patterns', tier: 'beginner', title: 'Candlestick patterns', lesson: 'candle-patterns', games: ['pattern-flash'] },
@@ -31,7 +32,6 @@ export const UNITS = [
   { id: 'u-moving-averages', tier: 'beginner', title: 'Moving averages', lesson: 'moving-averages', games: ['cross-catcher'] },
   { id: 'u-volume', tier: 'beginner', title: 'Volume', lesson: 'volume', games: ['volume-verdict'] },
   { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
-  { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
 
   { id: 'u-chart-patterns', tier: 'advanced', title: 'Reversal & continuation chart patterns', lesson: 'chart-patterns', games: ['pattern-detective'] },
   { id: 'u-fibonacci', tier: 'advanced', title: 'Fibonacci retracements & extensions', lesson: 'fibonacci', games: ['fib-sniper'] },
@@ -440,6 +440,8 @@ export const ARCADE_FILTERS = [
 
 /** Stand-alone pages (routes: #playbook, #playbook.<setupId>, #live, #platforms; #affiliate aliases to platforms). */
 export const PAGES = [
+  { id: 'games', title: 'Games', hash: 'games', param: false, path: './pages/games.js',
+    blurb: 'The arcade: practice, arcade and survival modes across every skill game. One free daily hook; the rest unlock with a plan.' },
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',

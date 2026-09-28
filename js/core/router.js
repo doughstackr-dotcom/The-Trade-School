@@ -1,6 +1,6 @@
 // Hash router. Routes are plain tokens: #home, #library(.<id>),
 // #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
-// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #live,
+// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #live,
 // #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
@@ -15,6 +15,7 @@ const PAGE_PATHS = {
   platforms: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
+  games: '../pages/games.js',
   dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
@@ -88,7 +89,7 @@ export function parseHash(hash) {
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -103,6 +104,7 @@ function titleFor(route, entry) {
     case 'platforms': return `Platforms · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
+    case 'games': return `Games · ${SITE}`;
     case 'dashboard': return `Dashboard · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;

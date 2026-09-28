@@ -69,7 +69,8 @@ test('isCurriculumGated: only Beginner/Advanced lessons/games (not Dashboard hub
 });
 
 test('requiredPlan: FREE_IDS stay free; tiers map to plans', () => {
-  assert.equal(requiredPlan({ id: 'candle-anatomy', tier: 'beginner' }), 'free');
+  assert.equal(requiredPlan({ id: 'daily-challenge', tier: 'both' }), 'free');
+  assert.equal(requiredPlan({ id: 'candle-anatomy', tier: 'beginner' }), 'beginner');
   assert.equal(requiredPlan({ id: 'chart-basics', tier: 'beginner' }), 'beginner');
   assert.equal(requiredPlan({ id: 'fib-sniper', tier: 'advanced' }), 'advanced');
   assert.equal(requiredPlan('beginner'), 'beginner');
@@ -107,6 +108,7 @@ test('canOpen (unsigned, enforcing): public pages yes; curriculum no', async () 
   assert.equal(canOpen(null, { page: 'playbook' }), true);
   assert.equal(canOpen(null, { page: 'live' }), true);
   assert.equal(canOpen(null, { page: 'glossary' }), true);
+  assert.equal(canOpen(null, { page: 'games' }), true);
   assert.equal(canOpen(null, { page: 'account' }), true);
 
   // Dead track page key is not curriculum-gated; Dashboard sections stay open.

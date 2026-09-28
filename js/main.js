@@ -9,6 +9,7 @@ import { findEntry } from './registry.js';
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
   { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
+  { hash: 'games', label: 'Games', icon: 'gamepad' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
@@ -56,11 +57,12 @@ function navKeyFor(route) {
   if (route.kind === 'page') {
     // Legacy #beginner / #advanced land on dashboard with a section.
     if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
-    if (['library', 'glossary', 'playbook', 'live', 'account', 'platforms'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
-  // Lessons/games highlight Dashboard (Beginner/Advanced nav entries removed).
-  if (route.kind === 'lesson' || route.kind === 'game') return 'dashboard';
+  if (route.kind === 'game') return 'games';
+  // Lessons highlight Dashboard (track nav entries removed).
+  if (route.kind === 'lesson') return 'dashboard';
   return null;
 }
 
@@ -201,6 +203,7 @@ function buildShell(app) {
         h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#dashboard' }, 'Dashboard'),
+        h('a', { href: '#games' }, 'Games'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),

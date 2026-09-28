@@ -164,3 +164,75 @@
 .game-chart { min-height: 200px; }
 .bull { color: var(--bull, #22c55e); }
 .bear { color: var(--bear, #ef4444); }
+
+/* —— Games hub (#games) ———————————————————————————————————————————————— */
+
+.games-hub__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.games-hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--space-4);
+  text-decoration: none;
+  color: inherit;
+  min-height: 100%;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.games-hub-card:hover {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+}
+
+.games-hub-card--free {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+
+.games-hub-card--locked {
+  opacity: 0.92;
+}
+
+.games-hub-card--locked:hover {
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--line));
+}
+
+.games-hub-card__title {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.games-hub-card__blurb {
+  flex: 1;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.games-hub-card__meta {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.games-hub-card__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.games-hub-card--locked .games-hub-card__go {
+  color: var(--text-2);
+}
+
+.games-hub__disclaimer {
+  margin-top: var(--space-6);
+}

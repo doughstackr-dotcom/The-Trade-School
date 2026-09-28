@@ -12,9 +12,9 @@ export const PLANS = {
   advanced: { id: 'advanced', name: 'Advanced', price: 29.99, currency: 'USD', interval: 'month', unlocks: ['beginner', 'advanced'] },
 };
 
-// Lessons and games open to any signed-in member, no subscription needed.
-// Owner's choice: unit 1 (candlestick anatomy) free; Daily Challenge free as a daily hook.
-export const FREE_IDS = ['candle-anatomy', 'candle-builder', 'daily-challenge', 'markets-orders', 'order-desk'];
+// Exactly one free game for signed-in members without a paid plan (Games page hook).
+// Every other lesson/game needs Beginner or Advanced. See docs / access tests.
+export const FREE_IDS = ['daily-challenge'];
 
 // 'auto' enforces plans on real hosts and leaves everything open on localhost so
 // development and tests see every module; 'open' | 'enforce' force one behaviour.
