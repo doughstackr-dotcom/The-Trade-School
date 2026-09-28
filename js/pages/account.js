@@ -311,6 +311,8 @@ export default {
     }
 
     root.append(h('div', { class: 'container account' }, body, formWrap));
+    // Warm up the (lazy-loaded) Supabase client so sign-in / sign-up submit without delay.
+    access.ensureLoaded();
     let unsub = null;
     access.ready.then(() => {
       paint();
