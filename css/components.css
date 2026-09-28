@@ -2993,7 +2993,8 @@ figcaption {
     margin-top: 24px;
   }
 
-  .hero__ctas {
+  .hero__ctas,
+  .hero__fine {
     order: 4;
   }
 
@@ -3003,6 +3004,31 @@ figcaption {
 
   .hero__facts {
     order: 5;
+  }
+}
+
+/* Phones: headline, lead and the primary CTA come first (above the fold); the live
+   chart follows right after them. */
+@media (max-width: 719.98px) {
+  .hero__lead {
+    order: 2;
+    margin-top: 14px;
+    font-size: 16.5px;
+    line-height: 1.55;
+  }
+
+  .hero__ctas {
+    order: 3;
+    margin-top: 20px;
+    gap: 10px;
+  }
+
+  .hero__fine {
+    order: 3;
+  }
+
+  .hero__chart {
+    order: 4;
   }
 }
 
@@ -6745,12 +6771,39 @@ figcaption {
   .topbar__auth { padding-inline: 0.55rem; font-size: 0.8rem; }
 }
 .risk-hud { margin-bottom: var(--space-3); }
-.welcome-modal__steps {
-  margin: var(--space-3) 0;
-  padding-left: 1.2rem;
-  display: grid;
-  gap: 0.5rem;
+/* Home: first-visit welcome banner (inline, dismissible — never covers the hero). */
+.welcome-banner {
+  margin-top: 4px;
 }
+.welcome-banner__card {
+  display: flex;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 14px 16px;
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--line));
+  background: var(--accent-soft);
+}
+.welcome-banner__copy { flex: 1 1 auto; min-width: 0; }
+.welcome-banner__title { margin: 0 0 4px; font-size: 17px; }
+.welcome-banner__copy p { margin: 0; font-size: 14px; line-height: 1.5; }
+.welcome-banner__actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+@media (max-width: 559.98px) {
+  .welcome-banner__card { flex-wrap: wrap; position: relative; padding-right: 48px; }
+  .welcome-banner__close { position: absolute; top: 8px; right: 8px; }
+}
+
+/* Home: pricing (reuses .plan-card from the paywall). */
+.pricing { scroll-margin-top: calc(var(--chrome-h) + 12px); }
+.pricing:focus { outline: none; }
+.pricing__grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.pricing__per { font-size: 0.95rem; font-weight: 500; }
+.pricing__blurb { margin: 0; }
+.pricing__note { margin-top: var(--space-4); font-size: 13px; line-height: 1.5; }
+.hero__fine { margin-top: 12px; font-size: 13.5px; }
 
 /* Phone tab bar: ensure Dashboard-wide links still reachable via footer */
 @media (max-width: 1179.98px) {
