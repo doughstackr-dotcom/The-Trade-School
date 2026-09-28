@@ -1,6 +1,7 @@
 // Shared helpers for The Trade School Edge Functions.
 import Stripe from 'npm:stripe@17.7.0';
 import { createClient, type SupabaseClient, type User } from 'npm:@supabase/supabase-js@2.117.2';
+import { isAllowedOrigin, originOf, SITE_ORIGIN } from './cors.ts';
 
 export type Plan = 'beginner' | 'advanced';
 
@@ -19,21 +20,8 @@ export const PRICE_IDS: Record<Plan, string> = {
 
 // SITE_URL is the public site's base URL (it may include a path, e.g. a GitHub Pages
 // project site). ALLOWED_ORIGINS (comma separated) adds extra origins such as
-// http://localhost:5173 that may call the functions and receive redirects.
+// http://localhost:5173 that may call the functions and receive redirects (see cors.ts).
 export const SITE_URL = normalizeBase(env('SITE_URL'));
-const SITE_ORIGIN = originOf(SITE_URL);
-const ALLOWED_ORIGINS = env('ALLOWED_ORIGINS')
-  .split(',')
-  .map((o) => originOf(o.trim()))
-  .filter(Boolean);
-
-function originOf(url: string): string {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return '';
-  }
-}
 
 /** Absolute http(s) base URL ending in '/', without credentials, query or hash. '' if invalid. */
 function normalizeBase(url: string): string {
@@ -53,9 +41,6 @@ function normalizeBase(url: string): string {
   }
 }
 
-const isAllowedOrigin = (origin: string) =>
-  Boolean(origin) && (origin === SITE_ORIGIN || ALLOWED_ORIGINS.includes(origin));
-
 export const billingConfigured = () =>
   Boolean(STRIPE_SECRET_KEY && PRICE_IDS.beginner && PRICE_IDS.advanced && SITE_URL);
 
@@ -67,10 +52,16 @@ export const admin: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+/**
+ * CORS for the billing functions: an allow-listed origin is echoed; any other origin gets the
+ * site's own origin (which its browser rejects). Without SITE_URL there is nothing to pin to,
+ * so no Access-Control-Allow-Origin is sent at all (never '*').
+ */
 export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
+  const allow = isAllowedOrigin(origin) ? origin : SITE_ORIGIN;
   return {
-    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : SITE_ORIGIN || '*',
+    ...(allow ? { 'Access-Control-Allow-Origin': allow } : {}),
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
@@ -107,11 +98,14 @@ export async function requireUser(req: Request): Promise<User | null> {
   return data.user;
 }
 
-export function planForPrice(priceId: string | null | undefined, lookupKey?: string | null): Plan | null {
-  if (priceId && priceId === PRICE_IDS.advanced) return 'advanced';
-  if (priceId && priceId === PRICE_IDS.beginner) return 'beginner';
-  if (lookupKey?.startsWith('advanced')) return 'advanced';
-  if (lookupKey?.startsWith('beginner')) return 'beginner';
+/**
+ * The plan a Stripe price grants: only the exact configured price IDs count. Lookup keys are
+ * not trusted (any price in the account could carry a matching prefix, e.g. a cheaper test or
+ * legacy price). After a price change, update STRIPE_PRICE_* before moving subscribers.
+ */
+export function planForPrice(priceId: string | null | undefined): Plan | null {
+  if (priceId && PRICE_IDS.advanced && priceId === PRICE_IDS.advanced) return 'advanced';
+  if (priceId && PRICE_IDS.beginner && priceId === PRICE_IDS.beginner) return 'beginner';
   return null;
 }
 

@@ -639,6 +639,8 @@ interface StoredSub {
   current_period_end: number;
   items: { id: string; price: string; quantity: number }[];
   updates: any[];
+  /** The latest invoice's state (rendered when `latest_invoice` is expanded). */
+  invoice: { id: string; status: string; hosted_invoice_url: string | null };
 }
 
 // Subscription fields that are expandable in the Stripe API (Subscription.* typed as
@@ -718,6 +720,13 @@ export class FakeStripe {
       current_period_end: opts.periodEnd ?? start + 30 * 86400,
       items: [{ id: this.id('si'), price: opts.price, quantity: 1 }],
       updates: [],
+      invoice: { id: '', status: '', hosted_invoice_url: null },
+    };
+    const invoiceId = this.id('in');
+    sub.invoice = {
+      id: invoiceId,
+      status: sub.status === 'incomplete' ? 'open' : 'paid',
+      hosted_invoice_url: `https://invoice.stripe.com/i/test_${invoiceId}`,
     };
     this.subscriptions.set(sub.id, sub);
     return sub;
@@ -727,6 +736,7 @@ export class FakeStripe {
   completeCheckout(sessionId: string): { session: any; subscription: StoredSub } {
     const s = this.checkoutSessions.find((x) => x.id === sessionId);
     if (!s) throw new Error(`no session ${sessionId}`);
+    if (s.status !== 'open') throw new Error(`session ${sessionId} is ${s.status}; it cannot be completed`);
     const subscription = this.createSubscription({
       customer: s.customer,
       price: s.line_items[0].price,
@@ -747,7 +757,7 @@ export class FakeStripe {
     this.subscriptions.get(id)!.items[0].price = price;
   }
 
-  render(sub: StoredSub, version: string) {
+  render(sub: StoredSub, version: string, expand: string[] = []) {
     const newShape = version >= '2025-03-31'; // basil+: billing period lives on items only
     const price = (id: string) => {
       const p = this.prices.get(id) ?? { id, lookup_key: null, unit_amount: 0 };
@@ -778,7 +788,9 @@ export class FakeStripe {
           ...(newShape ? { current_period_start: sub.current_period_start, current_period_end: sub.current_period_end } : {}),
         })),
       },
-      latest_invoice: `in_for_${sub.id}`,
+      latest_invoice: expand.includes('latest_invoice')
+        ? { ...sub.invoice, object: 'invoice', subscription: sub.id }
+        : sub.invoice.id,
     };
     if (!newShape) {
       out.current_period_start = sub.current_period_start;
@@ -870,6 +882,41 @@ export class FakeStripe {
       return jsonResponse(session);
     }
 
+    if (method === 'GET' && path === '/v1/checkout/sessions') {
+      const data = this.checkoutSessions
+        .filter((x) => (!p.customer || x.customer === p.customer) && (!p.status || x.status === p.status))
+        .reverse() // newest first, like Stripe
+        .slice(0, Number(p.limit ?? 10));
+      return jsonResponse({ object: 'list', data, has_more: false, url: '/v1/checkout/sessions' });
+    }
+
+    if ((m = path.match(/^\/v1\/checkout\/sessions\/([^/]+)\/expire$/)) && method === 'POST') {
+      const session = this.checkoutSessions.find((x) => x.id === m![1]);
+      if (!session) return stripeError(404, 'invalid_request_error', `No such checkout.session: '${m[1]}'`, 'resource_missing', 'session');
+      if (session.status !== 'open') {
+        return stripeError(400, 'invalid_request_error', 'Only Checkout Sessions with a status in ["open"] can be expired.');
+      }
+      session.status = 'expired';
+      session.url = null;
+      return jsonResponse(session);
+    }
+
+    if (method === 'GET' && path === '/v1/subscriptions') {
+      const expand: string[] = p.expand ?? [];
+      for (const e of expand) {
+        if (this.strictExpand && !(e.startsWith('data.') && EXPANDABLE_SUBSCRIPTION.has(e.slice(5)))) {
+          return stripeError(400, 'invalid_request_error', `This property cannot be expanded (${e}).`);
+        }
+      }
+      // Without a status filter Stripe omits canceled subscriptions.
+      const data = [...this.subscriptions.values()]
+        .filter((x) => (!p.customer || x.customer === p.customer) && (p.status ? p.status === 'all' || x.status === p.status : x.status !== 'canceled'))
+        .reverse()
+        .slice(0, Number(p.limit ?? 10))
+        .map((x) => this.render(x, version, expand.map((e) => e.slice(5))));
+      return jsonResponse({ object: 'list', data, has_more: false, url: '/v1/subscriptions' });
+    }
+
     if (method === 'POST' && path === '/v1/billing_portal/sessions') {
       if (!p.customer || !this.customers.has(p.customer)) return stripeError(400, 'invalid_request_error', `No such customer: '${p.customer}'`, 'resource_missing', 'customer');
       if (p.return_url !== undefined && !isHttpUrl(p.return_url)) return stripeError(400, 'invalid_request_error', 'Not a valid URL', 'url_invalid', 'return_url');
@@ -885,7 +932,7 @@ export class FakeStripe {
       for (const e of p.expand ?? []) {
         if (this.strictExpand && !EXPANDABLE_SUBSCRIPTION.has(e)) return stripeError(400, 'invalid_request_error', `This property cannot be expanded (${e}).`);
       }
-      if (method === 'GET') return jsonResponse(this.render(sub, version));
+      if (method === 'GET') return jsonResponse(this.render(sub, version, p.expand ?? []));
       if (method === 'POST') {
         if (sub.status === 'canceled' || sub.status === 'incomplete_expired') {
           return stripeError(400, 'invalid_request_error', 'A canceled subscription can only update its cancellation_details and metadata.');

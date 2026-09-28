@@ -1,7 +1,7 @@
 // Billing functions before the owner has set any Stripe secrets or SITE_URL: they must
 // answer 503 with a readable message and never touch Auth, the database or Stripe.
 import { assertEquals, assertMatch } from 'jsr:@std/assert@1';
-import { configureEnv, fnRequest, installHarness, loadFunction, makeEvent, SITE_ORIGIN, webhookRequest } from './billing_fakes.ts';
+import { configureEnv, fnRequest, installHarness, loadFunction, LOCAL_ORIGIN, makeEvent, SITE_ORIGIN, webhookRequest } from './billing_fakes.ts';
 
 configureEnv({
   STRIPE_SECRET_KEY: null,
@@ -29,11 +29,15 @@ Deno.test('env unset: create-checkout / customer-portal → 503 with a message t
     const res = await fn(fnRequest('fn', { token: user.token, body: { plan: 'beginner' } }));
     assertEquals(res.status, 503);
     assertMatch((await res.json()).error, re);
-    // No SITE_URL to pin CORS to: '*' lets the site show the message.
-    assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
-    const pre = await fn(fnRequest('fn', { method: 'OPTIONS', origin: SITE_ORIGIN }));
-    assertEquals(pre.status, 200);
-    await pre.body?.cancel();
+    // No SITE_URL to pin CORS to: no Access-Control-Allow-Origin at all (never '*'); the site
+    // then reports "Subscriptions not open yet" from the failed fetch.
+    assertEquals(res.headers.get('Access-Control-Allow-Origin'), null);
+    for (const origin of [SITE_ORIGIN, LOCAL_ORIGIN, 'https://evil.example']) {
+      const pre = await fn(fnRequest('fn', { method: 'OPTIONS', origin }));
+      assertEquals(pre.status, 200);
+      assertEquals(pre.headers.get('Access-Control-Allow-Origin'), null, origin);
+      await pre.body?.cancel();
+    }
   }
   assertEquals(h.auth.calls, 0);
   assertEquals(h.db.requests.length, 0);

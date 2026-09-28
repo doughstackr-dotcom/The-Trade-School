@@ -44,7 +44,7 @@ async function syncSubscription(subscriptionId: string, userHint?: string | null
 
     const item = sub.items.data[0];
     const price = item?.price;
-    const plan = planForPrice(price?.id, price?.lookup_key);
+    const plan = planForPrice(price?.id);
     if (!plan) throw new Error(`Unknown price ${price?.id} on subscription ${sub.id}`);
 
     // Newer Stripe API versions moved the billing period onto subscription items.
@@ -68,10 +68,19 @@ async function syncSubscription(subscriptionId: string, userHint?: string | null
     written = snapshot;
   }
 
-  // Keep the customer mapping complete even if checkout started elsewhere.
-  await admin
+  // Keep the customer mapping complete even if checkout started elsewhere. An existing mapping
+  // for the user is kept (ON CONFLICT (user_id) DO NOTHING). A customer already mapped to another
+  // user is a data problem retrying cannot fix: log it. Any other failure throws so Stripe retries.
+  const { error: mapError } = await admin
     .from('customers')
     .upsert({ user_id: userId, stripe_customer_id: customerId }, { onConflict: 'user_id', ignoreDuplicates: true });
+  if (mapError) {
+    if (mapError.code === '23505') {
+      console.warn(`Customer ${customerId} is already mapped to another user; not re-mapped to ${userId}`);
+    } else {
+      throw mapError;
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -116,8 +125,11 @@ Deno.serve(async (req) => {
       if (subId) await syncSubscription(subId);
     }
 
-    // Audit trail of processed events (duplicates are harmless).
-    await admin.from('stripe_events').upsert({ id: event.id, type: event.type }, { onConflict: 'id', ignoreDuplicates: true });
+    // Audit trail of processed events (duplicates are harmless; a failed write is retried).
+    const { error: auditError } = await admin
+      .from('stripe_events')
+      .upsert({ id: event.id, type: event.type }, { onConflict: 'id', ignoreDuplicates: true });
+    if (auditError) throw auditError;
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

@@ -329,9 +329,10 @@ Deno.test('create-checkout: advanced plan uses the advanced price; localhost ret
   assertEquals(session.cancel_url, `${LOCAL_ORIGIN}/?checkout=cancel#pricing`);
 
   for (const returnTo of ['https://evil.example/', 'javascript:alert(1)', 'blob:https://example.github.io/x', '%%%']) {
-    const b = await call(checkout, { token: user.token, body: { plan: 'advanced', returnTo } });
+    const other = h.auth.addUser(); // a fresh user: the first one's open session would be resumed
+    const b = await call(checkout, { token: other.token, body: { plan: 'advanced', returnTo } });
     assertEquals(b.res.status, 200, `${returnTo}: ${Deno.inspect(b.body)}`);
-    session = sessionsOf(user).at(-1);
+    session = sessionsOf(other).at(-1);
     assertEquals(session.success_url, `${SITE_URL}?checkout=success#account`, returnTo);
   }
   // Only ever one customer for this user.
@@ -348,6 +349,8 @@ Deno.test('create-checkout: returning user (abandoned checkout) reuses the custo
   const sessions = sessionsOf(user);
   assertEquals(sessions.length, 2);
   assertEquals(sessions[0].customer, sessions[1].customer);
+  // The abandoned Beginner session was expired, so the two can never both be paid.
+  assertEquals(sessions.map((s) => s.status), ['expired', 'open']);
 });
 
 Deno.test('create-checkout: concurrent double/triple click → still one Stripe customer and one customers row', async () => {
@@ -387,7 +390,8 @@ Deno.test('create-checkout: DB write failure after creating the customer → 500
 });
 
 Deno.test('create-checkout: canceled / expired / unpaid history does not block a new checkout', async () => {
-  for (const status of ['canceled', 'incomplete_expired', 'unpaid', 'incomplete', 'paused']) {
+  // ('incomplete' is resumable instead, see the tests below.)
+  for (const status of ['canceled', 'incomplete_expired', 'unpaid', 'paused']) {
     const { user, cus } = seedSubscriber('advanced', status);
     const { res, body } = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
     assertEquals(res.status, 200, `${status}: ${Deno.inspect(body)}`);
@@ -396,6 +400,120 @@ Deno.test('create-checkout: canceled / expired / unpaid history does not block a
     assertEquals(session.customer, cus.id, status);
     assertEquals(stripeCustomersOf(user).length, 1, status);
   }
+});
+
+// ================================================================== create-checkout: duplicate protection
+const checkoutCreates = (user: FakeUser) =>
+  h.stripe.calls('POST', '/v1/checkout/sessions').filter((r) => r.params.client_reference_id === user.id);
+
+Deno.test('create-checkout: a second click resumes the open session for that plan (no new session)', async () => {
+  const user = h.auth.addUser();
+  const first = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  assertEquals(first.res.status, 200);
+  const second = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  assertEquals(second.res.status, 200);
+  assertEquals(second.body, { url: first.body.url, resumed: true });
+  assertEquals(sessionsOf(user).length, 1);
+  assertEquals(checkoutCreates(user).length, 1);
+  assertEquals(sessionsOf(user)[0].metadata, { user_id: user.id, plan: 'beginner' });
+});
+
+Deno.test('create-checkout: concurrent double/triple click → one Checkout Session (idempotency key)', async () => {
+  const user = h.auth.addUser();
+  const cus = h.stripe.createCustomer(user.email, { user_id: user.id });
+  h.db.seed('customers', { user_id: user.id, stripe_customer_id: cus.id });
+  const results = await Promise.all([1, 2, 3].map(() => call(checkout, { token: user.token, body: { plan: 'advanced' } })));
+  for (const r of results) assertEquals(r.res.status, 200, Deno.inspect(r.body));
+  assertEquals(new Set(results.map((r) => r.body.url)).size, 1, 'every click gets the same session');
+  assertEquals(sessionsOf(user).length, 1);
+  const keys = checkoutCreates(user).map((r) => r.idempotencyKey);
+  assert(keys.length >= 1);
+  assertEquals(new Set(keys).size, 1, 'all creates used one key');
+  assertMatch(keys[0]!, new RegExp(`^tts-checkout-${user.id}-[0-9a-f]{32}$`));
+});
+
+Deno.test('create-checkout: the idempotency key changes with the time window, plan and return base', async () => {
+  const user = h.auth.addUser();
+  const keyFor = async (plan: string, returnTo?: string) => {
+    const before = checkoutCreates(user).length;
+    // Expire whatever is open so the next request has to create.
+    for (const s of sessionsOf(user)) if (s.status === 'open') s.status = 'expired';
+    const r = await call(checkout, { token: user.token, body: { plan, returnTo } });
+    assertEquals(r.res.status, 200, Deno.inspect(r.body));
+    assertEquals(checkoutCreates(user).length, before + 1);
+    return checkoutCreates(user).at(-1)!.idempotencyKey;
+  };
+  const a = await keyFor('beginner');
+  const b = await keyFor('advanced');
+  const c = await keyFor('beginner', `${LOCAL_ORIGIN}/`);
+  assertEquals(new Set([a, b, c]).size, 3);
+  // Same parameters in the same window → same key: Stripe replays the first session.
+  const replays = h.stripe.idempotencyStats.replays;
+  assertEquals(await keyFor('beginner'), a);
+  assert(h.stripe.idempotencyStats.replays > replays);
+  // …but never across windows.
+  const realNow = Date.now;
+  Date.now = () => realNow() + 10 * 60_000;
+  try {
+    assertNotEquals(await keyFor('beginner'), a);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+Deno.test('create-checkout: switching plan mid-checkout expires the other session; switching back never replays an expired one', async () => {
+  const user = h.auth.addUser();
+  const b1 = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  const a1 = await call(checkout, { token: user.token, body: { plan: 'advanced' } });
+  const b2 = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  for (const r of [b1, a1, b2]) assertEquals(r.res.status, 200, Deno.inspect(r.body));
+  const sessions = sessionsOf(user);
+  assertEquals(sessions.map((s) => [s.metadata.plan, s.status]), [['beginner', 'expired'], ['advanced', 'expired'], ['beginner', 'open']]);
+  assertEquals(b2.body.url, sessions[2].url);
+  assertNotEquals(b2.body.url, b1.body.url);
+  // Only the open one can still be paid.
+  h.stripe.completeCheckout(sessions[2].id);
+  let threw = false;
+  try {
+    h.stripe.completeCheckout(sessions[1].id);
+  } catch {
+    threw = true;
+  }
+  assert(threw, 'an expired session cannot be completed');
+});
+
+Deno.test('create-checkout: an unpaid (incomplete) subscription for the same plan resumes its invoice', async () => {
+  const { user, sub } = seedSubscriber('beginner', 'incomplete');
+  const r = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  assertEquals(r.res.status, 200, Deno.inspect(r.body));
+  assertEquals(r.body, { url: sub.invoice.hosted_invoice_url, resumed: true });
+  assertEquals(sessionsOf(user).length, 0);
+  assertEquals(h.stripe.calls('GET', '/v1/subscriptions').at(-1)!.params.expand, ['data.latest_invoice']);
+});
+
+Deno.test('create-checkout: an incomplete subscription for the other plan (or still processing) → 409, no new session', async () => {
+  const { user } = seedSubscriber('advanced', 'incomplete');
+  const r = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  assertEquals(r.res.status, 409);
+  assertMatch(r.body.error, /Advanced subscription payment is still pending/);
+  assertEquals(sessionsOf(user).length, 0);
+
+  const other = seedSubscriber('beginner', 'incomplete');
+  other.sub.invoice.status = 'draft'; // payment processing: nothing to pay right now
+  const p = await call(checkout, { token: other.user.token, body: { plan: 'beginner' } });
+  assertEquals(p.res.status, 409);
+  assertMatch(p.body.error, /still processing/);
+  assertEquals(sessionsOf(other.user).length, 0);
+});
+
+Deno.test('create-checkout: Stripe list failure → 500 and no session is created', async () => {
+  const { user } = seedSubscriber('beginner', 'canceled');
+  // Enough failures to outlast the SDK's own retries.
+  for (let i = 0; i < 5; i++) h.stripe.failNext('GET', /^\/v1\/checkout\/sessions$/, 500, 'api_error', 'boom');
+  const r = await call(checkout, { token: user.token, body: { plan: 'beginner' } });
+  h.stripe.failures = [];
+  assertEquals(r.res.status, 500);
+  assertEquals(sessionsOf(user).length, 0);
 });
 
 // ================================================================== create-checkout: existing members
@@ -677,6 +795,29 @@ Deno.test('webhook: customer-mapping conflicts never fail the subscription sync'
   assertEquals(customersOf(intruder).length, 0, 'a customer already mapped to another user is not re-mapped');
 });
 
+Deno.test('webhook: a failed customers mapping write → 500 so Stripe retries; the retry completes it', async () => {
+  const { user, sub } = seedSubscriber('beginner', 'active', { customerRow: false, subscriptionRow: false });
+  const event = subEvent('customer.subscription.created', sub.id);
+  h.db.failNext('POST', 'customers');
+  const n = logs.length;
+  assertEquals((await deliver(event)).status, 500);
+  assertStringIncludes(logsSince(n), event.id);
+  assertEquals(eventRow(event.id), undefined, 'not recorded as processed');
+  assertEquals((await deliver(event)).status, 200);
+  assertEquals(customersOf(user).map((r) => r.stripe_customer_id), [sub.customer]);
+  assertExists(eventRow(event.id));
+});
+
+Deno.test('webhook: a failed stripe_events write → 500 (retried; the sync itself is idempotent)', async () => {
+  const { user, sub } = seedSubscriber('beginner', 'active', { subscriptionRow: false });
+  const event = subEvent('customer.subscription.created', sub.id);
+  h.db.failNext('POST', 'stripe_events');
+  assertEquals((await deliver(event)).status, 500);
+  assertEquals((await deliver(event)).status, 200);
+  assertEquals(subsOf(user).length, 1);
+  assertExists(eventRow(event.id));
+});
+
 // ================================================================== webhook: period end, plan mapping
 Deno.test('webhook: period end read from the item when the API version has no top-level current_period_end', async () => {
   const { user, sub } = seedSubscriber('beginner', 'active', { subscriptionRow: false });
@@ -690,12 +831,23 @@ Deno.test('webhook: period end read from the item when the API version has no to
   assertEquals(subsOf(user)[0].current_period_end, isoFromUnix(sub.current_period_end));
 });
 
-Deno.test('webhook: plan falls back to the price lookup key (e.g. a new price after a price change)', async () => {
+Deno.test('webhook: a price that is not configured is never mapped by its lookup key prefix → 500, nothing written', async () => {
+  // Any price in the account can carry a key like "advanced…": only STRIPE_PRICE_* grant a plan.
   h.stripe.addPrice('price_advanced_2027', 'advanced_monthly_2027', 3499);
-  const { user, sub } = seedSubscriber('advanced', 'active', { subscriptionRow: false });
-  h.stripe.setPrice(sub.id, 'price_advanced_2027');
-  assertEquals((await deliver(subEvent('customer.subscription.created', sub.id))).status, 200);
-  assertEquals(subsOf(user).map((s) => [s.plan, s.price_id]), [['advanced', 'price_advanced_2027']]);
+  h.stripe.addPrice('price_cheap_test', 'advanced_monthly', 100);
+  for (const price of ['price_advanced_2027', 'price_cheap_test']) {
+    const { user, sub } = seedSubscriber('advanced', 'active', { subscriptionRow: false });
+    h.stripe.setPrice(sub.id, price);
+    const n = logs.length;
+    assertEquals((await deliver(subEvent('customer.subscription.created', sub.id))).status, 500, price);
+    assertStringIncludes(logsSince(n), `Unknown price ${price}`);
+    assertEquals(subsOf(user).length, 0, price);
+  }
+  assertEquals(common.planForPrice(PRICE_ADVANCED), 'advanced');
+  assertEquals(common.planForPrice(PRICE_BEGINNER), 'beginner');
+  for (const bad of ['', null, undefined, 'advanced_monthly', 'beginner', `${PRICE_ADVANCED} `]) {
+    assertEquals(common.planForPrice(bad as string), null, String(bad));
+  }
 });
 
 Deno.test('webhook: unknown price → 500 so Stripe retries, logged, nothing written', async () => {
