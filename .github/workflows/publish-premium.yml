@@ -1,0 +1,59 @@
+name: Publish premium modules
+
+# Uploads the paid lesson / game modules of a PREMIUM_SOURCE=storage build of the pushed
+# commit to the private `premium` Supabase Storage bucket (docs/ACCOUNTS.md §10). Build names
+# are content hashes of the source, so this build matches the one Vercel deploys for the same
+# commit. Needs the repository secrets SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; without
+# them it does nothing (and says so).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only print the plan (upload / delete), change nothing
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-premium
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build (PREMIUM_SOURCE=storage) and publish
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Check secrets
+        id: secrets
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::notice title=Premium modules not published::Repository secrets SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are not set, so nothing was published. See docs/ACCOUNTS.md §10."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.configured == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.secrets.outputs.configured == 'true'
+      - name: Build
+        if: steps.secrets.outputs.configured == 'true'
+        run: npm run build
+        env:
+          PREMIUM_SOURCE: storage
+      - name: Publish
+        if: steps.secrets.outputs.configured == 'true'
+        run: node scripts/publish-premium.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
