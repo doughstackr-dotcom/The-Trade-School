@@ -1,0 +1,61 @@
+/* Setup Playbook — card pattern embeds and list layout helpers.
+   Kept separate from components.css so concurrent shell/games edits stay clear. */
+
+.playbook-setups-head {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 0;
+}
+
+.playbook-setups-head .t-22 {
+  margin: 0;
+}
+
+.playbook-card__pattern {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2, var(--surface));
+}
+
+.playbook-card__pattern-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.playbook-card__pattern-kicker {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playbook-card__pattern-name {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.playbook-card__pattern-art {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  padding: 4px 0;
+}
+
+.playbook-card__pattern-art svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.playbook-card__pattern-empty {
+  min-height: 72px;
+  border-radius: 8px;
+  background: var(--surface);
+}

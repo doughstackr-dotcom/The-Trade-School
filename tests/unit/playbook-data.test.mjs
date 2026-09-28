@@ -55,3 +55,12 @@ test('guide sections are populated', () => {
     assert.ok(sc.steps.length >= 3);
   }
 });
+
+test('every catalog pattern is represented by at least one setup', () => {
+  const candleIds = Object.keys(CANDLE_PATTERNS);
+  const chartIds = Object.keys(CHART_PATTERNS);
+  assert.equal(candleIds.length + chartIds.length, 42, 'catalog should have 42 patterns');
+  const used = new Set(SETUPS.map((s) => s.pattern));
+  const missing = [...candleIds, ...chartIds].filter((id) => !used.has(id));
+  assert.deepEqual(missing, [], `orphaned patterns: ${missing.join(', ')}`);
+});

@@ -138,6 +138,49 @@ export const SETUPS = [
     target: '1.5–2R or next micro resistance.',
   },
 
+  {
+    id: 'bullish-marubozu', name: 'Bullish marubozu thrust', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
+    pattern: 'bullish-marubozu',
+    summary: 'A long green body with almost no wicks — buyers controlled the whole bar. Scalp continuation when it prints from a level.',
+    rules: [
+      'Prior dip or pause into support / VWAP / Fib',
+      'Open near the low, close near the high, little or no wick',
+      'Above-average range versus recent bars',
+      'Next candle does not immediately engulf it back down',
+    ],
+    entry: 'Buy a tick above the marubozu high (or on its close for aggressive scalps).',
+    stop: 'Just below the marubozu low.',
+    target: '1.5–2R or the next micro resistance.',
+  },
+  {
+    id: 'bearish-marubozu', name: 'Bearish marubozu thrust', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
+    pattern: 'bearish-marubozu',
+    summary: 'A long red body with almost no wicks — sellers owned the bar. Fade / continue lower when it rejects a level.',
+    rules: [
+      'Prior pop into resistance / VWAP / Fib',
+      'Open near the high, close near the low, little or no wick',
+      'Above-average range versus recent bars',
+      'Next candle does not reclaim the open',
+    ],
+    entry: 'Sell a tick below the marubozu low (or on its close).',
+    stop: 'Just above the marubozu high.',
+    target: '1.5–2R or the next micro support.',
+  },
+  {
+    id: 'tweezer-top', name: 'Tweezer top scalp', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
+    pattern: 'tweezer-top', fib: true,
+    summary: 'Two candles share the same high after a rally — sellers defended the level twice. Short the failure.',
+    rules: [
+      'Clear short-term rally into resistance / Fib',
+      'Two consecutive highs within a tick of each other',
+      'Second candle is preferably bearish or a rejection',
+      'Next candle closes below the tweezer low',
+    ],
+    entry: 'Sell the confirmation close below the pattern low.',
+    stop: 'Just above the shared highs.',
+    target: '1.5–2R or prior micro swing low.',
+  },
+
   // —— Medium: weaker / confirmation-needed candles + straightforward chart continuation ——
   {
     id: 'doji', name: 'Doji pause (scalp)', tier: 'beginner', difficulty: 'medium', bias: 'neutral', kind: 'candle',
@@ -287,6 +330,91 @@ export const SETUPS = [
     target: 'The start of the wedge or the measured height of the pattern.',
   },
 
+  {
+    id: 'spinning-top', name: 'Spinning top pause', tier: 'beginner', difficulty: 'medium', bias: 'neutral', kind: 'candle',
+    pattern: 'spinning-top',
+    summary: 'Small body mid-range with wicks both ways — indecision at a level. Trade only the break of its range.',
+    rules: [
+      'Prints at a clear micro level (VWAP, prior high/low, session open)',
+      'Body small relative to the full range; both wicks present',
+      'Wait for the next candle to close beyond the spinning-top high or low',
+      'Skip if it prints mid-range with no level',
+    ],
+    entry: 'Buy/sell the confirmation close beyond the pattern extreme.',
+    stop: 'A few ticks beyond the opposite wick.',
+    target: '1–1.5R or the next micro swing; bank quick.',
+  },
+  {
+    id: 'three-white-soldiers', name: 'Three white soldiers', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'candle',
+    pattern: 'three-white-soldiers',
+    summary: 'Three strong consecutive green candles, each closing near its high — bullish impulse after a base. Enter late; size down.',
+    rules: [
+      'Prior decline or base into the pattern',
+      'Three consecutive long green bodies with small upper wicks',
+      'Each open inside (or near) the prior body',
+      'Prefer confluence with reclaimed support or MA',
+    ],
+    entry: 'Buy a close above the third soldier’s high (or a shallow pullback into soldier 3).',
+    stop: 'Below the low of the three-candle cluster.',
+    target: '2R or the next major resistance; trail if momentum persists.',
+  },
+  {
+    id: 'bull-pennant', name: 'Bull pennant', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'chart',
+    pattern: 'bull-pennant',
+    summary: 'Sharp rally (pole) then a short converging triangle on light volume — continuation long when the upper pennant breaks.',
+    rules: [
+      'A clear pole on expanding volume',
+      'A brief, converging pullback (not a deep flag)',
+      'Volume contracts inside the pennant',
+      'Close above the upper pennant line',
+    ],
+    entry: 'Buy the close above the pennant (or the first retest that holds).',
+    stop: 'Below the pennant low.',
+    target: 'Pole height projected from the breakout.',
+  },
+  {
+    id: 'bear-pennant', name: 'Bear pennant', tier: 'advanced', difficulty: 'medium', bias: 'bearish', kind: 'chart',
+    pattern: 'bear-pennant',
+    summary: 'Sharp drop (pole) then a short converging triangle — continuation short when the lower pennant breaks.',
+    rules: [
+      'A clear down-pole on expanding volume',
+      'A brief, converging bounce',
+      'Volume contracts inside the pennant',
+      'Close below the lower pennant line',
+    ],
+    entry: 'Sell the close below the pennant (or the first retest that fails).',
+    stop: 'Above the pennant high.',
+    target: 'Pole height projected from the breakdown.',
+  },
+  {
+    id: 'bull-rectangle', name: 'Bull rectangle', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'chart',
+    pattern: 'bull-rectangle',
+    summary: 'After an uptrend, price digests between flat support and flat resistance — long the upside break of the box.',
+    rules: [
+      'Prior uptrend into the rectangle',
+      'At least two touches of both the top and bottom',
+      'Volume dries inside the box, expands on the break',
+      'Close above rectangle resistance',
+    ],
+    entry: 'Buy the close above the box high (or the retest of the broken top).',
+    stop: 'Below the box midpoint (tighter) or the box low.',
+    target: 'Box height projected from the breakout.',
+  },
+  {
+    id: 'bear-rectangle', name: 'Bear rectangle', tier: 'advanced', difficulty: 'medium', bias: 'bearish', kind: 'chart',
+    pattern: 'bear-rectangle',
+    summary: 'After a downtrend, a flat consolidation box — short the downside break of support.',
+    rules: [
+      'Prior downtrend into the rectangle',
+      'At least two touches of both the top and bottom',
+      'Volume dries inside the box, expands on the break',
+      'Close below rectangle support',
+    ],
+    entry: 'Sell the close below the box low (or the retest of the broken floor).',
+    stop: 'Above the box midpoint (tighter) or the box high.',
+    target: 'Box height projected from the breakdown.',
+  },
+
   // —— Hard: trap / fade and multi-leg / confluence ——
   {
     id: 'fakeout-up', name: 'Failed breakout (fade)', tier: 'advanced', difficulty: 'hard', bias: 'bearish', kind: 'chart',
@@ -407,6 +535,63 @@ export const SETUPS = [
     stop: 'Below the fakeout low.',
     target: 'The other side of the range (or prior swing high).',
   },
+  {
+    id: 'triple-top', name: 'Triple top', tier: 'advanced', difficulty: 'hard', bias: 'bearish', kind: 'chart',
+    pattern: 'triple-top',
+    summary: 'Three peaks at roughly the same resistance with two troughs between — short the neckline break when the third fail sticks.',
+    rules: [
+      'Prior uptrend into the pattern',
+      'Three highs within a tight band at resistance',
+      'Rightmost peak fails to extend',
+      'Close below the neckline (the troughs) with expanding volume',
+    ],
+    entry: 'Sell the neckline break or its retest from below.',
+    stop: 'Above the highest of the three peaks.',
+    target: 'Pattern height (peaks to neckline) projected down.',
+  },
+  {
+    id: 'triple-bottom', name: 'Triple bottom', tier: 'advanced', difficulty: 'hard', bias: 'bullish', kind: 'chart',
+    pattern: 'triple-bottom',
+    summary: 'Three troughs at roughly the same support — long the neckline break when buyers reclaim the highs between the lows.',
+    rules: [
+      'Prior downtrend into the pattern',
+      'Three lows within a tight band at support',
+      'Rightmost trough holds',
+      'Close above the neckline with expanding volume',
+    ],
+    entry: 'Buy the neckline break or its retest from above.',
+    stop: 'Below the lowest of the three troughs.',
+    target: 'Pattern height (troughs to neckline) projected up.',
+  },
+  {
+    id: 'rounding-bottom', name: 'Rounding bottom', tier: 'advanced', difficulty: 'hard', bias: 'bullish', kind: 'chart',
+    pattern: 'rounding-bottom',
+    summary: 'A long saucer base where selling slowly exhausts — patience trade; enter as price reclaims the rim on rising volume.',
+    rules: [
+      'Gradual U-shape (not a sharp V)',
+      'Volume tends to dry at the low and expand on the right side',
+      'Close above the rim / prior plateau',
+      'Skip if the right rim is a vertical spike with no base time',
+    ],
+    entry: 'Buy the close above the rim (or a shallow retest that holds).',
+    stop: 'Below the midpoint of the saucer (or the absolute low for wider risk).',
+    target: 'Depth of the saucer projected from the breakout.',
+  },
+  {
+    id: 'rounding-top', name: 'Rounding top', tier: 'advanced', difficulty: 'hard', bias: 'bearish', kind: 'chart',
+    pattern: 'rounding-top',
+    summary: 'A long dome top where buying slowly fades — short as price loses the right rim on expanding volume.',
+    rules: [
+      'Gradual inverted-U (not a sharp spike reversal)',
+      'Volume often fades into the high and expands on the decline',
+      'Close below the rim / prior plateau',
+      'Skip if the right side is a one-bar crash with no dome time',
+    ],
+    entry: 'Sell the close below the rim (or a weak retest that fails).',
+    stop: 'Above the midpoint of the dome (or the absolute high for wider risk).',
+    target: 'Height of the dome projected from the breakdown.',
+  },
+
 ];
 
 /** Risk management rules — educational, not financial advice. */

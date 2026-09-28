@@ -1,6 +1,6 @@
 // Setup Playbook — rule-based setups with checklist + Home-hero-style playback on detail.
 // List keeps static miniChart thumbs; detail keeps the diagram and ADDS a stepped simulation.
-// List is sectioned by trading difficulty (Easy / Medium / Hard), plus risk / framework / checklist guides.
+// List leads with difficulty-sectioned setup cards (each embeds its pattern viz); guides follow.
 import { h, icon, tierChip } from '../core/ui.js';
 import { takeaway, figure } from '../core/lesson-kit.js';
 import { mountPatternPlayback } from '../core/pattern-playback.js';
@@ -14,6 +14,7 @@ import {
   difficultyMeta,
   setupById,
 } from '../core/playbook-data.js';
+import { CANDLE_PATTERNS, CHART_PATTERNS } from '../core/patterns.js';
 
 const GUIDE_JUMPS = [
   { id: 'risk', label: 'Risk' },
@@ -56,8 +57,70 @@ function diagram(setup, chartMod, patMod, width = 320, height = 150) {
   }
 }
 
+function patternMeta(setup) {
+  const map = setup.kind === 'candle' ? CANDLE_PATTERNS : CHART_PATTERNS;
+  return map[setup.pattern] || { name: setup.pattern, bias: setup.bias };
+}
+
+/** Clean pattern silhouette / focused thumb — shown at the bottom of each setup card. */
+function patternViz(setup, chartMod, patMod) {
+  if (!chartMod || !patMod) return h('div', { class: 'playbook-card__pattern-empty' });
+  try {
+    if (setup.kind === 'candle') {
+      const sc = patMod.candleScenario(setup.pattern, { seed: 101 + setup.id.length, leadIn: 0, after: 0 });
+      const candles = sc.candles.slice(sc.start, sc.end + 1);
+      const n = Math.max(1, candles.length);
+      const width = n === 1 ? 120 : n === 2 ? 160 : 200;
+      return chartMod.miniChart(candles, {
+        width,
+        height: 96,
+        padding: 16,
+        yPad: 0.28,
+        overlays: [],
+        ariaLabel: `${patternMeta(setup).name} pattern`,
+      });
+    }
+    const sc = patMod.chartScenario(setup.pattern, {
+      seed: 202 + setup.id.length,
+      count: 72,
+      after: 10,
+      outcome: setup.outcome || 'success',
+    });
+    const from = sc.patternStart ?? Math.max(0, (sc.breakoutIdx || sc.candles.length - 1) - 24);
+    const to = sc.patternEnd ?? Math.min(sc.candles.length - 1, (sc.breakoutIdx || sc.candles.length - 1) + 4);
+    const overlays = [
+      {
+        type: 'box',
+        from,
+        to,
+        color: setup.bias === 'bullish' ? 'bull' : setup.bias === 'bearish' ? 'bear' : 'accent',
+      },
+    ];
+    if (Number.isFinite(sc.level)) {
+      overlays.push({ type: 'hline', price: sc.level, color: 'accent', dashed: true });
+    }
+    return chartMod.miniChart(sc.candles, {
+      width: 280,
+      height: 100,
+      yPad: 0.14,
+      overlays,
+      ariaLabel: `${patternMeta(setup).name} pattern`,
+    });
+  } catch (err) {
+    console.error(`[playbook] pattern viz for ${setup.id} failed:`, err);
+    return h('div', { class: 'playbook-card__pattern-empty' });
+  }
+}
+
 function setupCard(s, mods) {
   const art = h('div', { class: 'playbook-card__art', 'aria-hidden': 'true' }, diagram(s, ...mods));
+  const meta = patternMeta(s);
+  const patternBlock = h('div', { class: 'playbook-card__pattern' },
+    h('div', { class: 'playbook-card__pattern-head' },
+      h('span', { class: 'playbook-card__pattern-kicker faint' }, 'Pattern'),
+      h('span', { class: 'playbook-card__pattern-name' }, meta.name),
+      h('span', { class: 'chip chip--sm chip--outline' }, s.kind === 'candle' ? 'Candle' : 'Chart')),
+    h('div', { class: 'playbook-card__pattern-art', 'aria-hidden': 'true' }, patternViz(s, ...mods)));
   return h('a', { class: 'playbook-card card card--link', href: `#playbook.${s.id}` },
     art,
     h('div', { class: 'playbook-card__body' },
@@ -69,7 +132,8 @@ function setupCard(s, mods) {
         h('span', { class: 'chip chip--sm chip--outline playbook-card__play' }, icon('play', { size: 12 }), ' Sim')),
       h('h2', { class: 'playbook-card__title' }, s.name),
       h('p', { class: 'playbook-card__summary' }, s.summary),
-      h('span', { class: 'playbook-card__go' }, `${s.rules.length}-point checklist`, icon('arrow-right', { size: 16 }))));
+      h('span', { class: 'playbook-card__go' }, `${s.rules.length}-point checklist`, icon('arrow-right', { size: 16 }))),
+    patternBlock);
 }
 
 function scrollToId(id) {
@@ -79,11 +143,6 @@ function scrollToId(id) {
 
 function jumpNav() {
   return h('nav', { class: 'playbook-jump', 'aria-label': 'Jump to playbook section' },
-    ...GUIDE_JUMPS.map((g) => h('button', {
-      type: 'button',
-      class: 'playbook-jump__link playbook-jump__link--guide',
-      onClick: () => scrollToId(`playbook-${g.id}`),
-    }, g.label)),
     ...DIFFICULTIES.map((d) => {
       const n = SETUPS.filter((s) => s.difficulty === d.id).length;
       return h('button', {
@@ -91,7 +150,12 @@ function jumpNav() {
         class: 'playbook-jump__link',
         onClick: () => scrollToId(`playbook-diff-${d.id}`),
       }, d.label, h('span', { class: 'playbook-jump__n' }, String(n)));
-    }));
+    }),
+    ...GUIDE_JUMPS.map((g) => h('button', {
+      type: 'button',
+      class: 'playbook-jump__link playbook-jump__link--guide',
+      onClick: () => scrollToId(`playbook-${g.id}`),
+    }, g.label)));
 }
 
 function riskSection() {
@@ -229,22 +293,23 @@ function listView(root, mods) {
       h('h1', null, 'Exact setups, exact rules'),
       h('p', { class: 'lead' },
         'Each setup is a checklist you can verify on any chart, with an entry, a stop and a target decided before you trade. ',
-        'Start with risk, frameworks and checklists — then drill Easy, Medium and Hard sims.')),
+        'Every card embeds its pattern at the bottom — drill Easy, Medium and Hard sims, then review risk, frameworks and checklists.')),
     jumpNav(),
-    riskSection(),
-    frameworksSection(),
-    checklistsSection(),
-    scenariosSection(),
     h('header', { class: 'playbook-setups-head page-head' },
       h('p', { class: 'eyebrow' }, 'Setups by difficulty'),
       h('h2', { class: 't-22', id: 'playbook-setups-h' }, 'The playbook cards'),
       h('p', { class: 'muted' },
-        'Grouped by trade difficulty — Easy, Medium, Hard. Open a card for the stepped simulation.')),
+        'Grouped by trade difficulty — Easy, Medium, Hard. Each card shows the contextual diagram up top and the clean pattern silhouette at the bottom. Open a card for the stepped simulation.')),
     ...setupSections(mods),
+    riskSection(),
+    frameworksSection(),
+    checklistsSection(),
+    scenariosSection(),
     h('p', { class: 'faint playbook__note' },
       'Simulations are educational — not live signals or financial advice. ',
-      'Japanese candle setups below are framed for short-timeframe scalps with tight stops. ',
-      'Curriculum Beginner/Advanced chips mark lesson track; Easy/Medium/Hard mark how hard the trade is to execute.')));
+      'Japanese candle setups are framed for short-timeframe scalps with tight stops. ',
+      'Curriculum Beginner/Advanced chips mark lesson track; Easy/Medium/Hard mark how hard the trade is to execute. ',
+      'All catalog patterns appear on at least one setup card.')));
 }
 
 function detailView(root, setup, mods) {
