@@ -292,8 +292,8 @@ export const GAMES = [
   {
     id: 'divergence-detective', type: 'game', tier: 'advanced', minutes: 7, kind: 'quiz',
     title: 'Divergence Detective',
-    blurb: 'Compare price with RSI and MACD. Spot bullish and bearish divergence before the turn.',
-    skills: ['RSI', 'MACD', 'Divergence'],
+    blurb: 'Compare price with RSI. Spot bullish and bearish divergence before the turn — and when momentum simply confirms.',
+    skills: ['RSI', 'Divergence', 'Confirmation'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/divergence-detective.js',
   },
@@ -314,7 +314,7 @@ export const GAMES = [
     path: './games/trap-or-trade.js',
   },
   {
-    id: 'risk-manager', type: 'game', tier: 'advanced', minutes: 8, kind: 'calc',
+    id: 'risk-manager', type: 'game', tier: 'both', minutes: 8, kind: 'calc',
     title: 'Risk Manager',
     blurb: 'Size positions, place stops and targets, and score setups for confluence. Protect the account.',
     skills: ['Position sizing', 'Stops & targets', 'R-multiples'],

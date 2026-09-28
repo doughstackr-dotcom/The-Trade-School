@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://the-trade-school.vercel.app/sitemap.xml
+Sitemap: https://thetradeschool.online/sitemap.xml

@@ -19,7 +19,7 @@ in your browser.
 
 - **`#dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
 - **`#account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
-- Access gating: `js/core/access.js` + router `setAccessGate`. Free ids include candle anatomy, candle builder, daily challenge, markets & orders, and order desk. See `docs/SECRETS.md`.
+- Access gating: `js/core/access.js` + router `setAccessGate`. Free ids (`FREE_IDS` in `js/config.js`): the Daily Challenge and the Risk & position sizing lesson. See `docs/SECRETS.md`.
 
 
 ## Curriculum
@@ -91,10 +91,10 @@ This is **vanilla JS with native `import()`** — not Vite. There is no `vite.co
 
 For Vercel (free tier): import the repo, Framework Preset **Other**, leave Build Command
 empty, Output Directory `.` (or rely on the included `vercel.json`). Deploy the feature
-branch as a static site. Do not attach a custom domain unless you intend to.
+branch as a static site. Attach the custom domain `thetradeschool.online` in Vercel → Project → Domains.
 
-SEO files assume the origin `https://the-trade-school.vercel.app` — **update it when a custom
-domain is set**: the canonical / `og:url` / `og:image` / `twitter:image` tags and JSON-LD in
+SEO files use the site's domain `https://thetradeschool.online` — if the domain changes, update
+the canonical / `og:url` / `og:image` / `twitter:image` tags and JSON-LD in
 `index.html`, the `Sitemap:` line in `robots.txt`, and `sitemap.xml`.
 
 Basic browsing works without env vars. Real-market charts need the Supabase `market-data`

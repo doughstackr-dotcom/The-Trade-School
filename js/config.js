@@ -14,7 +14,7 @@ export const PLANS = {
 
 // Exactly one free game for signed-in members without a paid plan (Games page hook).
 // Every other lesson/game needs Beginner or Advanced. See docs / access tests.
-export const FREE_IDS = ['daily-challenge'];
+export const FREE_IDS = ['daily-challenge', 'risk-basics'];
 
 // 'auto' enforces plans on real hosts and leaves everything open on localhost so
 // development and tests see every module; 'open' | 'enforce' force one behaviour.

@@ -109,8 +109,8 @@ export function swipeCard({ chartNode, title, body, onTake, onSkip, takeLabel = 
   if (title) card.append(h('h3', { class: 'swipe-card__title' }, title));
   if (body) card.append(h('p', { class: 'swipe-card__body muted' }, body));
   const actions = h('div', { class: 'swipe-card__actions' },
-    h('button', { type: 'button', class: ['btn', skipClass, 'btn--lg'], onclick: () => { card.classList.add('is-skip'); onSkip?.(); } }, skipLabel),
-    h('button', { type: 'button', class: ['btn', takeClass, 'btn--lg'], onclick: () => { card.classList.add('is-take'); onTake?.(); } }, takeLabel));
+    h('button', { type: 'button', class: ['btn', skipClass, 'btn--lg'], onClick: () => { card.classList.add('is-skip'); onSkip?.(); } }, skipLabel),
+    h('button', { type: 'button', class: ['btn', takeClass, 'btn--lg'], onClick: () => { card.classList.add('is-take'); onTake?.(); } }, takeLabel));
   card.append(actions);
   return card;
 }
@@ -170,7 +170,7 @@ export function orderLadder({ mid = 100, tick = 0.25, levels = 7, seed = 1, onPi
     }
     const bar = h('span', { class: 'order-desk__bar', style: { width: `${Math.min(100, r.size * 5)}%` } });
     const btn = h('button', { type: 'button', class: [`order-desk__row`, `order-desk__row--${r.side}`], role: 'listitem',
-      onclick: () => {
+      onClick: () => {
         book.querySelectorAll('.is-picked').forEach((n) => n.classList.remove('is-picked'));
         btn.classList.add('is-picked'); onPick?.(r);
       } },
