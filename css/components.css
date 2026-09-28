@@ -66,8 +66,8 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  flex: 0 1 auto;
-  min-width: 0;
+  /* Never shrink: the nav and tools make room instead, so the wordmark is never cut. */
+  flex: 0 0 auto;
   margin-right: 16px;
   color: var(--text);
   text-decoration: none;
@@ -111,16 +111,82 @@
 }
 
 .brand__word {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* "More" menu: holds the wide links (Glossary, Platforms) between 960 and 1499px. */
+.nav-more {
+  position: relative;
+  display: none;
+}
+
+.nav-more__summary {
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.nav-more__summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-more__summary .icon {
+  transition: transform 0.15s;
+}
+
+.nav-more[open] > .nav-more__summary {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.nav-more[open] > .nav-more__summary .icon {
+  transform: rotate(180deg);
+}
+
+.nav-more__menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 70;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.nav-more__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.nav-more__link:hover,
+.nav-more__link.is-active {
+  color: var(--text);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.nav-more__link.is-active {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .nav__link {
@@ -290,6 +356,45 @@
   .nav__link.is-active::after {
     left: 6px;
     right: 6px;
+  }
+}
+
+/* Header fit rules — after the base .nav__link / .xp-pill rules so they win. */
+@media (max-width: 379.98px) {
+  .topbar__inner {
+    gap: 2px;
+  }
+
+  .topbar__tools .topbar__auth {
+    padding-inline: 0.45rem;
+  }
+
+  .topbar__tools .icon-btn {
+    width: 32px;
+  }
+}
+
+/* The container caps at 1120px, so the wide links (Glossary, Platforms) always live in the
+   "More" menu on desktop (from 1080px); narrower top navs drop them (the footer keeps them). */
+.nav__link--wide {
+  display: none;
+}
+
+@media (min-width: 1080px) {
+  .nav-more {
+    display: block;
+  }
+}
+
+/* 820–1279px: the XP pill drops its title and meter (level number stays). */
+@media (min-width: 820px) and (max-width: 1279.98px) {
+  .xp-pill {
+    padding-right: 5px;
+  }
+
+  .xp-pill__title,
+  .xp-pill__meter {
+    display: none;
   }
 }
 
@@ -465,9 +570,24 @@
   }
 }
 
-@media (max-width: 359.98px) {
+/* Phones: stack the full name on two short lines rather than cutting it mid-word. */
+@media (max-width: 519.98px) {
+  .brand {
+    gap: 7px;
+  }
+
   .brand__word {
-    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    font-size: 14.5px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+  }
+}
+
+@media (max-width: 355.98px) {
+  .brand__word {
+    display: none;
   }
 }
 
@@ -4570,12 +4690,6 @@ figcaption {
   margin-top: 1px;
 }
 
-/* Glossary drops out of the top nav below 1180px (it stays in the footer). */
-@media (max-width: 1179.98px) {
-  .nav__link--wide {
-    display: none;
-  }
-}
 
 @media (max-width: 819.98px) {
   .tabbar {
@@ -6501,6 +6615,19 @@ figcaption {
   }
 }
 
+/* 820–879px: the full wordmark plus five links only fit with a slightly smaller wordmark and
+   an icon-free Sign in button. */
+@media (min-width: 820px) and (max-width: 879.98px) {
+  .brand {
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .topbar__auth .icon {
+    display: none;
+  }
+}
+
 .feedback__lives {
   display: inline-flex;
   align-items: center;
@@ -6805,10 +6932,6 @@ figcaption {
 .pricing__note { margin-top: var(--space-4); font-size: 13px; line-height: 1.5; }
 .hero__fine { margin-top: 12px; font-size: 13.5px; }
 
-/* Phone tab bar: ensure Dashboard-wide links still reachable via footer */
-@media (max-width: 1179.98px) {
-  .nav__link--wide { display: none; }
-}
 
 /* ---------------------------------------------------------------- markets-orders visuals */
 

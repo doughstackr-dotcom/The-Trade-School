@@ -6,7 +6,8 @@ import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
-// wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
+// wide: shown as its own top-nav link from 1500px; from 960–1499px it moves into the "More"
+// menu so the full wordmark always fits; below 960px it lives in the footer only.
 const NAV = [
   { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
@@ -94,13 +95,41 @@ function buildShell(app) {
   const navLinks = [];
   const tabLinks = [];
 
+  const moreItems = NAV.filter((n) => n.wide);
+  const moreLinks = moreItems.map((n) => {
+    const a = h('a', { class: 'nav-more__link', href: `#${n.hash}`, 'data-nav': n.hash },
+      icon(n.icon, { size: 16 }), h('span', null, n.label));
+    navLinks.push(a);
+    return a;
+  });
+  const moreSummary = h('summary', { class: 'nav__link nav-more__summary' },
+    h('span', null, 'More'), icon('chevron-down', { size: 14 }));
+  const more = moreItems.length
+    ? h('details', { class: 'nav-more' },
+      moreSummary,
+      h('div', { class: 'nav-more__menu' }, moreLinks))
+    : null;
+  const closeMore = () => { if (more) more.open = false; };
+  if (more) {
+    more.addEventListener('click', (e) => { if (e.target.closest('a')) closeMore(); });
+    more.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && more.open) {
+        closeMore();
+        moreSummary.focus();
+      }
+    });
+    document.addEventListener('click', (e) => { if (more.open && !more.contains(e.target)) closeMore(); });
+    more.addEventListener('focusout', (e) => { if (more.open && !more.contains(e.relatedTarget)) closeMore(); });
+  }
+
   const topNav = h('nav', { class: 'nav', 'aria-label': 'Primary' },
     NAV.map((n) => {
       const a = h('a', { class: ['nav__link', n.wide && 'nav__link--wide', n.live && 'nav__link--live'], href: `#${n.hash}`, 'data-nav': n.hash },
         n.live ? liveDot() : null, h('span', null, n.label));
       navLinks.push(a);
       return a;
-    }));
+    }),
+    more);
 
   const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Primary', style: { '--tabs': NAV.filter((n) => n.tab !== false).length } },
     NAV.filter((n) => n.tab !== false).map((n) => {
@@ -207,7 +236,10 @@ function buildShell(app) {
     h('div', { class: 'container topbar__inner' },
       h('a', { class: 'brand', href: '#home', 'aria-label': 'The Trade School — home' },
         brandMark(28),
-        h('span', { class: 'brand__word' }, 'The Trade School')),
+        // Two parts so phones can stack the full name on two lines instead of truncating it.
+        h('span', { class: 'brand__word' },
+          h('span', { class: 'brand__line' }, 'The Trade'), ' ',
+          h('span', { class: 'brand__line' }, 'School'))),
       topNav,
       h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn)));
 
@@ -265,6 +297,8 @@ function buildShell(app) {
       else a.removeAttribute('aria-current');
     }
     document.body.dataset.route = route.kind === 'page' ? route.page : route.kind;
+    moreSummary.classList.toggle('is-active', moreItems.some((n) => n.hash === key));
+    closeMore();
   }
 
   return { main, setActive };
