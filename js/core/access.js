@@ -426,7 +426,30 @@ export async function signOut() {
   emit();
 }
 
-/** Starts Stripe Checkout via Edge Function. Returns { ok, error } or redirects. */
+/**
+ * Status + server message from a supabase-js FunctionsHttpError (non-2xx from an Edge
+ * Function). The Response sits on err.context; the body is JSON like { error: '…' }.
+ */
+async function httpErrorDetail(err) {
+  const res = err?.context;
+  if (!res || typeof res.status !== 'number') return null;
+  let message = null;
+  try {
+    const body = await (typeof res.clone === 'function' ? res.clone() : res).json();
+    const m = body?.error || body?.message;
+    if (typeof m === 'string' && m.trim()) message = m.trim();
+  } catch {
+    /* not JSON */
+  }
+  return { status: res.status, message };
+}
+
+/**
+ * Starts Stripe Checkout via Edge Function. Redirects on { url } (including a resumed open
+ * session, { url, resumed: true }). Returns { ok, error, status? } otherwise; a 409 (e.g. a
+ * payment still processing, or an incomplete subscription on the other plan) carries the
+ * server's message in `error` so the UI can show it as-is.
+ */
 export async function checkout(plan) {
   await ensureLoaded();
   const c = await getClient();
@@ -434,10 +457,17 @@ export async function checkout(plan) {
   if (!PLANS[plan]) return { ok: false, error: 'Unknown plan' };
   try {
     const { data, error } = await c.functions.invoke('create-checkout', { body: { plan } });
-    if (error) throw error;
+    if (error) {
+      const detail = await httpErrorDetail(error);
+      if (detail?.status === 409) {
+        return { ok: false, status: 409, error: detail.message || 'A subscription change is already in progress. Please try again shortly.' };
+      }
+      if (detail?.message) return { ok: false, status: detail.status, error: detail.message };
+      throw error;
+    }
     if (data?.url) {
       location.href = data.url;
-      return { ok: true };
+      return { ok: true, resumed: !!data.resumed };
     }
     if (data?.switched) {
       await refresh();

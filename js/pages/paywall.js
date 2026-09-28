@@ -80,8 +80,10 @@ export default {
       status.textContent = 'Opening checkout…';
       const res = await access.checkout(planId);
       if (!res.ok) {
+        // 409 = the server explains what is blocking checkout (e.g. a payment still processing);
+        // show its message as-is and keep it on screen longer.
         status.textContent = res.error || 'Subscriptions not open yet';
-        toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: 5000 });
+        toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: res.status === 409 ? 9000 : 5000 });
         return;
       }
       if (res.switched) {
