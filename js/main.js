@@ -2,6 +2,7 @@
 import { store } from './core/store.js';
 import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
+import { loadPremium } from './core/premium-loader.js';
 import { startProgressSync } from './core/progress-sync.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
@@ -386,6 +387,8 @@ function boot() {
       canOpen: (entry, route) => access.canOpen(entry, route),
       access: () => access.accessInfo(),
       paywallPath: new URL('./pages/paywall.js', import.meta.url).href,
+      // PREMIUM_SOURCE = 'storage' builds: paid modules come from the private bucket.
+      loadPremium,
       // No onUnauthenticated redirect: unsigned visitors see the paywall teaser
       // (plans + sign-in CTA) instead of a hard hide-behind-login wall.
     });

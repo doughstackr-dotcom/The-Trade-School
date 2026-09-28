@@ -103,6 +103,17 @@ function isChunkLoadError(err) {
 
 const RELOAD_KEY = 'tts-chunk-reload';
 
+/** Registry path prefix of a paid module served from private Storage (see scripts/build.mjs). */
+const PREMIUM_PREFIX = 'premium:';
+
+/** A paid module through the gate's loader (js/core/premium-loader.js, wired in js/main.js). */
+function loadPremiumModule(path) {
+  if (typeof gate?.loadPremium !== 'function') {
+    return Promise.reject(new Error('Member content is not available right now. Please try again later.'));
+  }
+  return gate.loadPremium(path.slice(PREMIUM_PREFIX.length));
+}
+
 /**
  * Stale deploy: an open page asked for a module file the new deploy no longer has. Reload once
  * to pick up the new index.html; the sessionStorage flag stops a reload loop (no storage → no
@@ -158,6 +169,9 @@ let gate = null;
  * access: { level, can(plan), user? } | () => that,
  * paywallPath?: URL string of the page module to mount for signed-in users who lack the plan
  * (default '../pages/paywall.js'),
+ * loadPremium?(objectPath) → Promise<module>: loads a paid module whose registry path is
+ * 'premium:<object path>' (PREMIUM_SOURCE = 'storage' builds; rejects with an error named
+ * PremiumAccessError when Storage refuses it — the route is then re-checked, see render()),
  * onUnauthenticated?(route, entry)?: called when an unsigned visitor hits a gated route —
  * typically store a return hash and navigate to account sign-up }.
  * Pass null to remove it. Re-renders the current route.
@@ -292,7 +306,10 @@ async function render(token, { initial = false, retry = false } = {}) {
   if (route.kind === 'lesson' || route.kind === 'game') {
     entry = registry.findEntry(route.id);
     if (entry && entry.type === route.kind) {
-      path = new URL('../' + entry.path.replace(/^\.\//, ''), import.meta.url).href;
+      // A storage build marks paid modules 'premium:<object path>' (loaded by gate.loadPremium).
+      path = entry.path.startsWith(PREMIUM_PREFIX)
+        ? entry.path
+        : new URL('../' + entry.path.replace(/^\.\//, ''), import.meta.url).href;
     } else entry = null;
   } else if (route.kind === 'page') {
     path = PAGE_PATHS[route.page]
@@ -347,7 +364,10 @@ async function render(token, { initial = false, retry = false } = {}) {
   try {
     // "Try again" re-fetches the page module itself (a failed or broken import is cached by URL);
     // shared core modules keep their URLs, so they stay single instances.
-    const mod = await import(retry ? `${path}?retry=${++retries}` : path);
+    // Paid modules from private Storage: the loader caches per session and never caches a failure.
+    const mod = path.startsWith(PREMIUM_PREFIX)
+      ? await loadPremiumModule(path)
+      : await import(retry ? `${path}?retry=${++retries}` : path);
     if (my !== renderToken) return;
     const def = mod.default;
     if (!def || typeof def.mount !== 'function') throw new Error(`Module for "${route.key}" has no default export with mount().`);
@@ -384,9 +404,29 @@ async function render(token, { initial = false, retry = false } = {}) {
       const main = document.getElementById('main');
       main?.focus({ preventScroll: true });
     }
-  } catch (err) {
+  } catch (caught) {
+    let err = caught;
     clearTimeout(loadingTimer);
     if (my !== renderToken) return;
+    if (err?.name === 'PremiumAccessError' && gate) {
+      // Storage refused the module: the plan may have lapsed since the level was read. Re-check;
+      // when the route is now blocked, render it again (paywall). Never a reload, so no loop.
+      let nowBlocked = false;
+      try {
+        await accessInfo().refresh?.();
+        nowBlocked = !(await gate.canOpen(entry, route));
+      } catch (e) {
+        console.error('[router] access re-check failed:', e);
+      }
+      if (my !== renderToken) return;
+      if (nowBlocked) {
+        render(currentToken(), { initial });
+        return;
+      }
+      // The plan covers it, yet Storage has no such object for us (still publishing, or an
+      // old deployment): the error card, with a message that does not blame the plan.
+      err = new Error('This lesson or game is not available right now. Please try again in a minute.');
+    }
     if (!retry && isChunkLoadError(err) && reloadOnceForStaleChunk()) return;
     console.error(`[router] Failed to load route "${route.key}":`, err);
     root.replaceChildren(errorCard(route, entry, err, () => render(currentToken(), { retry: true })));
