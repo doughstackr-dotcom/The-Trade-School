@@ -46,7 +46,10 @@
 
 .topbar {
   position: sticky;
-  top: env(safe-area-inset-top, 0px);
+  /* Stick at 0 and pad by the inset, so the bar's background also covers the notch / status-bar
+     area (standalone apps, landscape cut-outs); its height stays --topbar-h + the inset. */
+  top: 0;
+  padding-top: env(safe-area-inset-top, 0px);
   z-index: 50;
   background: var(--topbar-bg);
   -webkit-backdrop-filter: saturate(1.4) blur(14px);
@@ -1418,7 +1421,9 @@ figcaption {
 
 .modal {
   width: min(460px, 100%);
-  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
   overflow: auto;
   padding: 20px 22px 22px;
   border: 1px solid var(--line);
@@ -6164,4 +6169,379 @@ figcaption {
     width: 12px;
     height: 12px;
   }
+}
+
+/* ==========================================================================
+   §10 Devices: touch targets, short landscape screens, safe areas, installable app
+   ========================================================================== */
+
+/* No double-tap-to-zoom delay on controls (charts set their own touch-action on the SVG). */
+a,
+button,
+label,
+summary,
+[role="button"],
+[role="radio"],
+[role="tab"],
+.option {
+  touch-action: manipulation;
+}
+
+.modal-backdrop {
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+
+/* Phones: the wordmark scales down before it would truncate; the tiniest screens show the mark only. */
+@media (max-width: 419.98px) {
+  .brand {
+    font-size: clamp(14px, 4.1vw, 16.5px);
+  }
+}
+
+@media (max-width: 339.98px) {
+  .brand__word {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  /* ≥ 44px hit targets for the shell's small controls. */
+  .brand {
+    min-height: 44px;
+  }
+
+  .nav__link {
+    height: 44px;
+  }
+
+  .nav__link.is-active::after {
+    bottom: -8px;
+  }
+
+  .footer__links {
+    row-gap: 0;
+  }
+
+  .footer__links a,
+  .footer__install {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .footer__links a::after {
+    content: none;
+  }
+
+  .term__link::after {
+    inset: -12px -4px;
+  }
+
+  .table-link::after {
+    inset: -14px -4px;
+  }
+
+  .filter-chip {
+    position: relative;
+  }
+
+  .filter-chip::after {
+    content: "";
+    position: absolute;
+    inset: -4px -2px;
+  }
+
+  /* 820–959px touch tablets (top nav): icon buttons keep a full 44px square. */
+  .topbar .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* iOS zooms into any text field under 16px on focus; keep them at 16px on touch screens. */
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="image"]),
+  select:not([multiple]),
+  textarea:not([hidden]) {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Short landscape screens (phones on their side, ≤ 500px tall): the top bar scrolls away, the tab
+   bar turns into a compact 48px row, secondary sticky bars stop sticking and display type shrinks,
+   so the content keeps most of the screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --topbar-h: 0px;
+  }
+
+  .topbar {
+    position: relative;
+  }
+
+  .topbar__inner {
+    height: 52px;
+  }
+
+  .nav__link.is-active::after {
+    bottom: -4px;
+  }
+
+  html {
+    scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  }
+
+  .glossary__tools,
+  .lesson__rail,
+  .lesson__nav,
+  .game-intro__cta,
+  .game-intro__preview {
+    position: relative;
+    top: auto;
+    bottom: auto;
+  }
+
+  h1,
+  .t-48 {
+    font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.25rem);
+  }
+
+  h2,
+  .t-36 {
+    font-size: clamp(1.5rem, 1.2rem + 1vw, 1.875rem);
+  }
+
+  .section {
+    padding-block: clamp(24px, 4vw, 40px);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 819.98px) {
+  :root {
+    --tabbar-h: 48px;
+  }
+
+  .tabbar__link {
+    flex-direction: row;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .tabbar__link .icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .tabbar__link.is-active::before {
+    left: 18%;
+    right: 18%;
+  }
+}
+
+/* Micro-labels never go below 11px. */
+.today-card__streak small,
+.results__next small,
+.level-strip__num small {
+  font-size: 11px;
+}
+
+@media (max-width: 719.98px) {
+  .hud__label {
+    font-size: 11px;
+  }
+}
+
+@media (pointer: coarse) {
+  /* The game HUD's icon-only Quit button (label hidden on phones). */
+  .hud__quit {
+    min-width: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------- installable app (js/pwa.js) */
+
+.pwa-install {
+  position: fixed;
+  z-index: 65;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(16px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: pwa-in 0.32s var(--ease-out);
+}
+
+/* Only on the home page: never over a lesson, a game or a chart. */
+body:not([data-route="home"]) .pwa-install {
+  display: none;
+}
+
+.pwa-install__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px 0 13px;
+  border-radius: 999px;
+  background: var(--btn-primary);
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.pwa-install__btn:hover {
+  background: var(--btn-primary-hover);
+}
+
+.pwa-install__close,
+.pwa-bar__close {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--text-2);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.pwa-install__close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.pwa-bar {
+  position: fixed;
+  z-index: 190;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: calc(16px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 8px 8px 10px;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--shadow-lg);
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.24s var(--ease-out), transform 0.3s var(--ease-out);
+}
+
+.pwa-bar.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.pwa-bar__icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.pwa-bar__msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.pwa-bar__msg strong {
+  font-weight: 700;
+}
+
+.pwa-bar__sub {
+  opacity: 0.8;
+}
+
+.pwa-bar__reload {
+  flex: 0 0 auto;
+}
+
+.pwa-bar__close {
+  flex: 0 0 auto;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.pwa-bar__close:hover {
+  opacity: 1;
+  background: color-mix(in oklab, var(--bg) 14%, transparent);
+}
+
+body.has-pwa-bar .toast-stack {
+  bottom: calc(84px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 559.98px) {
+  .pwa-bar {
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(12px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+  }
+
+  .pwa-bar__sub {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .pwa-install__btn,
+  .pwa-install__close,
+  .pwa-bar__close {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+.footer__install {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.footer__install:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.pwa-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+
+.pwa-steps li::marker {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+@keyframes pwa-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Absolutely positioned descendants (e.g. .visually-hidden labels in a header cell) must not
+   escape a horizontal scroller: on phones they would widen the whole page. */
+.table-scroll {
+  position: relative;
 }

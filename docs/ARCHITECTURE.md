@@ -1218,9 +1218,12 @@ configureMarket({ fetch, url, key, mock, fixturesBase, mockStepMs, pollMs, timeo
   Vantage budget is used up and nothing is cached yet (it resets at 00:00 UTC, so retrying
   sooner is pointless); 502 provider failure with nothing cached. With a cache, failures
   answer 200 `{ stale: true, source: 'cache' }` with `Cache-Control: no-store`.
-- Alpha Vantage series are refreshed at most once per candle close (daily: US stocks/ETFs after
-  21:30 UTC, FX after 22:30 UTC, crypto after 00:30 UTC; weekly: after Friday's close, crypto
-  after Monday 00:30 UTC), whatever the request asks for; everything is served from the cache.
+- Alpha Vantage series are refreshed at most once per candle close (daily: US stocks/ETFs 90
+  min after the New York close — 21:30 UTC in summer, 22:30 UTC in winter — FX 22:30 / 23:30
+  UTC, crypto after 00:30 UTC; weekly: Saturday 00:30 UTC, crypto Monday 00:30 UTC), whatever
+  the request asks for; everything is served from the cache. A window the cache doesn't reach
+  the end of (refreshes held back) answers `stale: true`; answers are never browser-cached while
+  a market has not been fetched yet.
   On the free key, daily history starts ~100 trading days back and grows as the cache keeps
   every day; older daily windows return what the cache has (possibly `[]`) without a provider
   call. Weekly history is complete (20+ years; split-adjusted for stocks). Daily candles are

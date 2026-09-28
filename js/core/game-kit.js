@@ -331,7 +331,10 @@ export class GameShell {
     this.maxScore = opts.maxScore ?? (this.baseRounds ? this.baseRounds * 100 : 1000);
     this.modes = Array.isArray(opts.modes) && opts.modes.length ? opts.modes : null;
     const lastTier = this.store?.state?.lastTier;
-    this.mode = this.modes ? (this.modes.find((m) => m.id === lastTier) || this.modes[0]).id : null;
+    // Modes the member's plan does not include (§9.3: `requires`, or the access rules for a
+    // 'both'-tier game's Advanced mode) are shown locked and never picked by default.
+    const openModes = this.modes ? this.modes.filter((m) => !this._modeLock(m)) : null;
+    this.mode = this.modes ? (openModes.find((m) => m.id === lastTier) || openModes[0] || this.modes[0]).id : null;
 
     // Daily challenge: one fixed Arcade run per local date, seeded from the date.
     this.daily = !!(opts.daily ?? this.entry.daily);
@@ -798,6 +801,9 @@ export class GameShell {
 
   /** Starts (or restarts) a run with the intro's style/level/source. Called by Start / Play again. */
   start(modeId = this.mode) {
+    if (this.modes && this._modeLock(this.modes.find((m) => m.id === modeId))) {
+      modeId = (this.modes.find((m) => !this._modeLock(m)) || this.modes[0]).id;
+    }
     this.timer.hide();
     this._runRoundCleanups();
     this._runIntroCleanup();
@@ -945,6 +951,29 @@ export class GameShell {
       this.store?.setGamePref?.(this.id, key, value);
     } catch {
       /* storage blocked */
+    }
+  }
+
+  /**
+   * The plan a mode needs when the member's plan does not include it (else null): the mode's own
+   * `requires` ('advanced' | 'beginner' | 'free'), or ctx.access.modeRequirement(entry, mode).
+   */
+  _modeLock(m) {
+    const a = this.ctx.access;
+    if (!m || !a || typeof a.can !== 'function') return null;
+    let need = m.requires || null;
+    if (!need && typeof a.modeRequirement === 'function') {
+      try {
+        need = a.modeRequirement(this.entry, m);
+      } catch {
+        need = null;
+      }
+    }
+    if (!need) return null;
+    try {
+      return a.can(need) ? null : need;
+    } catch {
+      return null;
     }
   }
 
@@ -1236,7 +1265,22 @@ export class GameShell {
         label: 'Mode',
         className: 'game-intro__modes',
         value: this.mode,
-        options: this.modes.map((m) => ({ id: m.id, label: m.label, note: m.description || '' })),
+        options: this.modes.map((m) => {
+          const need = this._modeLock(m);
+          if (!need) return { id: m.id, label: m.label, note: m.description || '' };
+          const plan = need === 'advanced' ? 'Advanced' : need === 'beginner' ? 'Beginner' : null;
+          const href = this.ctx.access?.upgradeHash?.(need) || (plan ? `#pricing.${need}` : '#signup');
+          const cta = plan ? `Upgrade to ${plan}` : 'Create a free account';
+          return {
+            id: m.id,
+            label: m.label,
+            note: m.description || '',
+            locked: true,
+            lockNote: plan ? `${m.label} mode is part of the ${plan} plan.` : `${m.label} mode needs a free account.`,
+            lockNode: h('span', { class: 'mode-lock-note' }, plan ? `${m.label} mode is part of the ${plan} plan. ` : `${m.label} mode needs a free account. `,
+              h('a', { href, 'data-upgrade': need }, cta), '.'),
+          };
+        }),
         onPick: (id) => {
           this.mode = id;
           this._barBack.replaceChildren(this._backLink());

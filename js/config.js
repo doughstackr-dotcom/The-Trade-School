@@ -23,3 +23,31 @@ export const ACCESS_MODE = 'auto';
 // 'site' loads lesson/game code from the public site; 'storage' loads paid modules from
 // the private Supabase Storage bucket (see docs/ACCOUNTS.md §10).
 export const PREMIUM_SOURCE = 'site';
+
+// ---------------------------------------------------------------- access rules (§9)
+// Everything the owner may want to change about who can open what lives here; js/core/access.js
+// turns these rules plus each registry entry's `tier` into the plan a page needs.
+//   null       → public (anyone, signed out included)
+//   'account'  → any signed-in member (free account)
+//   'beginner' → Beginner or Advanced plan
+//   'advanced' → Advanced plan
+// Lessons and games follow their registry tier: 'beginner' → 'beginner', 'advanced' →
+// 'advanced', 'both' → BOTH_TIER_MODES[mode] (the Beginner mode when no mode is given).
+// FREE_IDS (above) override the tier with 'account'.
+
+// Stand-alone pages that need an account or a plan. Every other page is public.
+export const PAGE_PLANS = {
+  library: 'account',   // Pattern Library (#library, #library.<patternId>)
+  playbook: 'account',  // Setup Playbook: the page shows each setup's tier inside (ctx.access)
+  live: 'beginner',     // Live Market Lab
+};
+
+// Modes of 'both'-tier games (GameShell modes). A mode may also declare `requires` itself.
+export const BOTH_TIER_MODES = { beginner: 'beginner', advanced: 'advanced' };
+
+// Premium Storage bucket used when PREMIUM_SOURCE = 'storage' (objects: <plan>/js/<path>).
+export const PREMIUM_BUCKET = 'premium';
+
+// Shown on the legal pages. Leave '' until you have a support address; the pages then show a
+// clearly marked placeholder.
+export const CONTACT_EMAIL = '';

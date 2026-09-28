@@ -19,6 +19,23 @@ function gameTags(e) {
       : real ? h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'source-chip__dot', 'aria-hidden': 'true' }), 'Real charts') : null);
 }
 
+/**
+ * Access chip for a lesson/game (§9, only while plans are enforced): a lock chip naming the plan
+ * the member still needs, or a "Free" chip on the free-with-an-account items.
+ */
+export function accessChip(access, e) {
+  if (!access?.enforced || !e) return null;
+  const need = access.requiredPlan(e);
+  if (!need) return null;
+  if (need === 'account') {
+    if (access.level === 'beginner' || access.level === 'advanced') return null;
+    return h('span', { class: 'chip chip--sm free-chip', title: 'Free with an account' }, 'Free');
+  }
+  if (access.canOpen(e)) return null;
+  const label = access.lockLabel(need);
+  return h('span', { class: 'chip chip--sm chip--outline lock-chip', 'data-lock': need, title: `Part of the ${label}` }, icon('lock', { size: 12 }), label);
+}
+
 function itemDone(store, item) {
   return item.type === 'lesson' ? store.isLessonDone(item.id) : (store.gameStats(item.id)?.stars || 0) >= 1;
 }
@@ -82,36 +99,40 @@ function squiggle(done) {
     svg('polyline', { points: pts.join(' '), 'vector-effect': 'non-scaling-stroke' }));
 }
 
-function itemButton(store, type, id) {
+function itemButton(store, type, id, access) {
   const e = findEntry(id);
   if (!e) return null;
+  const chip = accessChip(access, e);
+  const locked = !!chip && chip.classList.contains('lock-chip');
   if (type === 'lesson') {
     const done = store.isLessonDone(id);
     const st = store.getLessonStep(id);
     const started = !done && (st.max || 0) > 0;
-    return h('a', { class: ['item-btn', 'item-btn--lesson', done && 'is-done'], href: `#l.${id}` },
-      h('span', { class: 'item-btn__icon', 'aria-hidden': 'true' }, icon('book', { size: 20 })),
+    return h('a', { class: ['item-btn', 'item-btn--lesson', done && 'is-done', locked && 'is-locked'], href: `#l.${id}` },
+      h('span', { class: 'item-btn__icon', 'aria-hidden': 'true' }, icon(locked ? 'lock' : 'book', { size: 20 })),
       h('span', { class: 'item-btn__text' },
-        h('span', { class: 'item-btn__kind' }, `Lesson · ${e.minutes} min`),
+        h('span', { class: 'item-btn__kind' }, `Lesson · ${e.minutes} min`, !locked && chip ? ' ' : null, !locked ? chip : null),
         h('strong', { class: 'item-btn__title' }, e.title),
         h('span', { class: 'item-btn__blurb' }, e.blurb)),
       h('span', { class: 'item-btn__status' },
         done
           ? h('span', { class: 'chip chip--bull' }, icon('check', { size: 13 }), 'Done')
-          : h('span', { class: 'item-btn__go' }, started ? 'Resume' : 'Start', icon('arrow-right', { size: 16 }))));
+          : locked ? chip
+            : h('span', { class: 'item-btn__go' }, started ? 'Resume' : 'Start', icon('arrow-right', { size: 16 }))));
   }
   const s = store.gameStats(id);
-  return h('a', { class: ['item-btn', 'item-btn--game', s?.plays && 'is-played'], href: `#g.${id}` },
-    h('span', { class: 'item-btn__icon', 'aria-hidden': 'true' }, icon('gamepad', { size: 20 })),
+  return h('a', { class: ['item-btn', 'item-btn--game', s?.plays && 'is-played', locked && 'is-locked'], href: `#g.${id}` },
+    h('span', { class: 'item-btn__icon', 'aria-hidden': 'true' }, icon(locked ? 'lock' : 'gamepad', { size: 20 })),
     h('span', { class: 'item-btn__text' },
-      h('span', { class: 'item-btn__kind' }, `Game · ${KIND_LABEL[e.kind] || 'Play'} · ${e.minutes} min`, e.tier === 'both' ? ' · both tracks' : ''),
+      h('span', { class: 'item-btn__kind' }, `Game · ${KIND_LABEL[e.kind] || 'Play'} · ${e.minutes} min`, e.tier === 'both' ? ' · both tracks' : '', !locked && chip ? ' ' : null, !locked ? chip : null),
       h('strong', { class: 'item-btn__title' }, e.title),
       h('span', { class: 'item-btn__blurb' }, e.blurb),
       gameTags(e)),
     h('span', { class: 'item-btn__status' },
       s?.plays
-        ? h('span', { class: 'item-btn__score' }, starRow(s.stars || 0, { size: 15 }), h('small', { class: 'mono faint' }, `best ${fmt(s.best)}`))
-        : h('span', { class: 'item-btn__go' }, 'Play', icon('arrow-right', { size: 16 }))));
+        ? h('span', { class: 'item-btn__score' }, starRow(s.stars || 0, { size: 15 }), h('small', { class: 'mono faint' }, `best ${fmt(s.best)}`), locked ? chip : null)
+        : locked ? chip
+          : h('span', { class: 'item-btn__go' }, 'Play', icon('arrow-right', { size: 16 }))));
 }
 
 export default {
@@ -163,8 +184,8 @@ export default {
         const done = doneFlags[i];
         const current = i === currentIdx;
         const items = [];
-        if (u.lesson) items.push(itemButton(store, 'lesson', u.lesson));
-        for (const g of u.games) items.push(itemButton(store, 'game', g));
+        if (u.lesson) items.push(itemButton(store, 'lesson', u.lesson, ctx.access));
+        for (const g of u.games) items.push(itemButton(store, 'game', g, ctx.access));
         return h('li', { class: ['ladder__unit', done && 'is-done', current && 'is-current'] },
           h('div', { class: 'ladder__rail', 'aria-hidden': 'true' },
             h('span', { class: 'ladder__node mono' }, done ? icon('check', { size: 16 }) : String(i + 1).padStart(2, '0')),

@@ -8,6 +8,8 @@ import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
 import { sma } from '../core/indicators.js';
 import { styleIcon } from '../core/game-kit.js';
+import { accessChip } from './track.js';
+import { PLANS } from '../config.js';
 
 const KIND_LABEL = { quiz: 'Quiz', draw: 'Draw', predict: 'Predict', simulation: 'Simulation', calc: 'Calculate', memory: 'Memory', swipe: 'Swipe', story: 'Story', live: 'Live' };
 
@@ -582,7 +584,7 @@ function unitStatus(store, unit) {
   return h('span', { class: 'unit-row__status' }, bits);
 }
 
-function trackCard(store, tier) {
+function trackCard(store, tier, access) {
   const p = store.tierProgress(tier.id);
   const units = unitsOf(tier.id);
   return h('article', { class: `track-card track-card--${tier.id}` },
@@ -596,10 +598,13 @@ function trackCard(store, tier) {
     h('ol', { class: 'track-card__units' },
       units.map((u, i) => {
         const target = u.lesson ? `l.${u.lesson}` : `g.${u.games[0]}`;
+        const first = findEntry(u.lesson || u.games[0]);
+        const locked = !!access?.enforced && !!first && !access.canOpen(first);
         return h('li', null,
           h('a', { class: 'unit-row', href: `#${target}` },
             h('span', { class: 'unit-row__n mono' }, String(i + 1).padStart(2, '0')),
             h('span', { class: 'unit-row__title' }, u.title),
+            locked ? h('span', { class: 'unit-row__lock', title: `Part of the ${access.lockLabel(access.requiredPlan(first))}` }, icon('lock', { size: 14, label: 'Locked' })) : null,
             unitStatus(store, u)));
       })),
     h('a', { class: 'btn track-card__cta', href: `#${tier.id}` }, `Open the ${tier.title} track`, icon('arrow-right')));
@@ -612,7 +617,7 @@ function styleIcons(g) {
     ids.map((id) => h('span', { class: `style-icons__i style-icons__i--${id}` }, styleIcon(id, { size: 13 }))));
 }
 
-function arcadeTile(store, g, feature = false) {
+function arcadeTile(store, g, feature = false, access = null) {
   const st = store.gameStats(g.id);
   const kind = findKind(g.kind);
   const real = sourcesOf(g).includes('real');
@@ -631,7 +636,8 @@ function arcadeTile(store, g, feature = false) {
         g.kind === 'live'
           ? h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live data')
           : real ? h('span', { class: 'chip chip--sm source-chip is-real', title: 'Offers real market charts' }, h('span', { class: 'source-chip__dot', 'aria-hidden': 'true' }), 'Real charts') : null,
-        styleIcons(g))));
+        styleIcons(g),
+        accessChip(access, g))));
   return { tile, art };
 }
 
@@ -721,6 +727,32 @@ function playYourWay() {
           h('h3', { class: 'play-way__title' }, st.label)),
         h('p', { class: 'play-way__blurb' }, st.blurb),
         h('ul', { class: 'play-way__rules' }, (STYLE_RULES[st.id] || []).map((r) => h('li', null, icon('check', { size: 14 }), h('span', null, r))))))));
+}
+
+/** Membership teaser: the free tier and the two plans, linking to #pricing (hidden for Advanced members). */
+function pricingTeaser(access) {
+  const lv = access?.level || null;
+  if (lv === 'advanced') return null;
+  const tier = (id, name, price, per, text) => h('a', { class: 'pricing-teaser__tier', href: id === 'free' ? '#pricing' : `#pricing.${id}`, 'data-tier': id },
+    h('strong', null, name),
+    h('span', { class: 'pricing-teaser__price' }, price, per ? h('small', null, ` ${per}`) : null),
+    h('span', null, text));
+  const ctas = !lv
+    ? [h('a', { class: 'btn btn--primary', href: '#signup' }, 'Create free account', icon('arrow-right')), h('a', { class: 'btn btn--ghost', href: '#pricing' }, 'See plans')]
+    : lv === 'beginner'
+      ? [h('a', { class: 'btn btn--primary', href: '#pricing.advanced' }, 'Upgrade to Advanced', icon('arrow-right'))]
+      : [h('a', { class: 'btn btn--primary', href: '#pricing' }, 'See plans', icon('arrow-right'))];
+  return h('section', { class: 'container section section--tight', 'aria-labelledby': 'teaser-h' },
+    h('div', { class: 'pricing-teaser' },
+      h('div', { class: 'pricing-teaser__copy' },
+        h('p', { class: 'eyebrow eyebrow--accent' }, 'Membership'),
+        h('h2', { id: 'teaser-h' }, 'Start free. Upgrade when you are ready.'),
+        h('p', { class: 'muted' }, 'A free account opens the first unit, the Daily Challenge, the Pattern Library and the Setup Playbook, and keeps your progress in sync. Beginner unlocks the whole Read the chart track; Advanced adds Plan the trade. Cancel anytime.'),
+        h('div', { class: 'row pricing-teaser__ctas' }, ctas)),
+      h('div', { class: 'pricing-teaser__tiers' },
+        tier('free', 'Free', '$0', null, 'Unit 1, Daily Challenge, Pattern Library, progress sync'),
+        tier('beginner', PLANS.beginner.name, `$${PLANS.beginner.price.toFixed(2)}`, '/ month', 'Every Beginner lesson and game, and the Live Market Lab'),
+        tier('advanced', PLANS.advanced.name, `$${PLANS.advanced.price.toFixed(2)}`, '/ month', 'Everything in Beginner plus every Advanced lesson and game'))));
 }
 
 function levelStrip(store) {
@@ -826,16 +858,17 @@ export default {
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
             h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology.')),
-          h('div', { class: 'tracks__grid' }, TIERS.map((t) => trackCard(store, t)))),
+          h('div', { class: 'tracks__grid' }, TIERS.map((t) => trackCard(store, t, ctx.access)))),
         playYourWay(),
         arcade,
+        pricingTeaser(ctx.access),
         levelStrip(store)));
 
     const FEATURE = 'trade-simulator';
     // The wide feature tile goes last so it never strands a single tile below it.
     const ordered = [...GAMES.filter((g) => g.id !== FEATURE), ...GAMES.filter((g) => g.id === FEATURE)];
     const arts = ordered.map((g) => {
-      const { tile, art } = arcadeTile(store, g, g.id === FEATURE);
+      const { tile, art } = arcadeTile(store, g, g.id === FEATURE, ctx.access);
       arcadeGrid.append(tile);
       tiles.push(tile);
       return art;

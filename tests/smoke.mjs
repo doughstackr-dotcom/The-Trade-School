@@ -8,6 +8,10 @@
 //   node tests/smoke.mjs g.fib-sniper    one route (args are exact routes or prefixes, e.g. "g.")
 //   options: --no-shots  --desktop / --tablet / --phone (combinable)  --light | --dark  --fonts (load Google Fonts;
 //            uses $HTTPS_PROXY if set)  --concurrency=N  --no-interact
+//            --viewport=a,b (named viewports: desktop, tablet, phone and the extra device sizes
+//            phone-small 360×740, phone-landscape 844×390, tablet-768 768×1024,
+//            tablet-landscape 1180×820 (touch), desktop-xl 1680×1050; `--viewport=all` = every one)
+//            --sw (open pages with ?sw=1 so js/pwa.js registers the service worker on localhost)
 //            --no-storage (every localStorage/sessionStorage call throws, as in some private modes)
 //            --real-market (do NOT use the offline market fixtures: real-data routes then call the
 //            market-data Edge Function, which needs network access to supabase.co)
@@ -42,6 +46,7 @@ const MIME = {
   '.woff': 'font/woff',
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
 };
 
 const IGNORE_HOSTS = /fonts\.googleapis\.com|fonts\.gstatic\.com/;
@@ -62,12 +67,31 @@ const noStorage = flag('no-storage');
 const realMarket = flag('real-market');
 const concurrency = Math.max(1, Number(opt('concurrency', 3)) || 3);
 
+const withSW = flag('sw');
+
+// The default run covers these three (ARCHITECTURE §10).
 const ALL_VIEWPORTS = [
   { name: 'desktop', viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false },
   { name: 'tablet', viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true },
   { name: 'phone', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
 ];
-const pickedViewports = ALL_VIEWPORTS.filter((v) => flag(v.name));
+// Extra device sizes, only with --viewport=… (device QA).
+const EXTRA_VIEWPORTS = [
+  { name: 'phone-small', viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true },
+  { name: 'phone-landscape', viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true },
+  { name: 'tablet-768', viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true },
+  { name: 'tablet-landscape', viewport: { width: 1180, height: 820 }, isMobile: true, hasTouch: true },
+  { name: 'desktop-xl', viewport: { width: 1680, height: 1050 }, isMobile: false, hasTouch: false },
+];
+const KNOWN_VIEWPORTS = [...ALL_VIEWPORTS, ...EXTRA_VIEWPORTS];
+const viewportOpt = opt('viewport', '');
+const viewportNames = viewportOpt === 'all' ? KNOWN_VIEWPORTS.map((v) => v.name) : viewportOpt.split(',').map((s) => s.trim()).filter(Boolean);
+const unknownViewports = viewportNames.filter((n) => !KNOWN_VIEWPORTS.some((v) => v.name === n));
+if (unknownViewports.length) {
+  console.error(`Unknown --viewport: ${unknownViewports.join(', ')}. Known: ${KNOWN_VIEWPORTS.map((v) => v.name).join(', ')}, all`);
+  process.exit(2);
+}
+const pickedViewports = KNOWN_VIEWPORTS.filter((v) => flag(v.name) || viewportNames.includes(v.name));
 const VIEWPORTS = pickedViewports.length ? pickedViewports : ALL_VIEWPORTS;
 const THEMES = ['light', 'dark'].filter((t) => (flag('light') ? t === 'light' : flag('dark') ? t === 'dark' : true));
 
@@ -132,6 +156,8 @@ async function routes() {
     ...reg.LESSONS.map((l) => `l.${l.id}`),
     ...reg.GAMES.map((g) => `g.${g.id}`),
     ...(reg.DEV_ENTRIES || []).map((e) => `${e.type === 'game' ? 'g' : 'l'}.${e.id}`),
+    // accounts (§9): signed out, access open on localhost — these must render without network
+    'pricing', 'pricing.advanced', 'account', 'signin', 'signup', 'reset', 'reset.update', 'terms', 'privacy',
   ];
   if (!filters.length) return all;
   return all.filter((r) => filters.some((f) => r === f || r.startsWith(f)));
@@ -139,7 +165,9 @@ async function routes() {
 
 async function overflowReport(page) {
   return page.evaluate(() => {
-    const iw = window.innerWidth;
+    // clientWidth, not innerWidth: on touch devices the layout viewport grows to fit wide content,
+    // so innerWidth would hide the very overflow we are looking for.
+    const iw = document.documentElement.clientWidth || window.innerWidth;
     const sw = document.documentElement.scrollWidth;
     if (sw <= iw) return null;
     const culprits = [];
@@ -231,7 +259,7 @@ async function main() {
     });
 
     try {
-      await page.goto(`${base}/?smoke=${encodeURIComponent(route)}${realMarket ? '' : '&market=mock'}#${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.goto(`${base}/?smoke=${encodeURIComponent(route)}${realMarket ? '' : '&market=mock'}${withSW ? '&sw=1' : ''}#${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
       await page.waitForSelector(`[data-mounted="${route}"]`, { timeout: 15000 });
       if (withFonts) await page.evaluate(() => document.fonts?.ready).catch(() => {});
       await page.waitForTimeout(800);

@@ -1,0 +1,98 @@
+# Deploys the static site to GitHub Pages (ARCHITECTURE §10).
+#
+# No build step: the artifact is the repository root minus development-only folders. If
+# dist-exclude.txt exists (written by scripts/publish-premium.mjs when paid modules are served
+# from private Storage), every path listed in it is removed from the artifact too. The service
+# worker's BUILD constant is stamped with the commit, so each deploy ships a new worker and
+# installed apps show "Update available — Reload".
+#
+# One-time setup: repository Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Assemble the site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir _site
+          # Everything except development-only files and folders.
+          tar --create \
+              --exclude='./.git' --exclude='./.github' --exclude='./_site' \
+              --exclude='./tests' --exclude='./supabase' --exclude='./docs' --exclude='./scripts' \
+              --exclude='./node_modules' --exclude='./dist-exclude.txt' \
+              --exclude='./package.json' --exclude='./package-lock.json' \
+              --exclude='./.gitignore' --exclude='./README.md' --exclude='*.md' \
+              --file=- . | tar --extract --directory=_site --file=-
+
+          # Paid modules served from private Storage: drop the files listed in dist-exclude.txt.
+          if [ -f dist-exclude.txt ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              path="${line%%#*}"                                     # strip comments
+              path="$(printf '%s' "$path" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^\./##' -e 's#^/##')"
+              [ -z "$path" ] && continue
+              case "$path" in
+                *..*) echo "::warning::dist-exclude.txt: skipping unsafe path '$path'"; continue ;;
+              esac
+              if [ -e "_site/$path" ]; then
+                rm -rf -- "_site/$path"
+                echo "excluded: $path"
+              fi
+            done < dist-exclude.txt
+          fi
+
+          # Stamp the service worker so every deploy is a new version.
+          sed -i "s/const BUILD = 'dev';/const BUILD = '${GITHUB_SHA::12}';/" _site/sw.js
+          grep -q "const BUILD = '${GITHUB_SHA::12}';" _site/sw.js
+
+          # Serve files and folders starting with "_" (e.g. js/lessons/_kit-demo.js) as-is.
+          touch _site/.nojekyll
+
+          echo "Site files: $(find _site -type f | wc -l)"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

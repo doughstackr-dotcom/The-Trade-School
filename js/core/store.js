@@ -74,25 +74,29 @@ function readTheme() {
   }
 }
 
-function load() {
+/** A full, well-formed state from a saved (possibly partial or older) object. */
+function normalize(saved) {
   const base = defaults();
+  if (saved && typeof saved === 'object') {
+    Object.assign(base, saved);
+    base.settings = { ...defaults().settings, ...(saved.settings || {}) };
+    for (const k of ['lessons', 'games', 'badgeDates', 'lessonSteps', 'gamePrefs']) {
+      if (!base[k] || typeof base[k] !== 'object') base[k] = {};
+    }
+    const dd = defaults().daily;
+    base.daily = base.daily && typeof base.daily === 'object' ? { ...dd, ...base.daily } : dd;
+    if (!base.daily.history || typeof base.daily.history !== 'object') base.daily.history = {};
+    if (!Array.isArray(base.badges)) base.badges = [];
+    base.xp = Number.isFinite(base.xp) ? base.xp : 0;
+  }
+  return base;
+}
+
+function load() {
+  let base = defaults();
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      if (saved && typeof saved === 'object') {
-        Object.assign(base, saved);
-        base.settings = { ...defaults().settings, ...(saved.settings || {}) };
-        for (const k of ['lessons', 'games', 'badgeDates', 'lessonSteps', 'gamePrefs']) {
-          if (!base[k] || typeof base[k] !== 'object') base[k] = {};
-        }
-        const dd = defaults().daily;
-        base.daily = base.daily && typeof base.daily === 'object' ? { ...dd, ...base.daily } : dd;
-        if (!base.daily.history || typeof base.daily.history !== 'object') base.daily.history = {};
-        if (!Array.isArray(base.badges)) base.badges = [];
-        base.xp = Number.isFinite(base.xp) ? base.xp : 0;
-      }
-    }
+    if (raw) base = normalize(JSON.parse(raw));
   } catch {
     /* corrupted or blocked storage: start fresh in memory */
   }
@@ -110,6 +114,9 @@ function save() {
   } catch {
     /* storage full or blocked: progress stays in memory */
   }
+  // 'save' fires on every persisted change (including ones that emit no 'change', such as the
+  // resume position or remembered game choices). js/core/sync.js pushes on it.
+  emit('save', state);
 }
 
 function emit(event, payload) {
@@ -459,6 +466,30 @@ export const store = {
   off(event, fn) {
     listeners.get(event)?.delete(fn);
   },
+
+  /** A deep copy of the current state (plain JSON). */
+  snapshot() {
+    return JSON.parse(JSON.stringify(state));
+  },
+
+  /**
+   * Replaces the whole state (progress sync: merged account progress in, anonymous progress back
+   * on sign-out). Missing fields get their defaults; `settings` are kept from the current state
+   * unless opts.settings is true. Saves, then emits 'change' and 'xp' (so XP displays refresh)
+   * with meta { reason } → listeners get (state, state) as usual; read store.lastReplace for why.
+   */
+  replaceState(next, { reason = 'replace', settings = false } = {}) {
+    const keep = state.settings;
+    state = normalize(next);
+    if (!settings) state.settings = keep;
+    else state.settings.theme = readTheme();
+    store.lastReplace = { reason, at: Date.now() };
+    changed();
+    emit('xp', { amount: 0, total: state.xp, reason });
+    emit('replace', { reason });
+  },
+
+  lastReplace: null,
 
   /** Wipes progress (keeps sound/theme settings). */
   reset() {

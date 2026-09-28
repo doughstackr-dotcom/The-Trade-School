@@ -1,8 +1,12 @@
 // Boot: render the app shell (top bar, phone tab bar, footer) and start the router.
 import { store } from './core/store.js';
-import { startRouter, navigate } from './core/router.js';
-import { h, svg, icon, sfx } from './core/ui.js';
+import { startRouter, navigate, setAccessGate, currentState, currentRoute, refresh } from './core/router.js';
+import { h, svg, icon, sfx, toast } from './core/ui.js';
 import { findEntry, tiersOf } from './registry.js';
+import { auth } from './core/auth.js';
+import { startSync } from './core/sync.js';
+import { makeAccess, requiredPlan, canOpen, browserAccessMode, premiumFolder, planChipLabel } from './core/access.js';
+import { PREMIUM_SOURCE } from './config.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
@@ -111,7 +115,7 @@ function buildShell(app) {
   }
 
   // Sound toggle
-  const soundBtn = h('button', { type: 'button', class: 'icon-btn', on: { click: () => {
+  const soundBtn = h('button', { type: 'button', class: 'icon-btn topbar__sound', on: { click: () => {
     store.setSetting('sound', !store.state.settings.sound);
     renderSound();
     sfx.click();
@@ -150,7 +154,7 @@ function buildShell(app) {
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, soundBtn, themeBtn)));
+      h('div', { class: 'topbar__tools' }, xpPill, soundBtn, themeBtn, accountArea())));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },
@@ -164,7 +168,10 @@ function buildShell(app) {
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
-        h('a', { href: '#progress' }, 'Progress'))));
+        h('a', { href: '#progress' }, 'Progress'),
+        h('a', { href: '#pricing' }, 'Pricing'),
+        h('a', { href: '#terms' }, 'Terms'),
+        h('a', { href: '#privacy' }, 'Privacy'))));
 
   app.replaceChildren(skip, header, main, footer, tabbar);
   app.classList.add('app');
@@ -192,10 +199,264 @@ function buildShell(app) {
   return { main, setActive };
 }
 
+// ------------------------------------------------------------------ accounts (§9)
+
+/** A person glyph for the signed-out account button (phones). */
+function personIcon(size = 20) {
+  return svg('svg', { class: 'icon', width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.75, 'stroke-linecap': 'round', 'aria-hidden': 'true', focusable: 'false' },
+    svg('circle', { cx: 12, cy: 8.5, r: 3.8 }),
+    svg('path', { d: 'M4.5 20c1.3-3.7 4.1-5.6 7.5-5.6s6.2 1.9 7.5 5.6' }));
+}
+
+/** Remember where the member was, so signing in brings them back. */
+function rememberHere() {
+  const r = currentRoute();
+  if (r?.key) auth.setReturnTo(r.key);
+}
+
+/**
+ * Header account area. Signed out: "Sign in" + "Start free" (a person button with the same
+ * choices on phones). Signed in: an avatar button opening a small menu (name, email, plan,
+ * Account, Pricing/Upgrade, Sign out). Menu: Enter/Space/↓ open, ↑/↓/Home/End move, Esc closes.
+ */
+function accountArea() {
+  const slot = h('div', { class: 'acct-slot' });
+  const menuId = 'acct-menu';
+  let menu = null;
+  let trigger = null;
+
+  const items = () => (menu ? [...menu.querySelectorAll('[role^="menuitem"]')].filter((el) => el.getClientRects().length > 0) : []);
+  function openMenu(focus = 'first') {
+    if (!menu || !trigger) return;
+    menu.querySelector('.acct-menu__item--sound')?.sync?.();
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    slot.classList.add('is-open');
+    const list = items();
+    (focus === 'last' ? list[list.length - 1] : list[0])?.focus();
+    document.addEventListener('pointerdown', onOutside, true);
+  }
+  function closeMenu(refocus = false) {
+    if (!menu || menu.hidden) return;
+    menu.hidden = true;
+    trigger?.setAttribute('aria-expanded', 'false');
+    slot.classList.remove('is-open');
+    document.removeEventListener('pointerdown', onOutside, true);
+    if (refocus) trigger?.focus();
+  }
+  function onOutside(e) {
+    if (!slot.contains(e.target)) closeMenu(false);
+  }
+  function onTriggerKey(e) {
+    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (menu.hidden) openMenu('first');
+      else closeMenu(true);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      openMenu('last');
+    } else if (e.key === 'Escape') closeMenu(true);
+  }
+  function onMenuKey(e) {
+    const list = items();
+    const i = list.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = list[(i + (e.key === 'ArrowDown' ? 1 : list.length - 1) + list.length) % list.length];
+      n?.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      (e.key === 'Home' ? list[0] : list[list.length - 1])?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu(true);
+    } else if (e.key === 'Tab') {
+      closeMenu(false);
+    }
+  }
+  function item(label, { href, onClick, iconName, action }) {
+    const attrs = { role: 'menuitem', class: 'acct-menu__item', tabindex: '-1', 'data-action': action };
+    const kids = [iconName ? icon(iconName, { size: 16 }) : null, h('span', null, label)];
+    const el = href
+      ? h('a', { ...attrs, href, on: { click: () => closeMenu(false) } }, kids)
+      : h('button', { ...attrs, type: 'button', on: { click: (e) => {
+        closeMenu(false);
+        onClick?.(e);
+      } } }, kids);
+    return el;
+  }
+
+  // On narrow top bars the sound toggle lives in this menu (css/account.css hides the icon).
+  function soundItem() {
+    const on = () => store.state.settings.sound !== false;
+    const el = h('button', {
+      type: 'button', role: 'menuitemcheckbox', class: 'acct-menu__item acct-menu__item--sound', tabindex: '-1', 'data-action': 'menu-sound',
+      on: { click: (e) => {
+        e.stopPropagation();          // keep the menu open: it is a toggle
+        store.setSetting('sound', !on());
+        el.sync();
+        sfx.click();
+      } },
+    });
+    el.sync = () => {
+      el.setAttribute('aria-checked', String(on()));
+      el.replaceChildren(icon(on() ? 'sound' : 'mute', { size: 16 }), h('span', null, on() ? 'Sound effects: on' : 'Sound effects: off'));
+    };
+    el.sync();
+    return el;
+  }
+
+  function render() {
+    const wasOpen = menu && !menu.hidden;
+    closeMenu(false);
+    slot.replaceChildren();
+    const user = auth.user;
+    if (!user && auth.restoring) {
+      // A stored session is being restored: hold the space without flashing "Sign in".
+      slot.dataset.state = 'pending';
+      document.documentElement.dataset.auth = 'pending';
+      trigger = null;
+      menu = null;
+      slot.append(h('span', { class: 'avatar-btn acct-pending', 'aria-hidden': 'true' }, h('span', { class: 'avatar avatar--sm' })));
+      return;
+    }
+    slot.dataset.state = user ? 'in' : 'out';
+    document.documentElement.dataset.auth = user ? 'in' : 'out';
+    if (!user) {
+      trigger = h('button', {
+        type: 'button', class: 'icon-btn acct-compact', 'aria-label': 'Account: sign in or create a free account',
+        'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': menuId,
+        on: { click: () => (menu.hidden ? openMenu('first') : closeMenu(true)), keydown: onTriggerKey },
+      }, personIcon(20));
+      menu = h('div', { class: 'acct-menu', id: menuId, role: 'menu', 'aria-label': 'Account', hidden: true, on: { keydown: onMenuKey } },
+        item('Sign in', { href: '#signin', iconName: 'arrow-right', action: 'menu-signin' }),
+        item('Create free account', { href: '#signup', iconName: 'plus', action: 'menu-signup' }),
+        item('Plans & pricing', { href: '#pricing', iconName: 'star', action: 'menu-pricing' }),
+        soundItem());
+      menu.addEventListener('click', (e) => {
+        if (e.target.closest('[href="#signin"], [href="#signup"]')) rememberHere();
+      });
+      slot.append(
+        h('a', { class: 'btn btn--ghost btn--sm acct-signin', href: '#signin', 'data-action': 'header-signin', on: { click: rememberHere } }, 'Sign in'),
+        h('a', { class: 'btn btn--primary btn--sm acct-start', href: '#signup', 'data-action': 'header-signup', on: { click: rememberHere } }, 'Start free'),
+        trigger, menu);
+      return;
+    }
+    const name = auth.displayName;
+    const lv = auth.level;
+    const chipText = planChipLabel(lv);
+    trigger = h('button', {
+      type: 'button', class: 'avatar-btn', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': menuId,
+      'aria-label': `Account menu: ${name}${chipText ? `, ${chipText}` : ''}`, 'data-action': 'account-menu',
+      on: { click: () => (menu.hidden ? openMenu('first') : closeMenu(true)), keydown: onTriggerKey },
+    }, h('span', { class: 'avatar avatar--sm', 'aria-hidden': 'true' }, (name.trim()[0] || '?').toUpperCase()));
+    menu = h('div', { class: 'acct-menu', id: menuId, role: 'menu', 'aria-label': 'Account', hidden: true, on: { keydown: onMenuKey } },
+      h('div', { class: 'acct-menu__head', role: 'none' },
+        h('span', { class: 'avatar avatar--md', 'aria-hidden': 'true' }, (name.trim()[0] || '?').toUpperCase()),
+        h('span', { class: 'acct-menu__who' },
+          h('strong', { class: 'acct-menu__name' }, name),
+          h('span', { class: 'acct-menu__email' }, user.email),
+          chipText ? h('span', { class: ['chip', 'chip--sm', 'plan-chip', `plan-chip--${lv}`] }, chipText) : null)),
+      item('Account', { href: '#account', iconName: 'shield', action: 'menu-account' }),
+      item(lv === 'advanced' ? 'Plans & pricing' : lv === 'beginner' ? 'Upgrade to Advanced' : 'Upgrade', { href: lv === 'beginner' ? '#pricing.advanced' : '#pricing', iconName: 'star', action: 'menu-pricing' }),
+      soundItem(),
+      item('Sign out', { iconName: 'arrow-left', action: 'menu-signout', onClick: async () => {
+        try {
+          await auth.signOut();
+          toast('Signed out. Your progress is saved in your account.', { type: 'info' });
+          const r = currentRoute();
+          if (r?.page === 'account') navigate('home');
+        } catch (err) {
+          toast(err?.message || 'Could not sign out.', { type: 'bad' });
+        }
+      } }));
+    slot.append(trigger, menu);
+    if (wasOpen) openMenu('first');
+  }
+
+  render();
+  let last = '';
+  auth.on('change', () => {
+    const key = `${auth.user?.id || ''}|${auth.level || ''}|${auth.displayName}|${auth.restoring}`;
+    if (key === last) return;
+    last = key;
+    render();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menu && !menu.hidden) closeMenu(true);
+  });
+  window.addEventListener('hashchange', () => closeMenu(false));
+  return slot;
+}
+
+/** Registers the access gate (§9.3), progress sync and the auth → router glue. */
+function setupAccounts() {
+  auth.init();
+  const enforce = browserAccessMode() === 'enforce';
+  document.documentElement.dataset.access = enforce ? 'enforce' : 'open';
+  const access = makeAccess(() => auth.level, { enforce, signedIn: () => !!auth.user });
+  const targetOf = (entry, route) => (route.kind === 'lesson' || route.kind === 'game' ? entry : route);
+  let premiumUsed = false;
+
+  setAccessGate({
+    access,
+    async canOpen(entry, route) {
+      if (!enforce) return true;
+      const target = targetOf(entry, route);
+      if (!requiredPlan(target)) return true;
+      await auth.ready;
+      return canOpen(target, auth.level);
+    },
+    loadModule: PREMIUM_SOURCE === 'storage' ? async (entry) => {
+      const plan = premiumFolder(entry);
+      if (!plan || !auth.user || auth.mode !== 'supabase') return null;
+      try {
+        const { loadPremiumModule } = await import('./core/premium-loader.js');
+        premiumUsed = true;
+        return await loadPremiumModule(entry, {
+          plan,
+          download: (path) => auth.downloadPremium(path),
+          jsRoot: new URL('./', import.meta.url).href,
+          siteRoot: new URL('../', import.meta.url).href,
+        });
+      } catch (err) {
+        console.warn(`[premium] ${entry.id}: loading the site copy instead:`, err?.message || err);
+        return null;
+      }
+    } : undefined,
+  });
+
+  startSync({ store, auth });
+  auth.on('recovery', () => navigate('reset.update'));
+
+  // When the member's plan changes, re-render what depends on it: pages that show lock chips,
+  // and a lesson / game whose paywall state flipped (a game in progress is otherwise left alone).
+  let lastLevel = auth.level;
+  let lastUser = auth.user?.id || null;
+  auth.on('change', () => {
+    const lv = auth.level;
+    const who = auth.user?.id || null;
+    if (lv === lastLevel && who === lastUser) return;
+    lastLevel = lv;
+    lastUser = who;
+    if (!who && premiumUsed) import('./core/premium-loader.js').then((m) => m.clearPremiumCache()).catch(() => {});
+    if (!enforce) return;
+    const { route, entry, blocked } = currentState();
+    if (!route) return;
+    if (route.kind === 'lesson' || route.kind === 'game') {
+      if (canOpen(targetOf(entry, route), lv) === blocked) refresh();
+    } else if (route.kind === 'page' && ['home', 'track', 'library', 'playbook', 'live'].includes(route.page)) {
+      refresh();
+    }
+  });
+}
+
 function boot() {
   const app = document.getElementById('app');
   if (!app) return;
   applyTheme(store.state.settings.theme);
+  setupAccounts();
   try {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(store.state.settings.theme));
   } catch {
