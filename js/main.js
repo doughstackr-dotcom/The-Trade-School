@@ -255,6 +255,68 @@ function buildShell(app) {
   return { main, setActive };
 }
 
+// ------------------------------------------------------------------ analytics
+// Vercel Web Analytics (cookieless). Injected only on real hosts so local dev and tests do not
+// 404 on /_vercel/insights/script.js. Auto-tracking is off because it only follows
+// history.pushState; hash routes are reported from onRoute below via the documented
+// window.va('pageview', { route, path }) queue (same as @vercel/analytics' pageview()).
+function isLocalHost() {
+  try {
+    const n = location.hostname;
+    return n === 'localhost' || n === '127.0.0.1' || n === '::1' || n === '[::1]' || n === '';
+  } catch {
+    return true;
+  }
+}
+
+const analyticsOn = !isLocalHost();
+let lastTrackedPath = null; // the access gate re-renders the current route; count it once
+
+function injectAnalytics() {
+  if (!analyticsOn) return;
+  try {
+    if (!window.va) {
+      window.va = function va(...params) {
+        (window.vaq = window.vaq || []).push(params);
+      };
+    }
+    const src = '/_vercel/insights/script.js';
+    if (document.head.querySelector(`script[src="${src}"]`)) return;
+    const s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    s.dataset.disableAutoTrack = '1';
+    document.head.appendChild(s);
+  } catch {
+    /* analytics is optional */
+  }
+}
+
+/** Route pattern + path for a hash route (no ids in `route`, no query/hash noise in `path`). */
+function trackPageview(route) {
+  if (!analyticsOn || typeof window.va !== 'function' || !route) return;
+  let pattern;
+  let path;
+  if (route.kind === 'notfound') {
+    pattern = '/not-found';
+    path = '/not-found';
+  } else if (route.kind === 'lesson' || route.kind === 'game') {
+    const prefix = route.kind === 'lesson' ? 'l' : 'g';
+    pattern = `/${prefix}.[id]`;
+    path = `/${prefix}.${route.id}`;
+  } else {
+    pattern = route.page === 'home' ? '/' : `/${route.page}${route.param ? '.[param]' : ''}`;
+    path = route.key === 'home' ? '/' : `/${route.key}`;
+  }
+  if (path === lastTrackedPath) return;
+  lastTrackedPath = path;
+  try {
+    window.va('pageview', { route: pattern, path });
+  } catch {
+    /* ignore */
+  }
+}
+
 function boot() {
   const app = document.getElementById('app');
   if (!app) return;
@@ -265,6 +327,7 @@ function boot() {
     /* old browsers */
   }
   const shell = buildShell(app);
+  injectAnalytics();
   // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
   function wireGate() {
     setAccessGate({
@@ -284,6 +347,7 @@ function boot() {
     store,
     onRoute: (route, entry) => {
       shell.setActive(route, entry || (route.id ? findEntry(route.id) : null));
+      trackPageview(route);
     },
   });
 }
