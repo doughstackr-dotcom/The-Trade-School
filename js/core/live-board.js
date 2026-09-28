@@ -16,6 +16,83 @@ export const BOARD_ROTATE_MS = 10_000;
 export const BOARD_VISIBLE_MAX = 5;
 export const DEFAULT_BOARD = LIVE_QUOTE_SYMBOLS;
 
+/** In-memory Live feed shared by Live (#live) and any other consumer (e.g. former Dashboard widget).
+ *  Quotes and daily candles stay aligned: the same last price/OHLC patch the forming daily bar. */
+const liveFeed = {
+  quotes: [],
+  fetchedAt: 0,
+  attribution: '',
+  stale: false,
+  /** @type {Map<string, { candles: object[], at: number }>} */
+  candles: new Map(),
+  listeners: new Set(),
+};
+
+function notifyLiveFeed(reason) {
+  for (const fn of liveFeed.listeners) {
+    try { fn(reason, liveFeed); } catch (err) { console.error(err); }
+  }
+}
+
+export function getLiveFeedSnapshot() {
+  return {
+    quotes: liveFeed.quotes,
+    fetchedAt: liveFeed.fetchedAt,
+    attribution: liveFeed.attribution,
+    stale: liveFeed.stale,
+  };
+}
+
+export function subscribeLiveFeed(fn) {
+  if (typeof fn !== 'function') return () => {};
+  liveFeed.listeners.add(fn);
+  return () => liveFeed.listeners.delete(fn);
+}
+
+export function setLiveQuotes({ quotes, fetchedAt, attribution, stale } = {}) {
+  if (Array.isArray(quotes) && quotes.some((q) => q?.ok !== false && q?.price != null)) {
+    liveFeed.quotes = quotes;
+    liveFeed.fetchedAt = fetchedAt || Date.now();
+    if (attribution != null) liveFeed.attribution = attribution;
+    liveFeed.stale = !!stale;
+    notifyLiveFeed('quotes');
+  }
+}
+
+export function getCachedCandles(symbol) {
+  const id = String(symbol || '').toUpperCase();
+  const hit = liveFeed.candles.get(id);
+  return hit?.candles?.length ? hit.candles : null;
+}
+
+export function setCachedCandles(symbol, candles) {
+  const id = String(symbol || '').toUpperCase();
+  if (!id || !candles?.length) return;
+  liveFeed.candles.set(id, { candles, at: Date.now() });
+  notifyLiveFeed('candles');
+}
+
+/** Patch the last daily candle with a live quote so chart price matches the board. */
+export function applyQuoteToCandles(candles, q) {
+  if (!candles?.length || !q || q.ok === false || q.price == null || !Number.isFinite(q.price)) {
+    return candles;
+  }
+  const last = { ...candles[candles.length - 1] };
+  const open = Number.isFinite(q.open) ? q.open : last.o;
+  const high = Number.isFinite(q.high)
+    ? Math.max(q.high, open, q.price)
+    : Math.max(last.h, q.price, open);
+  const low = Number.isFinite(q.low)
+    ? Math.min(q.low, open, q.price)
+    : Math.min(last.l, q.price, open);
+  last.o = open;
+  last.h = high;
+  last.l = low;
+  last.c = q.price;
+  return [...candles.slice(0, -1), last];
+}
+
+
 export function fmtPrice(n, decimals = 2) {
   if (n == null || !Number.isFinite(n)) return '—';
   return n.toLocaleString('en-US', {
@@ -698,21 +775,11 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
   };
 
   const patchChartFromQuote = (q) => {
-    if (!chart || !lastCandles?.length || !q || q.ok === false) return;
-    if (q.price == null || !Number.isFinite(q.price)) return;
-    const last = { ...lastCandles[lastCandles.length - 1] };
-    const open = Number.isFinite(q.open) ? q.open : last.o;
-    const high = Number.isFinite(q.high)
-      ? Math.max(q.high, open, q.price)
-      : Math.max(last.h, q.price, open);
-    const low = Number.isFinite(q.low)
-      ? Math.min(q.low, open, q.price)
-      : Math.min(last.l, q.price, open);
-    last.o = open;
-    last.h = high;
-    last.l = low;
-    last.c = q.price;
-    lastCandles = [...lastCandles.slice(0, -1), last];
+    if (!chart || !lastCandles?.length || !q) return;
+    const next = applyQuoteToCandles(lastCandles, q);
+    if (next === lastCandles) return;
+    lastCandles = next;
+    setCachedCandles(selected, lastCandles);
     try { chart.setCandles(lastCandles); } catch (err) { console.error(err); }
   };
 
@@ -720,12 +787,12 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
     if (!chartMod) return;
     chartTitle.textContent = `Daily chart · ${symbol}`;
     chartHost.classList.add('is-switching');
-    let candles = null;
+    let candles = getCachedCandles(symbol);
     let note = null;
     if (marketMod?.getCandles) {
       try {
         const res = await marketMod.getCandles({ symbol, interval: '1d', limit: 90 });
-        candles = res?.candles?.length ? res.candles : null;
+        if (res?.candles?.length) candles = res.candles;
         if (res?.attribution) {
           note = [
             res.attribution,
@@ -747,16 +814,9 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
       chartHost.classList.remove('is-switching');
       return;
     }
-    lastCandles = candles;
     const q = lastQuotes.find((x) => x.symbol === symbol && x.ok !== false);
-    if (q?.price != null) {
-      const last = { ...candles[candles.length - 1] };
-      if (Number.isFinite(q.open)) last.o = q.open;
-      if (Number.isFinite(q.high)) last.h = Math.max(q.high, last.o, q.price);
-      if (Number.isFinite(q.low)) last.l = Math.min(q.low, last.o, q.price);
-      last.c = q.price;
-      lastCandles = [...candles.slice(0, -1), last];
-    }
+    lastCandles = applyQuoteToCandles(candles, q) || candles;
+    setCachedCandles(symbol, lastCandles);
     if (!chart) {
       chart = new chartMod.CandleChart(chartHost, {
         candles: lastCandles,
@@ -793,11 +853,10 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
         lastFetchedAt = res.fetchedAt || Date.now();
         stale = !!res.stale;
         attribution = res.attribution || '';
+        setLiveQuotes({ quotes, fetchedAt: lastFetchedAt, attribution, stale });
         setStatus(
           stale ? 'stale' : 'live',
-          stale
-            ? 'Live · stale'
-            : (delayed ? 'Live · delayed EOD' : 'Live'),
+          stale ? 'Live · stale' : 'Live',
         );
         const sel = quotes.find((q) => q.symbol === selected && q.ok);
         if (sel) patchChartFromQuote(sel);

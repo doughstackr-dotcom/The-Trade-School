@@ -10,7 +10,6 @@ import { styleIcon } from '../core/game-kit.js';
 import { trackPanels } from '../core/track-panel.js';
 import * as access from '../core/access.js';
 import { PLANS, FREE_IDS } from '../config.js';
-import { mountLiveMarketsWidget } from '../core/live-board.js';
 
 function levelLabel(level) {
   if (level === 'advanced') return 'Advanced';
@@ -79,24 +78,27 @@ function accountOverview(store, snap) {
       h('span', { class: ['chip', level === 'advanced' && 'chip--bull', level === 'beginner' && 'chip--accent'] },
         levelLabel(level))),
     h('p', { class: 'muted dash-account__status' }, statusLine),
-    h('div', { class: 'dash-account__highlights' },
-      h('div', { class: 'dash-account__stat' },
-        h('span', { class: 'stat__label' }, 'Course'),
-        h('span', { class: 'stat__value mono' }, `${Math.round(overall.pct * 100)}%`),
-        h('span', { class: 'faint' }, `${overall.done}/${overall.total} items`)),
-      h('div', { class: 'dash-account__stat' },
-        h('span', { class: 'stat__label' }, 'Level'),
-        h('span', { class: 'stat__value' }, lv.title),
-        h('span', { class: 'faint mono' }, `${fmt(lv.xp)} XP`)),
-      h('div', { class: 'dash-account__stat' },
-        h('span', { class: 'stat__label' }, 'Beginner'),
-        h('span', { class: 'stat__value mono' }, `${Math.round((beginner.pct || 0) * 100)}%`),
-        meter(beginner.pct || 0, { size: 'sm', label: 'Beginner completion' })),
-      h('div', { class: 'dash-account__stat' },
-        h('span', { class: 'stat__label' }, 'Advanced'),
-        h('span', { class: 'stat__value mono' }, `${Math.round((advanced.pct || 0) * 100)}%`),
-        meter(advanced.pct || 0, { size: 'sm', label: 'Advanced completion' })),
-    ),
+    // Signed-in members keep the progress highlight cards; guests skip the gray stats box.
+    signedIn
+      ? h('div', { class: 'dash-account__highlights' },
+        h('div', { class: 'dash-account__stat' },
+          h('span', { class: 'stat__label' }, 'Course'),
+          h('span', { class: 'stat__value mono' }, `${Math.round(overall.pct * 100)}%`),
+          h('span', { class: 'faint' }, `${overall.done}/${overall.total} items`)),
+        h('div', { class: 'dash-account__stat' },
+          h('span', { class: 'stat__label' }, 'Level'),
+          h('span', { class: 'stat__value' }, lv.title),
+          h('span', { class: 'faint mono' }, `${fmt(lv.xp)} XP`)),
+        h('div', { class: 'dash-account__stat' },
+          h('span', { class: 'stat__label' }, 'Beginner'),
+          h('span', { class: 'stat__value mono' }, `${Math.round((beginner.pct || 0) * 100)}%`),
+          meter(beginner.pct || 0, { size: 'sm', label: 'Beginner completion' })),
+        h('div', { class: 'dash-account__stat' },
+          h('span', { class: 'stat__label' }, 'Advanced'),
+          h('span', { class: 'stat__value mono' }, `${Math.round((advanced.pct || 0) * 100)}%`),
+          meter(advanced.pct || 0, { size: 'sm', label: 'Advanced completion' })),
+      )
+      : null,
     h('div', { class: 'row dash-account__actions' },
       signedIn
         ? [
@@ -271,15 +273,6 @@ export default {
       store.award?.('dashboard-visit', { silent: true });
     } catch { /* badge may not exist yet */ }
 
-    // Persistent Live markets host — same node is re-inserted on each render so
-    // quote/chart timers and chart instance survive store/access re-renders.
-    const liveHost = h('section', {
-      class: 'section card dash-live',
-      'aria-labelledby': 'dash-live-h',
-      id: 'dash-live',
-    });
-    const unmountLive = mountLiveMarketsWidget(liveHost);
-
     const render = () => {
       const snap = access.getAccess();
       root.replaceChildren(
@@ -288,9 +281,8 @@ export default {
             h('p', { class: 'eyebrow eyebrow--accent' }, 'Dashboard'),
             h('h1', null, 'Your school hub'),
             h('p', { class: 'lead' },
-              'Account status, live market quotes, the full Beginner and Advanced tracks (route map + unit ladder), and your progress. Locked lessons stay visible as teasers — subscribe to open them.')),
+              'Account status, the full Beginner and Advanced tracks (route map + unit ladder), and your progress. Live quotes and daily charts live on the Live page. Locked lessons stay visible as teasers — subscribe to open them.')),
           accountOverview(store, snap),
-          liveHost,
           h('section', {
             class: 'section tracks dash-curriculum-section',
             'aria-labelledby': 'dash-curr-h',
@@ -345,7 +337,6 @@ export default {
       store.off('change', onChange);
       unsubAccess?.();
       if (queued) cancelAnimationFrame(queued);
-      try { unmountLive?.(); } catch { /* ignore */ }
     };
   },
 };
