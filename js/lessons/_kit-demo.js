@@ -221,7 +221,7 @@ export default {
             options: [
               { label: 'Treat it with suspicion: wait for confirmation', value: 0 },
               { label: 'Buy immediately with a large size', value: 1 },
-              { label: 'Volume never matters', value: 2 },
+              { label: 'Ignore volume — only the close matters', value: 2 },
             ],
             answer: 0,
             explain: '<strong>Wait.</strong> Thin volume means few buyers joined the break, so it has a higher chance of failing.',

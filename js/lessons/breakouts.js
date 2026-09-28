@@ -95,12 +95,26 @@ const steps = [
       question: 'Price spikes above resistance but closes back below on heavy volume. Read?',
       options: [
         { label: 'Likely trap — fade or stand aside per plan', value: 0 },
-        { label: 'Always buy the close', value: 1 },
-        { label: 'Ignore volume and location', value: 2 },
-        { label: 'Guaranteed short squeeze higher', value: 3 },
+        { label: 'Buy — any trade above resistance counts as a breakout', value: 1 },
+        { label: 'Buy the dip back below — heavy volume confirms the breakout', value: 2 },
+        { label: 'Add to longs — a short squeeze is coming', value: 3 },
       ],
       answer: 0,
       explain: '<strong>Trap / failed break.</strong> Close back inside on volume often traps breakout buyers.',
+    },
+  },
+  {
+    title: 'Quick check: the retest',
+    quiz: {
+      question: 'Price closes above resistance at 50 on strong volume, then pulls back to about 50.20 and holds. Which plan matches a retest entry?',
+      options: [
+        { label: 'Sell — a pullback after a breakout means it failed', value: 0 },
+        { label: 'Wait until price has run twice the pattern height, to be sure', value: 1 },
+        { label: 'Buy as it holds the old resistance, with a stop back inside the range', value: 2 },
+        { label: 'Buy with no stop — old resistance is now guaranteed support', value: 3 },
+      ],
+      answer: 2,
+      explain: 'A <strong>retest that holds</strong> gives a defined entry and a logical stop (back inside the range). It can still fail — that is what the stop is for — and some strong breakouts never retest at all.',
     },
   },
   {

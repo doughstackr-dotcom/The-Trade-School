@@ -114,6 +114,20 @@ export default {
           },
         },
         {
+          title: 'Quick check: reading the wick',
+          quiz: {
+            question: 'A candle opens at 50.00, trades down to 47.00, and closes at 49.80 near its high of 50.10. What does the long lower wick tell you?',
+            options: [
+              { label: 'Sellers controlled the whole period', value: 0 },
+              { label: 'Price dipped to 47 but buyers pushed it most of the way back before the close', value: 1 },
+              { label: 'It is a bullish candle because the wick is long', value: 2 },
+              { label: 'The period closed at its low of 47', value: 3 },
+            ],
+            answer: 1,
+            explain: 'The lower wick marks prices that were <strong>visited and rejected</strong>. The body is still small and red (close 49.80 below open 50.00), so the period ended slightly lower — the wick shows the fight, the body shows the result.',
+          },
+        },
+        {
           title: 'What candles cannot tell you',
           render(el) {
             el.append(
