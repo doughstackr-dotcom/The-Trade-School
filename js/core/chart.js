@@ -529,10 +529,17 @@ function rFib(o, S) {
     s += `<path class="tc-fib-line${key ? ' is-key' : ''}" d="M${f(xa)},${crisp(y, w)}H${f(xe)}" style="${strokeStyle(col, w, lv.ext ? '5 4' : false)}"/>`;
     if (o.labels !== false) {
       const narrow = S.x1 - S.x0 < 520;
-      const text = narrow && o.labels !== 'full' ? `${+lv.r.toFixed(3)}` : `${+lv.r.toFixed(3)} · ${S.fmt(lv.p)}`;
+      // Prefer percent-style labels on lesson figures (0.618 → 61.8%); keep 0/1 as 0% / 100%.
+      const pct = `${+(lv.r * 100).toFixed(lv.r === 0 || lv.r === 1 ? 0 : 1)}%`;
+      const text = o.labels === 'full' || !narrow
+        ? `${pct} · ${S.fmt(lv.p)}`
+        : (S.mini ? pct : `${+lv.r.toFixed(3)}`);
       if (S.pills) {
         if (y >= S.y0 - 1 && y <= S.y1 + 1) S.pills.push({ kind: 'inner', y, text, col, xr: xe, group: 'fib' });
-      } else if (!S.mini) s += haloText(xe - 3, y - 3, text, { col, anchor: 'end' });
+      } else {
+        // miniChart sets pills:null; still draw labels when requested (lesson figures use miniChart).
+        s += haloText(xe - 3, y - 3, text, { col, anchor: 'end', size: S.mini ? 9 : null });
+      }
     }
   }
   if (!S.mini) {

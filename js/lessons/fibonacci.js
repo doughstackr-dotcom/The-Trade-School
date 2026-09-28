@@ -27,11 +27,35 @@ function fibStory(rng) {
   };
 }
 
-function fibFigure(seed, loIdx, hiIdx, { width = 640, height = 200 } = {}) {
+/** Pick a clear completed impulse (swing low → later swing high) from trendSeries swings. */
+function impulseSwing(ts) {
+  const lows = (ts.swings || []).filter((s) => s.type === 'low');
+  const highs = (ts.swings || []).filter((s) => s.type === 'high');
+  for (const lo of lows) {
+    const hi = highs.find((h) => h.idx > lo.idx && h.price > lo.price);
+    if (hi) return { loIdx: lo.idx, hiIdx: hi.idx, loPrice: lo.price, hiPrice: hi.price };
+  }
+  // Fallback: candle extremes in the first two-thirds of the series.
+  const c = ts.candles;
+  let loIdx = 0;
+  let hiIdx = 0;
+  const end = Math.max(2, Math.floor(c.length * 0.7));
+  for (let i = 1; i < end; i++) {
+    if (c[i].l < c[loIdx].l) loIdx = i;
+    if (c[i].h > c[hiIdx].h) hiIdx = i;
+  }
+  if (hiIdx <= loIdx) hiIdx = Math.min(c.length - 1, loIdx + 10);
+  return { loIdx, hiIdx, loPrice: c[loIdx].l, hiPrice: c[hiIdx].h };
+}
+
+function fibFigure(seed, _loIdx, _hiIdx, { width = 640, height = 200 } = {}) {
+  // Seed picks the series; swing anchors come from trendSeries.swings (not fixed candle indexes —
+  // hard-coded 12→42 on seed 21 was not a real low→high, so levels floated off the impulse).
   const ts = trendSeries({ seed, count: 72, direction: 'up', swings: 3 });
   const c = ts.candles;
-  const a = { idx: loIdx, price: c[loIdx].l };
-  const b = { idx: hiIdx, price: c[hiIdx].h };
+  const { loIdx, hiIdx, loPrice, hiPrice } = impulseSwing(ts);
+  const a = { idx: loIdx, price: loPrice };
+  const b = { idx: hiIdx, price: hiPrice };
   return miniChart(c, {
     width, height, yPad: 0.12,
     ariaLabel: 'Fibonacci retracement on an upswing',
