@@ -593,7 +593,7 @@ export async function getQuotes({ symbols = LIVE_QUOTE_SYMBOLS } = {}) {
     stale: !!d.stale,
     delayed: d.delayed !== false,
     live: !!d.live,
-    attribution: d.attribution || 'Data: Massive.com (end-of-day on free tier)',
+    attribution: d.attribution || 'Data: Massive.com',
     fetchedAt: d.fetchedAt || Date.now(),
     source: d.source || 'massive',
     error: d.error || null,

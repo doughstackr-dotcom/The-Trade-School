@@ -62,7 +62,7 @@ const RANGE_DAYS_QUOTE = 35;
 const RANGE_DAYS_CHART = 120;
 const SPARK_MAX = 30;
 const ATTRIBUTION =
-  'Data: Massive.com (end-of-day on free tier; open/high/low/close refresh as Massive updates the daily bar). Educational use; not for trading decisions.';
+  'Data: Massive.com. Educational use; not for trading decisions.';
 
 type CacheEntry = { at: number; quote: MassiveQuote };
 const quoteCache = new Map<string, CacheEntry>();
