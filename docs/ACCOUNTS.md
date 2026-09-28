@@ -37,6 +37,13 @@ Stripe Dashboard → **Product catalog → Add product**:
 
 Copy each **price ID** (starts with `price_`).
 
+The functions grant a plan **only for these exact price IDs** (the `STRIPE_PRICE_*` secrets in
+step 4). Lookup keys are just labels: a subscription on any other price — a new price after a
+price change, a test price, a legacy price — is not mapped to a plan, and its webhook events
+fail (500) so Stripe keeps retrying them. So when you change a price, update
+`STRIPE_PRICE_BEGINNER` / `STRIPE_PRICE_ADVANCED` **before** moving anyone onto it, then resend
+any failed webhook events (Stripe → Developers → Webhooks → the event → Resend).
+
 ## 2. Turn on the customer portal
 
 Stripe Dashboard → **Settings → Billing → Customer portal**:
@@ -46,6 +53,25 @@ Stripe Dashboard → **Settings → Billing → Customer portal**:
 - Under **Subscriptions → Customers can switch plans**, add both products/prices so members
   can move between Beginner and Advanced. Proration: "Prorate charges and credits".
 - Save. The site's "Manage billing" button opens this portal.
+
+### 2a. Limit customers to one subscription
+
+Stripe Dashboard → **Settings → Payments → Checkout and Payment Links** (in some accounts:
+**Settings → Checkout**) → **Subscriptions** → turn on **Limit customers to one
+subscription**. Save.
+
+With this on, Stripe itself stops a customer who already has an active subscription from
+completing a second Checkout (it sends them to the customer portal instead). It is the
+backstop behind `create-checkout`'s own protections:
+
+- a repeated click (or a retried request) reuses one Checkout Session: sessions are created
+  with a Stripe idempotency key per user, plan and 5-minute window, and an **open** session for
+  the same plan is resumed instead of a new one being created;
+- choosing the other plan while a session is still open expires the old session, so the two
+  can't both be paid;
+- an **incomplete** subscription (first payment not finished) for the same plan sends the
+  member to its unpaid invoice; for the other plan, or while the payment is still processing,
+  the request answers 409 with a message instead of starting a second subscription.
 
 ## 3. Add the webhook
 
@@ -73,6 +99,22 @@ Supabase Dashboard → project **the-trade-school** → **Edge Functions → Sec
 | `ALLOWED_ORIGINS` | optional, comma separated extra origins, e.g. `http://localhost:5173` for local testing |
 
 Until these are set, the subscribe buttons show "Subscriptions are not open yet".
+
+CORS: the billing functions answer browsers only on `SITE_URL`'s origin and the
+`ALLOWED_ORIGINS`. Without `SITE_URL` they send no `Access-Control-Allow-Origin` header at all
+(never `*`), so the browser can't read the reply and the site shows "Subscriptions not open
+yet". To try checkout from `npm run serve`, add `http://localhost:5173` to `ALLOWED_ORIGINS`
+(and to the Auth redirect URLs, step 5).
+
+### 4a. Database migrations
+
+Apply every file in `supabase/migrations/` in order (`supabase db push`, or paste each new file
+into the SQL Editor). Hardening migrations added after the first setup:
+
+| migration | what it does |
+|---|---|
+| `20260928090000_profiles_column_update_grant.sql` | signed-in users can update only `display_name` on their own profile (column grant; the own-row policy stays) |
+| `20260928090100_api_rate_limits.sql` | per-IP rate limit table + `take_rate_limit()` used by `market-data` (see [MARKET_DATA.md](./MARKET_DATA.md)) |
 
 ## 5. Auth settings in Supabase
 
@@ -143,7 +185,8 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 - Every table uses row-level security keyed on the user's id with an index, so checks stay
   fast as the user count grows.
 - Stripe webhooks are idempotent: repeated or out-of-order events re-read the subscription
-  from Stripe and write its current state.
+  from Stripe and write its current state. Any failed database write (subscription,
+  customer mapping, event log) answers 500, so Stripe retries the event with backoff.
 
 ## 10. Protecting paid content (recommended before launch)
 

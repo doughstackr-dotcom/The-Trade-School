@@ -128,7 +128,40 @@ adapter.
 - On the site, the Live Market Lab's status bar says **Delayed (end of day)** with the
   Alpha Vantage credit, and games show a **Real market** option.
 
-## 6. Live Lab quotes (Massive.com)
+## 6. Abuse limits: CORS, rate limit, budgets
+
+`market-data` is public (no sign-in), so it protects itself and its upstream budgets:
+
+- **CORS**: browsers get the data only on your site's origin (the `SITE_URL` secret — the same
+  one billing uses), on the extra origins in `ALLOWED_ORIGINS`, and on **loopback** origins
+  (`http://localhost:<any port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so local
+  development with `npm run serve` (port 5173) keeps working with no extra setup. Every other
+  site gets no `Access-Control-Allow-Origin` header, so its visitors' browsers can't read the
+  data. **`SITE_URL` must be set** (Edge Functions → Secrets), otherwise only loopback and
+  `ALLOWED_ORIGINS` work — the live site's charts would fail. Preview deployments on other
+  domains need their origin in `ALLOWED_ORIGINS` (comma separated).
+- **Per-IP rate limit**: candle and quote requests are limited to `MARKET_DATA_RATE_LIMIT`
+  per client IP per minute (default **120**; `0` turns it off). Over the limit the function
+  answers **429** with `Retry-After`. The catalog, preflights and invalid requests are not
+  counted. Counters live in `public.api_rate_limits` (migration
+  `20260928090100_api_rate_limits.sql`, function `take_rate_limit`, service role only), keyed
+  by a SHA-256 hash of the IP — raw addresses are never stored — and pruned after a day. If the
+  migration is not applied yet, requests are let through and the log says
+  `take_rate_limit failed (request allowed)`. The client IP is taken from the platform proxy's
+  `cf-connecting-ip` / `x-real-ip` / first `x-forwarded-for` entry; the daily budgets below
+  bound total upstream cost even if a client varies it.
+- **Daily budgets**: Alpha Vantage (`ALPHAVANTAGE_DAILY_LIMIT`, default 24) and Massive
+  (`MASSIVE_DAILY_LIMIT`, default 2000) calls are counted site-wide per UTC day in
+  `market_quota` (`take_market_quota`).
+
+| secret | default | meaning |
+|---|---|---|
+| `SITE_URL` | — (required) | the site whose origin may read the data |
+| `ALLOWED_ORIGINS` | — | extra origins, comma separated (e.g. a preview domain) |
+| `MARKET_DATA_RATE_LIMIT` | `120` | requests per IP per minute; `0` = off |
+| `MASSIVE_DAILY_LIMIT` | `2000` | Massive upstream calls per UTC day (whole site) |
+
+## 7. Live Lab quotes (Massive.com)
 
 The Live Market Lab (`#live`) needs last price / daily change for a quote board. Alpha Vantage’s
 free key is already used for candle history, so quotes use **Massive.com** (formerly Polygon.io;
@@ -165,7 +198,8 @@ Without the secret, `POST { quotes: true }` returns **503** `{ unconfigured: tru
 | Auth | `Authorization: Bearer …` and `?apiKey=` (secret `MASSIVE_API_KEY`) |
 | Symbols | SPY, QQQ, AAPL, MSFT, NVDA, TSLA, GLD; crypto `X:BTCUSD` / `X:ETHUSD`; FX `C:EURUSD` |
 | Free tier | **End-of-day** aggregates, **~5 requests/min** (no realtime snapshot on Basic) |
-| Server cache | ~55s quotes / grouped; ~120s candle history; upstream paced ≥12.5s apart |
+| Server cache | ~55s quotes / grouped; ~120s candle history (per symbol/interval, reused only for requests up to the length it was fetched for); upstream paced ≥12.5s apart |
+| Daily budget | every upstream call takes one unit of `MASSIVE_DAILY_LIMIT` (default **2000**/day for the whole site, table `market_quota`, provider `massive`); when spent, Massive is skipped until 00:00 UTC and cached data / other providers answer |
 | Client poll | ~60 seconds; pauses while the tab is hidden; last daily bar OHLC patched from quotes |
 | On failure | Last good quote is kept and marked `stale`; the page never blanks |
 | Unconfigured | **503** `{ unconfigured: true }` with clear `MASSIVE_API_KEY` message — never “unknown symbol” for catalog tickers |

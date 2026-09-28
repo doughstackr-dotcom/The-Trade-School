@@ -19,11 +19,13 @@ Set via Dashboard → Edge Functions → Secrets, or:
 | `STRIPE_WEBHOOK_SECRET` | `stripe-webhook` | `whsec_…` |
 | `STRIPE_PRICE_BEGINNER` | checkout | `price_…` |
 | `STRIPE_PRICE_ADVANCED` | checkout | `price_…` |
-| `SITE_URL` | checkout / portal return URLs | `https://example.com/The-Trade-School/` |
-| `ALLOWED_ORIGINS` | optional CORS extras | `http://localhost:5173` |
+| `SITE_URL` | checkout / portal return URLs; CORS origin for **all** functions incl. `market-data` (required — without it no browser origin but loopback / `ALLOWED_ORIGINS` gets a CORS header) | `https://example.com/The-Trade-School/` |
+| `ALLOWED_ORIGINS` | optional CORS extras (billing needs `http://localhost:5173` here for local checkout tests; `market-data` already allows loopback origins) | `http://localhost:5173` |
 | `SUPABASE_SERVICE_ROLE_KEY` | deploy scripts / admin only | `eyJ…` (server only) |
-| `ALPHA_VANTAGE_API_KEY` | `market-data` function (if enabled) | `XXXXXXXX` |
+| `ALPHAVANTAGE_API_KEY` | `market-data` function (if enabled) | `XXXXXXXX` |
 | `MASSIVE_API_KEY` | `market-data` Live Lab quotes (Massive.com) | `XXXXXXXX` |
+| `MASSIVE_DAILY_LIMIT` | optional, `market-data`: Massive calls per UTC day, site-wide (default 2000) | `2000` |
+| `MARKET_DATA_RATE_LIMIT` | optional, `market-data`: requests per client IP per minute (default 120, `0` = off) | `120` |
 
 Until Stripe secrets are present, the site shows **“Subscriptions not open yet”** on subscribe / billing buttons.
 
@@ -48,7 +50,8 @@ SMTP credentials stay in the Supabase Auth SMTP form (host, port, user, password
 
 | Item | Notes |
 |---|---|
-| Products + prices | Beginner / Advanced monthly; lookup keys `beginner_monthly` / `advanced_monthly` |
+| Products + prices | Beginner / Advanced monthly; lookup keys `beginner_monthly` / `advanced_monthly` (labels only — plans are granted by the exact `STRIPE_PRICE_*` IDs) |
+| Checkout settings | **Limit customers to one subscription** on (Settings → Payments → Checkout and Payment Links; see ACCOUNTS.md §2a) |
 | Customer portal | Update payment method, cancel at period end, switch plans |
 | Webhook endpoint | `https://<project>.supabase.co/functions/v1/stripe-webhook` |
 | Events | `checkout.session.completed`, `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`, … |
