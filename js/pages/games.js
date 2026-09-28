@@ -66,7 +66,7 @@ export default {
     ];
 
     const arcadeGrid = h('div', {
-      class: 'arcade__grid games-hub__grid',
+      class: 'arcade__grid',
       id: 'games-hub-grid',
       role: 'list',
       'aria-label': 'All games',
@@ -81,7 +81,7 @@ export default {
         const b = h('button', {
           type: 'button', class: 'filter-chip', 'aria-pressed': String(f.id === 'all'),
           'aria-controls': 'games-hub-grid', 'data-filter': f.id,
-          onclick: () => applyFilter(f.id),
+          on: { click: () => applyFilter(f.id) },
         }, h('span', null, f.label), h('span', { class: 'filter-chip__n mono' }, String(counts[f.id])));
         filterBtns.push(b);
         return b;

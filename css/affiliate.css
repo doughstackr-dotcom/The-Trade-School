@@ -1,5 +1,5 @@
 /* Platforms page (file: affiliate.*)
-   Hierarchy: intro → disclosure → Trading platforms rails → coming soon.
+   Hierarchy: intro → Trading platforms rails → coming soon → disclosure.
    (Site-wide risk ticker lives in the app shell — see css/risk-ticker.css.)
    Surfaces/text/borders use design tokens so light & dark themes stay native.
    Brand logos sit on a near-white pad (official marks assume a light ground);
@@ -27,6 +27,7 @@
   width: 100%;
   max-width: none;
   box-sizing: border-box;
+  margin-top: var(--space-6, 1.5rem);
 }
 
 

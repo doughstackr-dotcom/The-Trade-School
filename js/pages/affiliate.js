@@ -228,13 +228,6 @@ export default {
         h('p', { class: 'lead' },
           'Platforms and tools we partner with. Some links below are affiliate / referral links — '
           + 'if you sign up through them, The Trade School may earn a commission at no extra cost to you.')),
-      h('div', { class: 'callout callout--warn aff-disclaimer', role: 'note' },
-        icon('info', { size: 18 }),
-        h('div', null,
-          h('p', null, h('strong', null, 'Affiliate disclosure.')),
-          h('p', { class: 'muted' },
-            'These are educational partnerships, not endorsements. Always do your own research, '
-            + 'read each platform’s terms, and never risk money you cannot afford to lose.'))),
       h('section', {
         class: 'aff-partners',
         'aria-labelledby': 'aff-trading-platforms',
@@ -253,6 +246,13 @@ export default {
             'Partner TBD — more trading platforms and tools will land here.')),
         h('div', { class: 'aff-soon', role: 'list' },
           coming.map((p) => h('div', { role: 'listitem' }, comingTile(p)))))
-        : null));
+        : null,
+      h('div', { class: 'callout callout--warn aff-disclaimer', role: 'note' },
+        icon('info', { size: 18 }),
+        h('div', null,
+          h('p', null, h('strong', null, 'Affiliate disclosure.')),
+          h('p', { class: 'muted' },
+            'These are educational partnerships, not endorsements. Always do your own research, '
+            + 'read each platform’s terms, and never risk money you cannot afford to lose.')))));
   },
 };

@@ -188,14 +188,12 @@
 .bull { color: var(--bull, #22c55e); }
 .bear { color: var(--bear, #ef4444); }
 
-/* —— Games hub (#games) — reuses home .arcade__grid / .game-tile ——————————— */
+/* —— Games hub (#games) — same .arcade__grid / .game-tile as home ———————— */
+/* Do not override grid columns/gap here — home components.css is the reference. */
 
-.games-hub .arcade__grid,
-.games-hub__grid {
-  gap: 1.5rem;
-  row-gap: 1.75rem;
-  margin-top: var(--space-4, 1rem);
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+.games-hub .arcade {
+  /* Match home section spacing inside the page container */
+  padding-inline: 0;
 }
 
 .games-hub .game-tile--free {
