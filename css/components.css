@@ -6924,12 +6924,14 @@ figcaption {
 .pricing:focus { outline: none; }
 .pricing__grid {
   display: grid;
-  gap: var(--space-4);
+  gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
 }
 .pricing__per { font-size: 0.95rem; font-weight: 500; }
 .pricing__blurb { margin: 0; }
-.pricing__note { margin-top: var(--space-4); font-size: 13px; line-height: 1.5; }
+.pricing__card .plan-card__perks { align-content: start; }
+.pricing__card { gap: 12px; }
+.pricing__note { margin-top: 16px; font-size: 13px; line-height: 1.5; }
 .hero__fine { margin-top: 12px; font-size: 13.5px; }
 
 
