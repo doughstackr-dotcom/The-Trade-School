@@ -1,6 +1,6 @@
 // Account: session status, plan, subscribe / manage billing, sign in & out.
 // Default signed-out view is Sign in; Create account swaps in via toggle or
-// #account.signup (auth-gate deep-link). Return-after-login via
+// /account/signup (auth-gate deep-link). Return-after-login via
 // access.rememberReturn / consumeReturn.
 import { h, icon, toast } from '../core/ui.js';
 import { PLANS, FREE_IDS } from '../config.js';
@@ -25,8 +25,8 @@ function goAfterAuth(ctx) {
 /** "By continuing you agree…" line shown with sign-up and checkout buttons. */
 function consentNote(action = 'continuing') {
   return h('p', { class: 'consent-note' },
-    `By ${action} you agree to the `, h('a', { href: '#terms' }, 'Terms of Service'),
-    ' and ', h('a', { href: '#privacy' }, 'Privacy Policy'), '.');
+    `By ${action} you agree to the `, h('a', { href: '/terms' }, 'Terms of Service'),
+    ' and ', h('a', { href: '/privacy' }, 'Privacy Policy'), '.');
 }
 
 function kids(...nodes) {
@@ -43,13 +43,13 @@ export default {
     // Local view so toggle can swap without a full remount; URL stays in sync.
     let view = preferSignup ? 'signup' : 'signin';
 
-    function syncHash() {
-      const target = view === 'signup' ? 'account.signup' : 'account';
-      const want = `#${target}`;
-      if (location.hash === want) return;
+    function syncPath() {
+      const want = view === 'signup' ? '/account/signup' : '/account';
+      if (location.pathname === want) return;
       try {
-        // replaceState avoids hashchange remount while keeping deep-links shareable.
-        history.replaceState(null, '', want);
+        // replaceState avoids a router remount while keeping deep-links shareable. Search and
+        // hash are kept: they may carry a Supabase auth callback (?code=…, #access_token=…).
+        history.replaceState(history.state, '', want + location.search + location.hash);
       } catch {
         /* ignore */
       }
@@ -58,7 +58,7 @@ export default {
     function setView(next) {
       if (next !== 'signin' && next !== 'signup') return;
       view = next;
-      syncHash();
+      syncPath();
       paint();
     }
 
@@ -268,8 +268,8 @@ export default {
           ),
           a.level !== 'advanced'
             ? h('p', { class: 'consent-note' },
-              'By subscribing you agree to the ', h('a', { href: '#terms' }, 'Terms of Service'), ', ',
-              h('a', { href: '#privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '#refunds' }, 'Refund Policy'),
+              'By subscribing you agree to the ', h('a', { href: '/terms' }, 'Terms of Service'), ', ',
+              h('a', { href: '/privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '/refunds' }, 'Refund Policy'),
               '. Renews monthly; cancel anytime in Manage billing.')
             : null,
         ),
@@ -279,12 +279,12 @@ export default {
             FREE_IDS.map((id) => {
               const e = ctx.registry?.findEntry?.(id);
               if (!e) return null;
-              return h('li', null, h('a', { href: `#${e.type === 'game' ? 'g' : 'l'}.${e.id}` }, e.title));
+              return h('li', null, h('a', { href: `/${e.type === 'game' ? 'games' : 'lessons'}/${e.id}` }, e.title));
             }),
           ),
           h('p', { class: 'row' },
-            h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
-            h('a', { class: 'btn btn--ghost', href: '#beginner' }, 'Beginner on Dashboard')),
+            h('a', { class: 'btn btn--ghost', href: '/dashboard' }, 'Dashboard'),
+            h('a', { class: 'btn btn--ghost', href: '/beginner' }, 'Beginner on Dashboard')),
         ),
         msg,
       );

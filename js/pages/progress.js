@@ -1,10 +1,10 @@
-// Dashboard hub (#dashboard, aliased as #progress; #beginner / #advanced scroll here):
+// Dashboard hub (/dashboard, aliased as /progress; /beginner and /advanced scroll here):
 // 1) Account overview  2) Beginner + Advanced track panels (route + ladder)  3) Progress extras.
 // Home keeps the compact curriculum cards that link here.
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
 import {
-  LESSONS, GAMES, BADGES, STYLES, UNITS, stylesOf, hashFor, findEntry,
+  LESSONS, GAMES, BADGES, STYLES, UNITS, stylesOf, pathFor, findEntry,
 } from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
 import { trackPanels } from '../core/track-panel.js';
@@ -101,17 +101,17 @@ function accountOverview(store, snap) {
       signedIn
         ? [
           level !== 'advanced'
-            ? h('a', { class: 'btn btn--primary', href: '#paywall' },
+            ? h('a', { class: 'btn btn--primary', href: '/paywall' },
               icon('lock', { size: 16 }),
               level === 'beginner' ? 'Upgrade to Advanced' : 'View plans')
-            : h('a', { class: 'btn btn--ghost', href: '#account' }, 'Manage account'),
-          h('a', { class: 'btn btn--ghost', href: '#account' }, 'Account'),
+            : h('a', { class: 'btn btn--ghost', href: '/account' }, 'Manage account'),
+          h('a', { class: 'btn btn--ghost', href: '/account' }, 'Account'),
         ]
         : [
-          h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in / create account'),
-          h('a', { class: 'btn btn--ghost', href: '#paywall' }, 'See plans'),
+          h('a', { class: 'btn btn--primary', href: '/account/signup' }, icon('lock', { size: 16 }), 'Sign in / create account'),
+          h('a', { class: 'btn btn--ghost', href: '/paywall' }, 'See plans'),
         ],
-      h('a', { class: 'btn btn--ghost', href: '#g.daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
+      h('a', { class: 'btn btn--ghost', href: '/games/daily-challenge' }, icon('flame', { size: 16 }), 'Daily Challenge'),
     ),
     signedIn && level === 'free'
       ? h('p', { class: 'faint dash-account__free' },
@@ -119,7 +119,7 @@ function accountOverview(store, snap) {
         FREE_IDS.map((id, i) => {
           const e = findEntry(id);
           if (!e) return null;
-          return [i ? ', ' : '', h('a', { href: `#${hashFor(id)}` }, e.title)];
+          return [i ? ', ' : '', h('a', { href: pathFor(id) }, e.title)];
         }))
       : null,
     plan ? h('p', { class: 'faint' }, `${plan.name} · $${plan.price}/mo`) : null,
@@ -163,7 +163,7 @@ function statsRow(store) {
     cell('Stars', `${stars}/${GAMES.length * 3}`, 'collected'),
     cell('Badges', `${s.badges.length}/${BADGES.length}`, 'earned'),
     cell('Best streak', String(s.bestStreak || 0), 'in a row'),
-    h('a', { class: ['stat stat--link', daily.done && 'is-done'], href: '#g.daily-challenge' },
+    h('a', { class: ['stat stat--link', daily.done && 'is-done'], href: '/games/daily-challenge' },
       h('span', { class: 'stat__label' }, 'Daily streak'),
       h('span', { class: 'stat__value stat__value--daily' }, icon('flame', { size: 18 }), String(daily.streak || 0)),
       h('span', { class: 'faint stat__sub' }, daily.done ? `done today · best ${daily.best || 0}` : `best ${daily.best || 0} · play today`)));
@@ -201,12 +201,12 @@ function gamesTable(store) {
   const rows = GAMES.map((g) => {
     const s = store.state.games[g.id];
     return h('tr', null,
-      h('th', { scope: 'row' }, h('a', { href: `#g.${g.id}`, class: 'table-link' }, g.title)),
+      h('th', { scope: 'row' }, h('a', { href: `/games/${g.id}`, class: 'table-link' }, g.title)),
       h('td', { class: 'hide-sm' }, tierChip(g.tier, { small: true })),
       ...STYLES.map((st) => styleCell(store, g, st.id)),
       h('td', null, starRow(s?.stars || 0, { size: 14 })),
       h('td', { class: 'num mono hide-sm' }, s?.plays ? String(s.plays) : '0'),
-      h('td', { class: 'cell-action' }, h('a', { class: 'btn btn--sm btn--ghost', href: `#g.${g.id}`, 'aria-label': `Play ${g.title}` }, icon('play', { size: 14 }), h('span', { class: 'hide-sm' }, s?.plays ? 'Again' : 'Play'))));
+      h('td', { class: 'cell-action' }, h('a', { class: 'btn btn--sm btn--ghost', href: `/games/${g.id}`, 'aria-label': `Play ${g.title}` }, icon('play', { size: 14 }), h('span', { class: 'hide-sm' }, s?.plays ? 'Again' : 'Play'))));
   });
   return h('div', { class: 'table-scroll card card--flush' },
     h('table', { class: 'data-table games-table' },

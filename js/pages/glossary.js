@@ -148,7 +148,7 @@ export default {
           h('span', { class: 'term__cat' }, CATS[t.cat] || '')),
         h('dd', { class: 'term__def' },
           h('p', null, t.def),
-          lesson ? h('a', { class: 'term__link', href: `#l.${lesson.id}` }, icon('book', { size: 14 }), `Lesson: ${lesson.title}`) : null));
+          lesson ? h('a', { class: 'term__link', href: `/lessons/${lesson.id}` }, icon('book', { size: 14 }), `Lesson: ${lesson.title}`) : null));
       return { t, el, hay: norm(`${t.term} ${t.aka || ''} ${t.def} ${CATS[t.cat] || ''}`), letter: letterOf(t) };
     });
 

@@ -1,4 +1,4 @@
-// #dev-chart — hidden kitchen-sink page that exercises every CandleChart feature.
+// /dev-chart (localhost only) — hidden kitchen-sink page that exercises every CandleChart feature.
 // Also the engine's visual test bench. Uses no shell helpers so it works standalone.
 
 import { CandleChart, miniChart, candleSVG, CHART_TYPES } from '../core/chart.js';

@@ -1,5 +1,6 @@
 // The Trade School — curriculum catalogue.
 // PURE DATA (plus a few pure helpers). Must stay importable from node: no DOM, no side effects.
+import { tokenToPath } from './core/routes.js';
 
 export const TIERS = [
   {
@@ -448,7 +449,7 @@ export const ARCADE_FILTERS = [
   { id: 'live', label: 'Live', kinds: ['live'] },
 ];
 
-/** Stand-alone pages (routes: #playbook, #playbook.<setupId>, #live, #platforms; #affiliate aliases to platforms). */
+/** Stand-alone pages (routes: /playbook, /playbook/<setupId>, /live, /platforms; /affiliate aliases to platforms). */
 export const PAGES = [
   { id: 'games', title: 'Games', hash: 'games', param: false, path: './pages/games.js',
     blurb: 'The arcade: practice, arcade and survival modes across every skill game. One free daily hook; the rest unlock with a plan.' },
@@ -558,11 +559,16 @@ export function nextItem(id, tier = null) {
   return null;
 }
 
-/** Route hash (without '#') for a lesson or game id. */
+/** Route token (the old hash without '#') for a lesson or game id: 'l.<id>' / 'g.<id>'. */
 export function hashFor(id) {
   const e = findEntry(id);
   if (!e) return 'home';
   return (e.type === 'lesson' ? 'l.' : 'g.') + id;
+}
+
+/** URL path for a lesson or game id: '/lessons/<id>' / '/games/<id>' ('/' if unknown). */
+export function pathFor(id) {
+  return tokenToPath(hashFor(id));
 }
 
 /** Lessons / games shown under a tier ('both'-tier games appear under both). */

@@ -1,7 +1,7 @@
 // Shared Beginner / Advanced curriculum cards (Home + Dashboard).
 // Cards are always visible; locked units route to the paywall teaser when enforcing.
 import { h, icon, starRow, meter, tierChip } from './ui.js';
-import { TIERS, unitsOf, findEntry, hashFor } from '../registry.js';
+import { TIERS, unitsOf, findEntry, pathFor } from '../registry.js';
 import * as access from './access.js';
 
 function unitStatus(store, unit) {
@@ -45,10 +45,10 @@ export function trackCard(store, tier, opts = {}) {
   const cta = opts.cta === undefined ? 'dashboard' : opts.cta;
   let ctaNode = null;
   if (cta === 'dashboard') {
-    ctaNode = h('a', { class: 'btn track-card__cta', href: `#${tier.id}` },
+    ctaNode = h('a', { class: 'btn track-card__cta', href: `/${tier.id}` },
       `Open ${tier.title} on Dashboard`, icon('arrow-right'));
   } else if (cta === 'section') {
-    ctaNode = h('a', { class: 'btn track-card__cta', href: `#${tier.id}` },
+    ctaNode = h('a', { class: 'btn track-card__cta', href: `/${tier.id}` },
       `Jump to ${tier.title}`, icon('arrow-right'));
   }
 
@@ -67,7 +67,7 @@ export function trackCard(store, tier, opts = {}) {
       units.map((u, i) => {
         const target = unitTarget(u);
         const open = target ? canLaunch(target) : false;
-        const href = target ? `#${hashFor(target.id)}` : '#paywall';
+        const href = target ? pathFor(target.id) : '/paywall';
         const lockNeed = target ? access.lockLabel(target) : 'Paid plan';
         return h('li', null,
           h('a', {

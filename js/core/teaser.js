@@ -36,10 +36,10 @@ export function toolsTeaser(pageLabel = 'This section') {
           : `Anyone can see this teaser. Sign in and subscribe (Beginner $${price}/mo or Advanced) to open the full content.`)),
     h('div', { class: 'teaser-banner__actions row' },
       signedIn
-        ? h('a', { class: 'btn btn--primary', href: '#paywall' }, icon('lock', { size: 16 }), 'View plans')
-        : h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in to subscribe'),
-      h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
-      h('a', { class: 'btn btn--ghost', href: '#platforms' }, 'Platforms (free)'),
+        ? h('a', { class: 'btn btn--primary', href: '/paywall' }, icon('lock', { size: 16 }), 'View plans')
+        : h('a', { class: 'btn btn--primary', href: '/account/signup' }, icon('lock', { size: 16 }), 'Sign in to subscribe'),
+      h('a', { class: 'btn btn--ghost', href: '/dashboard' }, 'Dashboard'),
+      h('a', { class: 'btn btn--ghost', href: '/platforms' }, 'Platforms (free)'),
     ),
   );
 
@@ -55,7 +55,7 @@ export function toolsTeaser(pageLabel = 'This section') {
           h('span', { class: 'teaser-lock__icon', 'aria-hidden': 'true' }, icon('lock', { size: 28 })),
           h('p', null, h('strong', null, 'Full access is locked')),
           h('p', { class: 'muted' }, 'Subscribe to explore every card and detail view.'),
-          h('a', { class: 'btn btn--primary', href: signedIn ? '#paywall' : '#account.signup' },
+          h('a', { class: 'btn btn--primary', href: signedIn ? '/paywall' : '/account/signup' },
             signedIn ? 'Unlock with a plan' : 'Sign in to unlock'),
         ),
       ),

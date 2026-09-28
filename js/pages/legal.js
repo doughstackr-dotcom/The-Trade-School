@@ -1,4 +1,4 @@
-// Legal pages: #privacy (Privacy Policy), #terms (Terms of Service), #refunds (Refund &
+// Legal pages: /privacy (Privacy Policy), /terms (Terms of Service), /refunds (Refund &
 // Cancellation Policy). Public — no paywall. Owner-specific values come from LEGAL in
 // js/config.js; nothing here is hard-coded per owner.
 //
@@ -143,7 +143,7 @@ function termsDoc() {
   const law = LEGAL.jurisdiction && String(LEGAL.jurisdiction).trim();
   return [
     p(`These Terms of Service (“Terms”) govern your use of ${biz} website and app (the “Service”). By creating an account, `
-      + 'subscribing or otherwise using the Service you agree to these Terms and to our ', h('a', { href: '#privacy' }, 'Privacy Policy'),
+      + 'subscribing or otherwise using the Service you agree to these Terms and to our ', h('a', { href: '/privacy' }, 'Privacy Policy'),
     '. If you do not agree, do not use the Service.'),
     sec('1. Educational use only — not financial advice',
       p(strong(`${biz} provides general educational content about reading price charts and trading concepts. It is not financial, investment, tax or legal advice, `
@@ -162,7 +162,7 @@ function termsDoc() {
         `Beginner costs ${price('beginner')} and Advanced costs ${price('advanced')}, plus any applicable taxes. Prices shown at checkout apply.`,
         'Subscriptions renew automatically each billing period until you cancel. Payments are processed by Stripe; by subscribing you authorise recurring charges to your payment method.',
         'You can cancel online at any time from the Account page (Manage billing → Stripe customer portal). Cancellation stops the next renewal; you keep access until the end of the period you have paid for.',
-        ['Payments are non-refundable except as set out in our ', h('a', { href: '#refunds' }, 'Refund & Cancellation Policy'), ' or where required by law.'],
+        ['Payments are non-refundable except as set out in our ', h('a', { href: '/refunds' }, 'Refund & Cancellation Policy'), ' or where required by law.'],
         'If you switch between plans, Stripe may apply a prorated charge or credit for the rest of the billing period.',
         'We may change prices for future billing periods with advance notice. Price changes do not affect a period you have already paid for.',
       )),
@@ -208,7 +208,7 @@ function refundsDoc() {
     p('Subscriptions to the Beginner plan (', price('beginner'), ') and the Advanced plan (', price('advanced'),
       ') renew automatically every month until you cancel.'),
     sec('Cancel anytime, online',
-      p('You can cancel online at any time — no email or phone call needed. Sign in, open ', h('a', { href: '#account' }, 'Account'),
+      p('You can cancel online at any time — no email or phone call needed. Sign in, open ', h('a', { href: '/account' }, 'Account'),
         ', choose ', strong('Manage billing'), ' and cancel in the Stripe customer portal. The portal also lets you update your payment method and see invoices.'),
       p('Cancellation stops future renewals. You keep access to your plan until the end of the billing period you have already paid for; after that your account '
         + 'returns to the free tier and your saved progress stays.')),
@@ -257,6 +257,6 @@ export default {
       missing.length && isLocalHost() ? devNotice(missing) : null,
       h('article', { class: 'prose legal__body' }, doc.build()),
       h('nav', { class: 'legal__more', 'aria-label': 'Other policies' },
-        others.map(([k, d]) => h('a', { href: `#${k}` }, d.title)))));
+        others.map(([k, d]) => h('a', { href: `/${k}` }, d.title)))));
   },
 };

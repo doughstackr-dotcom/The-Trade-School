@@ -3,7 +3,7 @@
 // Media helpers (ARCHITECTURE §12.5): storyStep, realExampleStep, checklistStep, compareStep
 // build ready-made steps; figure() and takeaway() are content blocks for any step.
 import { h, icon, sfx, confetti, choiceQuiz, kbdHint, tierChip, meter, setMeter, reducedMotion, starRow } from './ui.js';
-import { findEntry, findTier, unitOf, unitsOf, nextItem, hashFor } from '../registry.js';
+import { findEntry, findTier, unitOf, unitsOf, nextItem, pathFor } from '../registry.js';
 import { makeRng, hashString } from './rng.js';
 import { CandleChart } from './chart.js';
 import { CANDLE_PATTERNS, CHART_PATTERNS, candleScenario, chartScenario } from './patterns.js';
@@ -212,7 +212,7 @@ export class LessonShell {
 
     this._wrap = h('article', { class: 'lesson container', 'data-lesson': this.id },
       h('div', { class: 'lesson__bar' },
-        h('a', { class: 'link-btn', href: `#${tier}` }, icon('arrow-left', { size: 16 }), tierEntry ? `${tierEntry.title} track` : 'Back')),
+        h('a', { class: 'link-btn', href: `/${tier}` }, icon('arrow-left', { size: 16 }), tierEntry ? `${tierEntry.title} track` : 'Back')),
       h('header', { class: 'lesson__head' },
         h('p', { class: 'eyebrow eyebrow--accent' }, unitNo ? `Lesson · Unit ${unitNo} of ${units.length}` : 'Lesson'),
         h('h1', { class: 'lesson__title' }, this.title),
@@ -325,7 +325,7 @@ export class LessonShell {
 
     const gameCards = games.map((g) => {
       const st = this.store?.gameStats?.(g.id);
-      return h('a', { class: 'lesson-done__game card card--link', href: `#${hashFor(g.id)}` },
+      return h('a', { class: 'lesson-done__game card card--link', href: pathFor(g.id) },
         h('span', { class: 'lesson-done__game-icon', 'aria-hidden': 'true' }, icon('gamepad', { size: 22 })),
         h('span', { class: 'lesson-done__game-text' },
           h('strong', null, g.title),
@@ -344,9 +344,9 @@ export class LessonShell {
       gameCards.length ? h('div', { class: 'lesson-done__games' }, h('h3', { class: 'lesson-done__h' }, 'Practise it'), ...gameCards) : null,
       h('div', { class: 'row lesson-done__actions' },
         gameCards.length
-          ? h('a', { class: 'btn btn--primary', href: `#${hashFor(games[0].id)}` }, icon('play'), `Play ${games[0].title}`)
+          ? h('a', { class: 'btn btn--primary', href: pathFor(games[0].id) }, icon('play'), `Play ${games[0].title}`)
           : null,
-        nextLesson ? h('a', { class: 'btn', href: `#l.${nextLesson.id}` }, `Next lesson: ${nextLesson.title}`, icon('arrow-right')) : null,
+        nextLesson ? h('a', { class: 'btn', href: `/lessons/${nextLesson.id}` }, `Next lesson: ${nextLesson.title}`, icon('arrow-right')) : null,
         h('button', { type: 'button', class: 'btn btn--ghost', on: { click: () => this.go(0) } }, icon('restart'), 'Review from start')));
   }
 }

@@ -69,6 +69,15 @@ function hasAuthCallback() {
   }
 }
 
+/** Where auth emails (sign-up confirmation) send the visitor back: this site's /account page. */
+function authRedirectUrl() {
+  try {
+    return `${location.origin}/account`;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Whether the gate should block unpaid modules right now. */
 export function isEnforcing() {
   if (ACCESS_MODE === 'open') return false;
@@ -282,8 +291,8 @@ export function requiredPlan(entryOrMode) {
  */
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
-  'dashboard', 'progress', // #progress aliases to dashboard
-  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
+  'dashboard', 'progress', // /progress aliases to dashboard
+  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // /affiliate → platforms
   'privacy', 'terms', 'refunds', // legal pages
   'dev-chart',
 ]);
@@ -333,7 +342,7 @@ export function peekReturn() {
  * Only these are auth-gated; Home, Dashboard, Games, Library, Playbook, Live, Glossary, Platforms stay public.
  */
 export function isCurriculumGated(entry, route = null) {
-  // Standalone track pages are gone; #beginner / #advanced land on public Dashboard.
+  // Standalone track pages are gone; /beginner and /advanced land on public Dashboard.
   const kind = route?.kind || entry?.type;
   if (kind === 'lesson' || kind === 'game') {
     const tier = entry?.tier;
@@ -408,7 +417,12 @@ export async function signUp({ email, password, displayName }) {
   const { data, error } = await c.auth.signUp({
     email,
     password,
-    options: { data: displayName ? { display_name: displayName } : undefined },
+    options: {
+      data: displayName ? { display_name: displayName } : undefined,
+      // The confirmation link lands on /account (?code=… with PKCE). Supabase only honours it
+      // when it is in Auth → URL Configuration → Redirect URLs; otherwise it uses the Site URL.
+      emailRedirectTo: authRedirectUrl(),
+    },
   });
   if (error) return { ok: false, error: error.message };
   await refresh();

@@ -7,8 +7,9 @@
   <meta name="description" content="Learn trading fundamentals by playing: candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, moving averages, indicators, multi-timeframe analysis and risk. Beginner and Advanced tracks with interactive lessons, games and simulations.">
 
   <!-- Site origin: https://thetradeschool.online — used by the canonical link, social
-       cards and JSON-LD below and in robots.txt / sitemap.xml. Update all of them when a custom
-       domain is set (see README "Deploy"). -->
+       cards and JSON-LD below, SITE_ORIGIN in js/core/routes.js (per-route canonical links) and
+       robots.txt / sitemap.xml. Update all of them if the domain changes (see README "Deploy").
+       Asset URLs are absolute (/css/…, /js/…) so deep paths such as /lessons/fibonacci work. -->
   <link rel="canonical" href="https://thetradeschool.online/">
 
   <!-- Social cards -->
@@ -83,26 +84,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Figtree:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap">
 
-  <link rel="stylesheet" href="css/tokens.css">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/playbook.css">
-  <link rel="stylesheet" href="css/risk-ticker.css">
-  <link rel="stylesheet" href="css/live.css">
-  <link rel="stylesheet" href="css/affiliate.css">
-  <link rel="stylesheet" href="css/account.css">
-  <link rel="stylesheet" href="css/chart.css">
-  <link rel="stylesheet" href="css/games.css">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/playbook.css">
+  <link rel="stylesheet" href="/css/risk-ticker.css">
+  <link rel="stylesheet" href="/css/live.css">
+  <link rel="stylesheet" href="/css/affiliate.css">
+  <link rel="stylesheet" href="/css/account.css">
+  <link rel="stylesheet" href="/css/chart.css">
+  <link rel="stylesheet" href="/css/games.css">
 
-  <script>
-    // Apply a saved theme before first paint (no flash). 'system' = no attribute.
-    (function () {
-      try {
-        var t = localStorage.getItem('tts-theme');
-        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-      } catch (e) { /* storage blocked: follow the system theme */ }
-    })();
-  </script>
+  <script src="/js/theme-init.js"></script>
 </head>
 <body>
   <div id="app"></div>
@@ -112,6 +105,6 @@
       <p>The lessons, charts and games are drawn live in your browser. Please enable JavaScript and reload the page.</p>
     </div>
   </noscript>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 // the two tracks, the three play styles, the arcade (filterable by kind) and your level.
 import { h, svg, icon, starRow, meter, tierChip, fmt, reducedMotion } from '../core/ui.js';
 import {
-  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, hashFor,
+  TIERS, UNITS, GAMES, BADGES, STYLES, ARCADE_FILTERS, findEntry, findKind, findStyle, stylesOf, sourcesOf, pathFor,
 } from '../registry.js';
 import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
@@ -564,7 +564,7 @@ function continueStrip(store) {
     detail = g?.plays ? `Game · best ${fmt(g.best)}` : 'Game · not finished yet';
   }
   return h('section', { class: 'container continue-wrap', 'aria-label': 'Continue where you left off' },
-    h('a', { class: 'continue card card--link', href: `#${hashFor(e.id)}` },
+    h('a', { class: 'continue card card--link', href: pathFor(e.id) },
       h('span', { class: 'continue__icon', 'aria-hidden': 'true' }, icon(e.type === 'lesson' ? 'book' : 'gamepad', { size: 22 })),
       h('span', { class: 'continue__text' },
         h('span', { class: 'eyebrow' }, 'Continue where you left off'),
@@ -592,7 +592,7 @@ export function arcadeTile(store, g, featureOrOpts = false) {
   const feature = !!opts.feature;
   const locked = !!opts.locked;
   const free = !!opts.free;
-  const href = opts.href || `#g.${g.id}`;
+  const href = opts.href || `/games/${g.id}`;
   const st = store.gameStats(g.id);
   const kind = findKind(g.kind);
   const real = sourcesOf(g).includes('real');
@@ -644,7 +644,7 @@ function todaySection(store, cleanups) {
       return 'Today';
     }
   })();
-  const dailyCard = daily ? h('a', { class: ['today-card card card--link today-card--daily', d.done && 'is-done'], href: '#g.daily-challenge' },
+  const dailyCard = daily ? h('a', { class: ['today-card card card--link today-card--daily', d.done && 'is-done'], href: '/games/daily-challenge' },
     h('div', { class: 'today-card__top' },
       h('span', { class: 'today-card__icon', 'aria-hidden': 'true' }, icon('flame', { size: 22 })),
       h('div', { class: 'today-card__head' },
@@ -662,7 +662,7 @@ function todaySection(store, cleanups) {
 
   const statusChip = h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live & replay');
   const statusText = h('p', { class: 'today-card__text muted' }, 'Real market prices on a moving chart, with an automatic plain-English read of the trend, the nearest levels and fresh candle patterns.');
-  const liveCard = h('a', { class: 'today-card card card--link today-card--live', href: '#live' },
+  const liveCard = h('a', { class: 'today-card card card--link today-card--live', href: '/live' },
     h('div', { class: 'today-card__top' },
       h('span', { class: 'today-card__icon today-card__icon--live', 'aria-hidden': 'true' }, icon('bolt', { size: 22 })),
       h('div', { class: 'today-card__head' },
@@ -744,7 +744,7 @@ function levelStrip(store) {
       h('div', { class: 'level-strip__badges' },
         h('span', { class: 'eyebrow' }, `Badges · ${earned.length}/${BADGES.length}`),
         h('div', { class: 'level-strip__row' }, slots)),
-      h('a', { class: 'btn', href: '#dashboard' }, 'View dashboard', icon('arrow-right'))));
+      h('a', { class: 'btn', href: '/dashboard' }, 'View dashboard', icon('arrow-right'))));
 }
 
 // ------------------------------------------------------------------ page
@@ -765,7 +765,7 @@ function welcomeBanner(store) {
           'Short visual lessons and games teach chart reading. The Daily Challenge is free with an account; '
           + 'the Beginner track starts with Candlestick anatomy. Educational only — not financial advice.')),
       h('div', { class: 'welcome-banner__actions' },
-        h('a', { class: 'btn btn--primary btn--sm', href: '#g.daily-challenge', on: { click: () => store.setSetting('welcomed', true) } },
+        h('a', { class: 'btn btn--primary btn--sm', href: '/games/daily-challenge', on: { click: () => store.setSetting('welcomed', true) } },
           'Try it free', icon('arrow-right', { size: 14 })),
         h('button', {
           type: 'button', class: 'icon-btn welcome-banner__close', 'aria-label': 'Dismiss welcome message', on: { click: dismiss },
@@ -801,7 +801,7 @@ function pricingSection() {
       h('p', { class: 'muted' }, 'Browse the school without an account. A free account opens the Daily Challenge; a monthly plan unlocks the full lessons and games.')),
     h('div', { class: 'pricing__grid' },
       tier({
-        id: 'free', name: 'Free', price: '$0', cta: 'Create free account', href: '#account.signup',
+        id: 'free', name: 'Free', price: '$0', cta: 'Create free account', href: '/account/signup',
         blurb: 'Look around and try a daily game.',
         perks: [
           'Dashboard, Live Market Lab and Platforms',
@@ -810,18 +810,18 @@ function pricingSection() {
         ],
       }),
       b && tier({
-        id: b.id, name: b.name, price: money(b.price), cta: `Get ${b.name}`, href: '#account.signup',
+        id: b.id, name: b.name, price: money(b.price), cta: `Get ${b.name}`, href: '/account/signup',
         blurb: 'The whole Beginner track.',
         perks: ['Every Beginner lesson and game', 'Full Library, Playbook and Glossary', 'Practice, Arcade and Survival styles'],
       }),
       a && tier({
-        id: a.id, name: a.name, price: money(a.price), cta: `Get ${a.name}`, href: '#account.signup', highlight: true,
+        id: a.id, name: a.name, price: money(a.price), cta: `Get ${a.name}`, href: '/account/signup', highlight: true,
         blurb: 'Everything, Beginner included.',
         perks: ['Everything in Beginner', 'Every Advanced lesson and game', 'Trade Simulator and capstone drills'],
       })),
     h('p', { class: 'faint pricing__note' },
       `Prices in ${b?.currency || 'USD'}, billed monthly by Stripe. Renews automatically; cancel anytime online in Manage billing and keep access to the end of the paid period. `,
-      h('a', { href: '#refunds' }, 'Refund policy'), ' · ', h('a', { href: '#terms' }, 'Terms'), '. Educational only — not financial advice.'));
+      h('a', { href: '/refunds' }, 'Refund policy'), ' · ', h('a', { href: '/terms' }, 'Terms'), '. Educational only — not financial advice.'));
 }
 
 export default {
@@ -844,7 +844,7 @@ export default {
           h('p', { class: 'hero__lead' },
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history. No real money is ever on the line.'),
           h('div', { class: 'hero__ctas' },
-            h('a', { class: 'btn btn--primary btn--lg', href: '#g.daily-challenge' }, 'Start free', icon('arrow-right')),
+            h('a', { class: 'btn btn--primary btn--lg', href: '/games/daily-challenge' }, 'Start free', icon('arrow-right')),
             h('button', {
               type: 'button',
               class: 'btn btn--lg hero__btn2',
@@ -857,7 +857,7 @@ export default {
                 },
               },
             }, 'See plans & pricing'),
-            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
+            h('a', { class: 'btn btn--lg btn--ghost', href: '/dashboard' }, 'Open Dashboard')),
           h('p', { class: 'hero__fine faint' },
             `Free to browse · plans from ${money(PLANS.beginner?.price ?? 0)}/month · cancel anytime`),
           h('dl', { class: 'hero__facts' },

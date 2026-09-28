@@ -4,6 +4,7 @@ import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
+import { tokenToPath } from './core/routes.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: shown as its own top-nav link from 1500px; from 960–1499px it moves into the "More"
@@ -56,7 +57,7 @@ function applyTheme(pref) {
 function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
-    // Legacy #beginner / #advanced land on dashboard with a section.
+    // Legacy /beginner and /advanced land on dashboard with a section.
     if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
     if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
@@ -97,7 +98,7 @@ function buildShell(app) {
 
   const moreItems = NAV.filter((n) => n.wide);
   const moreLinks = moreItems.map((n) => {
-    const a = h('a', { class: 'nav-more__link', href: `#${n.hash}`, 'data-nav': n.hash },
+    const a = h('a', { class: 'nav-more__link', href: tokenToPath(n.hash), 'data-nav': n.hash },
       icon(n.icon, { size: 16 }), h('span', null, n.label));
     navLinks.push(a);
     return a;
@@ -124,7 +125,7 @@ function buildShell(app) {
 
   const topNav = h('nav', { class: 'nav', 'aria-label': 'Primary' },
     NAV.map((n) => {
-      const a = h('a', { class: ['nav__link', n.wide && 'nav__link--wide', n.live && 'nav__link--live'], href: `#${n.hash}`, 'data-nav': n.hash },
+      const a = h('a', { class: ['nav__link', n.wide && 'nav__link--wide', n.live && 'nav__link--live'], href: tokenToPath(n.hash), 'data-nav': n.hash },
         n.live ? liveDot() : null, h('span', null, n.label));
       navLinks.push(a);
       return a;
@@ -133,7 +134,7 @@ function buildShell(app) {
 
   const tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Primary', style: { '--tabs': NAV.filter((n) => n.tab !== false).length } },
     NAV.filter((n) => n.tab !== false).map((n) => {
-      const a = h('a', { class: ['tabbar__link', n.live && 'tabbar__link--live'], href: `#${n.hash}`, 'data-nav': n.hash },
+      const a = h('a', { class: ['tabbar__link', n.live && 'tabbar__link--live'], href: tokenToPath(n.hash), 'data-nav': n.hash },
         h('span', { class: 'tabbar__icon' }, icon(n.icon, { size: 22 }), n.live ? liveDot() : null), h('span', null, n.label));
       tabLinks.push(a);
       return a;
@@ -143,7 +144,7 @@ function buildShell(app) {
   const lvNum = h('span', { class: 'xp-pill__lv mono' });
   const lvTitle = h('span', { class: 'xp-pill__title' });
   const lvFill = h('span', { class: 'xp-pill__fill' });
-  const xpPill = h('a', { class: 'xp-pill', href: '#dashboard' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
+  const xpPill = h('a', { class: 'xp-pill', href: '/dashboard' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
 
   function renderXP(bump = false) {
     const lv = store.level();
@@ -193,7 +194,7 @@ function buildShell(app) {
   const main = h('main', { id: 'main', class: 'main', tabindex: '-1' });
 
   // Real link (works without JS semantics, shows in link lists). The click handler moves focus
-  // to <main> without touching location.hash, so the hash router never sees "#main".
+  // to <main> without adding "#main" to the URL.
   const skip = h('a', {
     class: 'skip-link',
     href: '#main',
@@ -210,7 +211,7 @@ function buildShell(app) {
   // Sign in / Sign up (or Account when signed in) — always visible in the header.
   const authBtn = h('a', {
     class: 'btn btn--ghost btn--sm topbar__auth',
-    href: '#account',
+    href: '/account',
     'data-auth': 'out',
   }, icon('lock', { size: 14 }), 'Sign in');
 
@@ -218,13 +219,13 @@ function buildShell(app) {
     const a = access.getAccess();
     if (a.user) {
       const label = (a.user.email && a.user.email.split('@')[0]) || 'Account';
-      authBtn.href = '#account';
+      authBtn.setAttribute('href', '/account');
       authBtn.dataset.auth = 'in';
       authBtn.replaceChildren(icon('lock', { size: 14 }), label);
       authBtn.setAttribute('aria-label', `Account (${a.user.email || 'signed in'})`);
       authBtn.title = a.user.email || 'Account';
     } else {
-      authBtn.href = '#account';
+      authBtn.setAttribute('href', '/account');
       authBtn.dataset.auth = 'out';
       authBtn.replaceChildren(icon('lock', { size: 14 }), 'Sign in');
       authBtn.setAttribute('aria-label', 'Sign in or sign up');
@@ -234,7 +235,7 @@ function buildShell(app) {
 
   const header = h('header', { class: 'topbar' },
     h('div', { class: 'container topbar__inner' },
-      h('a', { class: 'brand', href: '#home', 'aria-label': 'The Trade School — home' },
+      h('a', { class: 'brand', href: '/', 'aria-label': 'The Trade School — home' },
         brandMark(28),
         // Two parts so phones can stack the full name on two lines instead of truncating it.
         h('span', { class: 'brand__word' },
@@ -249,18 +250,18 @@ function buildShell(app) {
         brandMark(22),
         h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
-        h('a', { href: '#dashboard' }, 'Dashboard'),
-        h('a', { href: '#games' }, 'Games'),
-        h('a', { href: '#playbook' }, 'Playbook'),
-        h('a', { href: '#live' }, 'Live Market Lab'),
-        h('a', { href: '#library' }, 'Library'),
-        h('a', { href: '#glossary' }, 'Glossary'),
-        h('a', { href: '#platforms' }, 'Platforms'),
-        h('a', { href: '#account' }, 'Account')),
+        h('a', { href: '/dashboard' }, 'Dashboard'),
+        h('a', { href: '/games' }, 'Games'),
+        h('a', { href: '/playbook' }, 'Playbook'),
+        h('a', { href: '/live' }, 'Live Market Lab'),
+        h('a', { href: '/library' }, 'Library'),
+        h('a', { href: '/glossary' }, 'Glossary'),
+        h('a', { href: '/platforms' }, 'Platforms'),
+        h('a', { href: '/account' }, 'Account')),
       h('nav', { class: 'footer__legal', 'aria-label': 'Legal' },
-        h('a', { href: '#privacy' }, 'Privacy'),
-        h('a', { href: '#terms' }, 'Terms'),
-        h('a', { href: '#refunds' }, 'Refunds'))));
+        h('a', { href: '/privacy' }, 'Privacy'),
+        h('a', { href: '/terms' }, 'Terms'),
+        h('a', { href: '/refunds' }, 'Refunds'))));
 
   app.replaceChildren(skip, riskTicker(), header, main, footer, tabbar);
   app.classList.add('app');
@@ -275,7 +276,7 @@ function buildShell(app) {
     renderSound();
   });
   access.onChange(() => renderAuth());
-  // Post-login return: when a visitor signs in after being sent to #account from a paywall
+  // Post-login return: when a visitor signs in after being sent to /account from a paywall
   // (access.rememberReturn), take them back to where they were headed.
   let wasSignedIn = !!access.getAccess().user;
   access.onChange((snap) => {
@@ -306,9 +307,10 @@ function buildShell(app) {
 
 // ------------------------------------------------------------------ analytics
 // Vercel Web Analytics (cookieless). Injected only on real hosts so local dev and tests do not
-// 404 on /_vercel/insights/script.js. Auto-tracking is off because it only follows
-// history.pushState; hash routes are reported from onRoute below via the documented
-// window.va('pageview', { route, path }) queue (same as @vercel/analytics' pageview()).
+// 404 on /_vercel/insights/script.js. Auto-tracking is off: routes are reported from onRoute
+// below via the documented window.va('pageview', { route, path }) queue (same as
+// @vercel/analytics' pageview()), so each view carries a route pattern (/games/[id]) and is
+// counted once even when the access gate re-renders it.
 function isLocalHost() {
   try {
     const n = location.hostname;
@@ -341,7 +343,7 @@ function injectAnalytics() {
   }
 }
 
-/** Route pattern + path for a hash route (no ids in `route`, no query/hash noise in `path`). */
+/** Route pattern + URL path of a route (no ids in `route`, no query/hash noise in `path`). */
 function trackPageview(route) {
   if (!analyticsOn || typeof window.va !== 'function' || !route) return;
   let pattern;
@@ -350,12 +352,12 @@ function trackPageview(route) {
     pattern = '/not-found';
     path = '/not-found';
   } else if (route.kind === 'lesson' || route.kind === 'game') {
-    const prefix = route.kind === 'lesson' ? 'l' : 'g';
-    pattern = `/${prefix}.[id]`;
-    path = `/${prefix}.${route.id}`;
+    const prefix = route.kind === 'lesson' ? 'lessons' : 'games';
+    pattern = `/${prefix}/[id]`;
+    path = tokenToPath(route.key);
   } else {
-    pattern = route.page === 'home' ? '/' : `/${route.page}${route.param ? '.[param]' : ''}`;
-    path = route.key === 'home' ? '/' : `/${route.key}`;
+    pattern = route.page === 'home' ? '/' : `/${route.page}${route.param ? '/[param]' : ''}`;
+    path = tokenToPath(route.key);
   }
   if (path === lastTrackedPath) return;
   lastTrackedPath = path;
@@ -382,7 +384,7 @@ function boot() {
     setAccessGate({
       canOpen: (entry, route) => access.canOpen(entry, route),
       access: () => access.accessInfo(),
-      paywallPath: '../pages/paywall.js',
+      paywallPath: new URL('./pages/paywall.js', import.meta.url).href,
       // No onUnauthenticated redirect: unsigned visitors see the paywall teaser
       // (plans + sign-in CTA) instead of a hard hide-behind-login wall.
     });

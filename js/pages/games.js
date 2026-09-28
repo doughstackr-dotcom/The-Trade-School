@@ -1,8 +1,8 @@
-// Games arcade (#games) — same tile grid as the home arcade, with paywall teasers.
+// Games arcade (/games) — same tile grid as the home arcade, with paywall teasers.
 // Paid-gated page; exactly one FREE_IDS game stays playable for free members.
 import { h, icon } from '../core/ui.js';
 import {
-  GAMES, STYLES, findEntry, hashFor, ARCADE_FILTERS,
+  GAMES, STYLES, findEntry, pathFor, ARCADE_FILTERS,
 } from '../registry.js';
 import { FREE_IDS, PLANS } from '../config.js';
 import * as access from '../core/access.js';
@@ -51,11 +51,11 @@ export default {
               : `Subscribe to unlock the full arcade (Beginner $${price}/mo or Advanced).`)),
         h('div', { class: 'teaser-banner__actions row' },
           snap.user
-            ? h('a', { class: 'btn btn--primary', href: '#paywall' }, icon('lock', { size: 16 }), 'View plans')
-            : h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in to play free'),
-          h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
+            ? h('a', { class: 'btn btn--primary', href: '/paywall' }, icon('lock', { size: 16 }), 'View plans')
+            : h('a', { class: 'btn btn--primary', href: '/account/signup' }, icon('lock', { size: 16 }), 'Sign in to play free'),
+          h('a', { class: 'btn btn--ghost', href: '/dashboard' }, 'Dashboard'),
           freeEntry
-            ? h('a', { class: 'btn btn--ghost', href: `#${hashFor(FREE_GAME_ID)}` }, icon('flame', { size: 16 }), `Open ${freeEntry.title}`)
+            ? h('a', { class: 'btn btn--ghost', href: pathFor(FREE_GAME_ID) }, icon('flame', { size: 16 }), `Open ${freeEntry.title}`)
             : null))
       : null;
 
@@ -94,8 +94,8 @@ export default {
       const open = gameOpen(g);
       const locked = paidHub && !free && !open;
       const href = locked
-        ? (access.getAccess().user ? '#paywall' : '#account.signup')
-        : `#${hashFor(g.id)}`;
+        ? (access.getAccess().user ? '/paywall' : '/account/signup')
+        : pathFor(g.id);
       const { tile, art } = arcadeTile(store, g, {
         feature: g.id === FEATURE,
         locked,

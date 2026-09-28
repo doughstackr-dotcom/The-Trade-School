@@ -41,8 +41,8 @@ function planCard(planId, { highlight = false, current = null, onSubscribe } = {
         on: { click: () => onSubscribe?.(planId) },
       }, lockedAdvanced ? 'Upgrade to Advanced' : `Get ${p.name}`),
     isCurrent && current === planId ? null : h('p', { class: 'consent-note' },
-      'By continuing you agree to the ', h('a', { href: '#terms' }, 'Terms'), ', ',
-      h('a', { href: '#privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '#refunds' }, 'Refund Policy'),
+      'By continuing you agree to the ', h('a', { href: '/terms' }, 'Terms'), ', ',
+      h('a', { href: '/privacy' }, 'Privacy Policy'), ' and ', h('a', { href: '/refunds' }, 'Refund Policy'),
       '. Renews monthly; cancel anytime.'),
   );
 }
@@ -57,7 +57,7 @@ export default {
       ? 'dashboard'
       : 'home';
     const routeKey = ctx.route?.key || '';
-    // Signed-out visitors heading to #account come back here after signing in.
+    // Signed-out visitors heading to /account come back here after signing in.
     const rememberHere = () => access.rememberReturn(routeKey);
     const toAccount = { click: rememberHere };
 
@@ -65,7 +65,7 @@ export default {
     const plansHost = h('section', { class: 'paywall__plans', 'aria-label': 'Subscription plans' });
     const freeList = FREE_IDS.map((id) => {
       const e = ctx.registry?.findEntry?.(id);
-      return e ? h('li', null, h('a', { href: `#${e.type === 'game' ? 'g' : 'l'}.${e.id}` }, e.title)) : null;
+      return e ? h('li', null, h('a', { href: `/${e.type === 'game' ? 'games' : 'lessons'}/${e.id}` }, e.title)) : null;
     }).filter(Boolean);
 
     async function onSubscribe(planId) {
@@ -104,8 +104,8 @@ export default {
                 ? `${title} is part of the course. Accounts are free — paid plans unlock the full tracks later.`
                 : 'Course pages need a signed-in account. Sign-up takes about a minute.'),
             h('div', { class: 'row' },
-              h('a', { class: 'btn btn--primary', href: '#account', on: toAccount }, icon('lock', { size: 16 }), 'Sign in / create account'),
-              h('a', { class: 'btn btn--ghost', href: '#home' }, 'Back to home')),
+              h('a', { class: 'btn btn--primary', href: '/account', on: toAccount }, icon('lock', { size: 16 }), 'Sign in / create account'),
+              h('a', { class: 'btn btn--ghost', href: '/' }, 'Back to home')),
           ),
         );
       } else {
@@ -135,8 +135,8 @@ export default {
             'The Trade School keeps the landing page public. Lessons, games, tracks and labs need a free account — subscriptions unlock the full Beginner and Advanced tracks.'),
           status,
           h('div', { class: 'row paywall__actions' },
-            h('a', { class: 'btn btn--primary', href: '#account', on: toAccount }, icon('lock', { size: 16 }), 'Account / sign in'),
-            h('a', { class: 'btn btn--ghost', href: `#${back}` }, icon('arrow-left', { size: 16 }),
+            h('a', { class: 'btn btn--primary', href: '/account', on: toAccount }, icon('lock', { size: 16 }), 'Account / sign in'),
+            h('a', { class: 'btn btn--ghost', href: `/${back === 'home' ? '' : back}` }, icon('arrow-left', { size: 16 }),
               back === 'home' ? 'Back home' : 'Back to Dashboard'),
           ),
         ),

@@ -2,7 +2,7 @@
 // Used by the Dashboard hub (#dash-beginner / #dash-advanced). Home keeps compact curriculum cards.
 import { h, svg, icon, starRow, meter, fmt } from './ui.js';
 import {
-  TIERS, findEntry, findStyle, unitsOf, learningPath, hashFor, stylesOf, sourcesOf,
+  TIERS, findEntry, findStyle, unitsOf, learningPath, pathFor, stylesOf, sourcesOf,
 } from '../registry.js';
 import { styleIcon } from './game-kit.js';
 import { canLaunch } from './curriculum.js';
@@ -102,7 +102,7 @@ function itemButton(store, type, id) {
     const started = !done && (st.max || 0) > 0;
     return h('a', {
       class: ['item-btn', 'item-btn--lesson', done && 'is-done', !open && 'is-locked'],
-      href: `#${hashFor(id)}`,
+      href: pathFor(id),
       'aria-label': open ? e.title : `${e.title} (locked — ${lockNeed || 'sign in'})`,
       title: open ? e.title : `Locked — ${lockNeed || 'sign in or subscribe to open'}`,
     },
@@ -121,7 +121,7 @@ function itemButton(store, type, id) {
   const s = store.gameStats(id);
   return h('a', {
     class: ['item-btn', 'item-btn--game', s?.plays && 'is-played', !open && 'is-locked'],
-    href: `#${hashFor(id)}`,
+    href: pathFor(id),
     'aria-label': open ? e.title : `${e.title} (locked — ${lockNeed || 'sign in'})`,
     title: open ? e.title : `Locked — ${lockNeed || 'sign in or subscribe to open'}`,
   },
@@ -172,14 +172,14 @@ export function trackPanel(store, tier, opts = {}) {
           meter(prog.pct, { size: 'lg', label: `${tier.title} track progress` })),
         h('div', { class: 'row track-hero__ctas' },
           nextEntry
-            ? h('a', { class: 'btn btn--primary btn--lg', href: `#${hashFor(nextEntry.id)}` },
+            ? h('a', { class: 'btn btn--primary btn--lg', href: pathFor(nextEntry.id) },
               h('span', null, prog.done ? 'Continue: ' : 'Start: ', nextEntry.title), icon('arrow-right'))
             : other
-              ? h('a', { class: 'btn btn--primary btn--lg', href: `#${other.id}` },
+              ? h('a', { class: 'btn btn--primary btn--lg', href: `/${other.id}` },
                 `On to ${other.title}`, icon('arrow-right'))
               : null,
           showOther && other
-            ? h('a', { class: 'btn btn--ghost', href: `#${other.id}` }, `${other.title} track`)
+            ? h('a', { class: 'btn btn--ghost', href: `/${other.id}` }, `${other.title} track`)
             : null)),
       h('figure', { class: 'track-hero__route' },
         routeChart(units, doneFlags, currentIdx, tier.id),

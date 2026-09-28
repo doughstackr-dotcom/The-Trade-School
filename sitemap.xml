@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Site origin: https://thetradeschool.online (also in robots.txt and index.html — update all
-  three when a custom domain is set; see README "Deploy").
-  The app still uses hash routes (#privacy, #terms, …). Search engines drop the "#…" part of a URL,
-  so only the home page is a distinct crawlable URL today. When routes move to real paths, list the
-  public pages here too: /dashboard, /games, /live, /library, /playbook, /glossary, /platforms,
-  /privacy, /terms, /refunds.
+  Site origin: https://thetradeschool.online (also in robots.txt, index.html and SITE_ORIGIN in
+  js/core/routes.js; update all of them if the domain changes; see README "Deploy").
+  Public pages that show real content to a signed-out visitor. Lesson and game paths
+  (/lessons/<id>, /games/<id>) are left out: signed-out visitors get the sign-in paywall there.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
@@ -13,5 +11,65 @@
     <lastmod>2026-09-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/dashboard</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/library</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/playbook</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/glossary</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/live</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/platforms</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/privacy</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/terms</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://thetradeschool.online/refunds</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
   </url>
 </urlset>

@@ -1,5 +1,5 @@
 // Developer preview of the LessonShell media helpers (ARCHITECTURE §12.5): figure, takeaway,
-// storyStep, realExampleStep, checklistStep and compareStep. Routable at #l._kit-demo through
+// storyStep, realExampleStep, checklistStep and compareStep. Routable at /lessons/_kit-demo through
 // registry DEV_ENTRIES (not part of the curriculum); renders only on localhost.
 import { LessonShell, storyStep, realExampleStep, checklistStep, compareStep, figure, takeaway, textbookExample } from '../core/lesson-kit.js';
 import { h, icon } from '../core/ui.js';

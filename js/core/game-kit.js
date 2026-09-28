@@ -10,7 +10,7 @@ import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMo
 import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
 import {
-  findEntry, nextItem, unitOf, findBadge, hashFor, tiersOf,
+  findEntry, nextItem, unitOf, findBadge, pathFor, tiersOf,
   STYLES, DIFFICULTY_LEVELS, SOURCES, findStyle,
 } from '../registry.js';
 
@@ -1178,7 +1178,7 @@ export class GameShell {
 
   _backLink() {
     // Always return to the Games hub, regardless of entry point (Games tiles, home arcade, or track).
-    return h('a', { class: 'link-btn', href: '#games' }, icon('arrow-left', { size: 16 }), 'Games');
+    return h('a', { class: 'link-btn', href: '/games' }, icon('arrow-left', { size: 16 }), 'Games');
   }
 
   /** Segmented radio picker. options: [{ id, label, iconEl?, note?, locked?, lockNote? }]. */
@@ -1317,7 +1317,7 @@ export class GameShell {
             note: s?.blurb || '',
             locked,
             lockNote: 'Real market charts need a free account.',
-            lockNode: locked ? h('span', null, 'Real market charts need a free account. ', h('a', { href: '#signin' }, 'Sign in or create one'), '.') : null,
+            lockNode: locked ? h('span', null, 'Real market charts need a free account. ', h('a', { href: '/account/signin' }, 'Sign in or create one'), '.') : null,
           };
         }),
         onPick: (id) => {
@@ -1713,12 +1713,12 @@ export class GameShell {
           this._startBtn.focus({ preventScroll: true });
         } } }, icon('grid'), 'Change style')
         : null,
-      h('a', { class: 'btn btn--lg', href: '#games' }, icon('arrow-left'), 'Back to Games'),
-      nextEntry ? h('a', { class: 'btn btn--lg btn--ghost results__next', href: `#${hashFor(nextEntry.id)}` },
+      h('a', { class: 'btn btn--lg', href: '/games' }, icon('arrow-left'), 'Back to Games'),
+      nextEntry ? h('a', { class: 'btn btn--lg btn--ghost results__next', href: pathFor(nextEntry.id) },
         h('span', null, h('small', null, `Next ${nextEntry.type}`), nextEntry.title), icon('arrow-right')) : null);
 
     const review = lesson && s.stars < 2
-      ? h('p', { class: 'results__review' }, icon('book', { size: 16 }), 'Want a refresher first? ', h('a', { href: `#l.${lesson.id}` }, `Review “${lesson.title}”`))
+      ? h('p', { class: 'results__review' }, icon('book', { size: 16 }), 'Want a refresher first? ', h('a', { href: `/lessons/${lesson.id}` }, `Review “${lesson.title}”`))
       : null;
 
     const modeLabel = s.mode && this.modes ? this.modes.find((m) => m.id === s.mode)?.label || s.mode : null;

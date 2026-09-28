@@ -1,4 +1,4 @@
-// Live Market Lab — #live. Quote board (Massive.com via market-data edge function) + detail chart
+// Live Market Lab — /live. Quote board (Massive.com via market-data edge function) + detail chart
 // + unified market-hours timeline + scrolling ticker. Auto-polls quotes (~45s); hours tick
 // every second. Open-session cards rotate. No manual refresh control. Educational only.
 import { h } from '../core/ui.js';

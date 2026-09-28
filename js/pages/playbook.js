@@ -125,7 +125,7 @@ function setupCard(s, mods) {
       h('span', { class: 'playbook-card__pattern-name' }, meta.name),
       h('span', { class: 'chip chip--sm chip--outline' }, s.kind === 'candle' ? 'Candle' : 'Chart')),
     h('div', { class: 'playbook-card__pattern-art', 'aria-hidden': 'true' }, patternViz(s, ...mods)));
-  return h('a', { class: 'playbook-card card card--link', href: `#playbook.${s.id}` },
+  return h('a', { class: 'playbook-card card card--link', href: `/playbook/${s.id}` },
     art,
     h('div', { class: 'playbook-card__body' },
       h('div', { class: 'row row--sm' },
@@ -326,7 +326,7 @@ function detailView(root, setup, mods) {
   const simHost = h('div', { class: 'playbook-sim', 'data-keys': 'capture' });
   const diff = difficultyMeta(setup.difficulty);
   root.append(h('div', { class: 'container container--wide playbook-detail' },
-    h('a', { class: 'link-btn', href: '#playbook' }, icon('arrow-left', { size: 16 }), 'All setups'),
+    h('a', { class: 'link-btn', href: '/playbook' }, icon('arrow-left', { size: 16 }), 'All setups'),
     h('header', { class: 'page-head' },
       h('p', { class: 'eyebrow eyebrow--accent' }, 'Setup Playbook'),
       h('h1', null, setup.name),
@@ -393,7 +393,7 @@ export default {
           h('p', { class: 'eyebrow' }, 'Setup Playbook'),
           h('h1', { class: 'route-error__title' }, 'Setup not found'),
           h('p', { class: 'muted' }, `There is no setup called “${ctx.param}” yet.`),
-          h('a', { class: 'btn btn--primary', href: '#playbook' }, icon('arrow-left'), 'All setups'))));
+          h('a', { class: 'btn btn--primary', href: '/playbook' }, icon('arrow-left'), 'All setups'))));
       return undefined;
     }
     const gate = toolsTeaser('Setup Playbook');

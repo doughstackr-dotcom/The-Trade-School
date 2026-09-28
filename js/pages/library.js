@@ -75,7 +75,7 @@ function hashId(id) {
 }
 
 function patternCard(p, kind) {
-  const href = `#library.${p.id}`;
+  const href = `/library/${p.id}`;
   if (kind === 'candle') {
     return h('article', { class: 'lib-card lib-card--candle card', id: `lib-card-${p.id}` },
       h('a', { class: 'lib-card__link', href },
@@ -136,9 +136,9 @@ function detailView(p, kind, onBack) {
         h('span', null, 'Educational diagrams only — not financial advice. Patterns fail; always use a stop.')),
     h('p', { class: 'row' },
       kind === 'candle'
-        ? h('a', { class: 'btn btn--ghost', href: '#l.candle-patterns' }, 'Candlestick lesson')
-        : h('a', { class: 'btn btn--ghost', href: '#l.chart-patterns' }, 'Chart patterns lesson'),
-      h('a', { class: 'btn btn--ghost', href: '#playbook' }, 'Setup Playbook')),
+        ? h('a', { class: 'btn btn--ghost', href: '/lessons/candle-patterns' }, 'Candlestick lesson')
+        : h('a', { class: 'btn btn--ghost', href: '/lessons/chart-patterns' }, 'Chart patterns lesson'),
+      h('a', { class: 'btn btn--ghost', href: '/playbook' }, 'Setup Playbook')),
   );
 
   let playback = null;

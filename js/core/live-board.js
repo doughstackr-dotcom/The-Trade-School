@@ -894,7 +894,7 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
         h('p', { class: 'eyebrow' }, 'Markets'),
         h('h2', { id: 'dash-live-h' }, 'Live markets')),
       h('div', { class: 'dash-live__head-actions row' },
-        h('a', { class: 'btn btn--ghost btn--sm', href: '#live' },
+        h('a', { class: 'btn btn--ghost btn--sm', href: '/live' },
           icon('chart', { size: 14 }), 'Full Live lab'))),
     h('p', { class: 'muted dash-live__lead' },
       'Quotes for major ETFs, stocks, Bitcoin and EUR/USD. ',

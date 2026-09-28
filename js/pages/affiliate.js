@@ -20,7 +20,7 @@ export const PARTNERS = [
       + 'In the US, brokerage accounts are held with Robinhood Financial LLC, a FINRA member. '
       + 'Products and availability differ by country.',
     logoText: null,
-    logoUrl: 'assets/affiliates/robinhood.svg',
+    logoUrl: '/assets/affiliates/robinhood.svg',
     affiliateUrl: 'https://join.robinhood.com/rehnes',
     status: 'live',
   },
@@ -31,7 +31,7 @@ export const PARTNERS = [
     description: 'US investing platform (Public.com) for stocks, ETFs, options, bonds and crypto. '
       + 'Brokerage services are provided by a FINRA-member broker-dealer; accounts are mainly for US residents.',
     logoText: null,
-    logoUrl: 'assets/affiliates/public.svg',
+    logoUrl: '/assets/affiliates/public.svg',
     affiliateUrl: 'https://public.com/user-referral?referrer=Rehne82057',
     status: 'live',
   },
@@ -42,7 +42,7 @@ export const PARTNERS = [
     description: 'Trading app for stocks, ETFs and options with charting tools and a paper-trading mode. '
       + 'In the US, accounts are held with Webull Financial LLC, a FINRA member; other regions use separately regulated entities.',
     logoText: null,
-    logoUrl: 'assets/affiliates/webull.svg',
+    logoUrl: '/assets/affiliates/webull.svg',
     affiliateUrl: 'https://www.webull.com/s/3Kh5mWpood8i1GGOz9',
     status: 'live',
   },
@@ -53,7 +53,7 @@ export const PARTNERS = [
     description: 'Funded-account (prop trading) platform. Programs like this usually charge a fee for an evaluation '
       + 'with strict trading rules — read the rules, fees and payout terms in full before paying.',
     logoText: null,
-    logoUrl: 'assets/affiliates/upcomers.svg',
+    logoUrl: '/assets/affiliates/upcomers.svg',
     affiliateUrl: 'https://app.upcomers.com/en/checkout?ref=gy4xupgr',
     status: 'live',
   },
@@ -213,6 +213,6 @@ export default {
         ...sections),
       h('p', { class: 'faint aff-footnote' },
         'Descriptions are short factual summaries and may be out of date — the provider’s own site and legal documents are authoritative. ',
-        'See also our ', h('a', { href: '#terms' }, 'Terms of Service'), ' and ', h('a', { href: '#privacy' }, 'Privacy Policy'), '.')));
+        'See also our ', h('a', { href: '/terms' }, 'Terms of Service'), ' and ', h('a', { href: '/privacy' }, 'Privacy Policy'), '.')));
   },
 };
