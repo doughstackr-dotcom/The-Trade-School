@@ -1,8 +1,8 @@
-// Massive.com (api.massive.com — Polygon-compatible REST) for Live Lab quotes.
-// Server-side only. Free / Basic tier: ~5 req/min, end-of-day aggregates (no snapshot).
-// Prefer one daily range call per symbol (~1 month) so last, prevClose and sparkline
-// come from a single upstream request. Cache briefly; on failure return last good as stale.
-// Secret: MASSIVE_API_KEY (Supabase Edge Function secret / Deno.env). Never expose to browsers.
+// Massive.com (api.massive.com — Polygon-compatible REST) for Live Lab quotes + daily/weekly bars.
+// Server-side only. Free / Basic tier: ~5 req/min, end-of-day aggregates (no realtime snapshot).
+// US equities: prefer grouped daily (1–2 upstream calls for the whole board). Crypto/FX: per-ticker
+// range. Cache briefly; on failure return last good as stale. Secret: MASSIVE_API_KEY (Edge secret).
+// Never expose the key to browsers.
 
 export type MassiveQuote = {
   symbol: string;
@@ -12,48 +12,71 @@ export type MassiveQuote = {
   yahooSymbol: string;
   name: string;
   price: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
   prevClose: number | null;
   change: number | null;
   changePct: number | null;
   currency: string | null;
   asOf: number | null; // ms
   sparkline: number[]; // recent closes, oldest → newest
+  /** Free tier is end-of-day; true when we only have delayed EOD. */
+  delayed: boolean;
+  /** True only on plans that serve intraday/realtime (not free Basic). */
+  live: boolean;
   ok: boolean;
   error?: string;
 };
 
+export type MassiveCandle = { t: number; o: number; h: number; l: number; c: number; v: number };
+
 /** Our id → Massive/Polygon ticker. */
-export const MASSIVE_SYMBOLS: Record<string, { ticker: string; name: string; currency: string }> = {
-  SPY: { ticker: 'SPY', name: 'S&P 500 ETF', currency: 'USD' },
-  QQQ: { ticker: 'QQQ', name: 'Nasdaq-100 ETF', currency: 'USD' },
-  AAPL: { ticker: 'AAPL', name: 'Apple', currency: 'USD' },
-  MSFT: { ticker: 'MSFT', name: 'Microsoft', currency: 'USD' },
-  NVDA: { ticker: 'NVDA', name: 'NVIDIA', currency: 'USD' },
-  TSLA: { ticker: 'TSLA', name: 'Tesla', currency: 'USD' },
-  GLD: { ticker: 'GLD', name: 'Gold ETF', currency: 'USD' },
-  'BTC-USD': { ticker: 'X:BTCUSD', name: 'Bitcoin', currency: 'USD' },
-  'ETH-USD': { ticker: 'X:ETHUSD', name: 'Ethereum', currency: 'USD' },
-  'EUR-USD': { ticker: 'C:EURUSD', name: 'Euro / US dollar', currency: 'USD' },
+export const MASSIVE_SYMBOLS: Record<string, {
+  ticker: string;
+  name: string;
+  currency: string;
+  /** US equity — eligible for grouped daily batching. */
+  asset: 'stocks' | 'crypto' | 'fx';
+}> = {
+  SPY: { ticker: 'SPY', name: 'S&P 500 ETF', currency: 'USD', asset: 'stocks' },
+  QQQ: { ticker: 'QQQ', name: 'Nasdaq-100 ETF', currency: 'USD', asset: 'stocks' },
+  AAPL: { ticker: 'AAPL', name: 'Apple', currency: 'USD', asset: 'stocks' },
+  MSFT: { ticker: 'MSFT', name: 'Microsoft', currency: 'USD', asset: 'stocks' },
+  NVDA: { ticker: 'NVDA', name: 'NVIDIA', currency: 'USD', asset: 'stocks' },
+  TSLA: { ticker: 'TSLA', name: 'Tesla', currency: 'USD', asset: 'stocks' },
+  GLD: { ticker: 'GLD', name: 'Gold ETF', currency: 'USD', asset: 'stocks' },
+  'BTC-USD': { ticker: 'X:BTCUSD', name: 'Bitcoin', currency: 'USD', asset: 'crypto' },
+  'ETH-USD': { ticker: 'X:ETHUSD', name: 'Ethereum', currency: 'USD', asset: 'crypto' },
+  'EUR-USD': { ticker: 'C:EURUSD', name: 'Euro / US dollar', currency: 'USD', asset: 'fx' },
 };
 
 const BASE = 'https://api.massive.com';
 const CACHE_TTL_MS = 55_000;
-const FETCH_TIMEOUT_MS = 10_000;
-/** Free tier ~5 req/min — leave a little headroom. */
+const GROUPED_TTL_MS = 55_000;
+const CANDLE_CACHE_TTL_MS = 120_000;
+const FETCH_TIMEOUT_MS = 12_000;
+/** Free tier ~5 req/min — leave headroom. */
 const MIN_GAP_MS = 12_500;
-const RANGE_DAYS = 35;
+const RANGE_DAYS_QUOTE = 35;
+const RANGE_DAYS_CHART = 120;
 const SPARK_MAX = 30;
 const ATTRIBUTION =
-  'Quotes: Massive.com (end-of-day on free tier). Educational use; not for trading decisions.';
+  'Data: Massive.com (end-of-day on free tier; open/high/low/close refresh as Massive updates the daily bar). Educational use; not for trading decisions.';
 
 type CacheEntry = { at: number; quote: MassiveQuote };
-const cache = new Map<string, CacheEntry>();
+const quoteCache = new Map<string, CacheEntry>();
+type CandleCacheEntry = { at: number; candles: MassiveCandle[]; interval: string };
+const candleCache = new Map<string, CandleCacheEntry>();
+
+/** Grouped daily by YYYY-MM-DD → Map ticker → bar */
+type GroupedBar = { o: number; h: number; l: number; c: number; v: number; t: number };
+const groupedCache = new Map<string, { at: number; byTicker: Map<string, GroupedBar> }>();
 
 let lastUpstreamAt = 0;
 let gate: Promise<void> = Promise.resolve();
 
 function apiKey(): string {
-  // Deno Edge + optional process.env for local scripts (Node / deno with nodeCompat).
   let fromDeno: string | undefined;
   try {
     if (typeof Deno !== 'undefined') fromDeno = Deno.env.get('MASSIVE_API_KEY') ?? undefined;
@@ -79,35 +102,41 @@ function emptyQuote(id: string, err?: string): MassiveQuote {
     yahooSymbol: ticker,
     name: meta?.name || id,
     price: null,
+    open: null,
+    high: null,
+    low: null,
     prevClose: null,
     change: null,
     changePct: null,
     currency: meta?.currency || null,
     asOf: null,
     sparkline: [],
+    delayed: true,
+    live: false,
     ok: false,
     error: err || 'unavailable',
   };
 }
 
-function ymd(d: Date): string {
+function ymdUTC(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-type AggBar = { c?: number; t?: number; o?: number; h?: number; l?: number; v?: number };
+/** Walk back calendar days looking for a US session with data (weekends/holidays). */
+function recentDates(count = 8): string[] {
+  const out: string[] = [];
+  const d = new Date();
+  for (let i = 0; i < count + 6 && out.length < count; i++) {
+    const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - i));
+    // Skip pure weekend probes less aggressively — still try Fri–Sun in case of holiday gaps.
+    out.push(ymdUTC(x));
+  }
+  return out;
+}
 
-type RangeBits = {
-  price: number;
-  prevClose: number | null;
-  change: number | null;
-  changePct: number | null;
-  currency: string;
-  asOf: number;
-  sparkline: number[];
-};
+type AggBar = { c?: number; t?: number; o?: number; h?: number; l?: number; v?: number; T?: string };
 
 async function pace(): Promise<void> {
-  // Serialize upstream calls and enforce MIN_GAP_MS between them.
   const run = gate.then(async () => {
     const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastUpstreamAt));
     if (wait) await new Promise((r) => setTimeout(r, wait));
@@ -117,19 +146,17 @@ async function pace(): Promise<void> {
   await run;
 }
 
-async function fetchRange(ticker: string): Promise<RangeBits> {
+function redact(msg: string): string {
+  const key = apiKey();
+  return key ? msg.replaceAll(key, '[REDACTED]') : msg;
+}
+
+async function massiveGet(pathAndQuery: string): Promise<unknown> {
   const key = apiKey();
   if (!key) throw new Error('MASSIVE_API_KEY is not set');
-
-  const to = new Date();
-  const from = new Date(to.getTime() - RANGE_DAYS * 86_400_000);
-  const path =
-    `/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/day/${ymd(from)}/${ymd(to)}` +
-    `?adjusted=true&sort=asc&limit=50&apiKey=${encodeURIComponent(key)}`;
-  const url = `${BASE}${path}`;
-
+  const sep = pathAndQuery.includes('?') ? '&' : '?';
+  const url = `${BASE}${pathAndQuery}${sep}apiKey=${encodeURIComponent(key)}`;
   await pace();
-
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -143,37 +170,142 @@ async function fetchRange(ticker: string): Promise<RangeBits> {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      // Never echo the key if it somehow appears in an error body/URL.
-      const safe = text.replaceAll(key, '[REDACTED]').slice(0, 200);
-      throw new Error(`Massive HTTP ${res.status}${safe ? `: ${safe}` : ''}`);
+      throw new Error(`Massive HTTP ${res.status}${text ? `: ${redact(text).slice(0, 200)}` : ''}`);
     }
     const json = await res.json();
     if (json?.status === 'ERROR' || json?.error) {
       throw new Error(String(json.error || json.message || 'Massive error'));
     }
-    const results: AggBar[] = Array.isArray(json?.results) ? json.results : [];
-    const closes = results
-      .map((b) => Number(b.c))
-      .filter((n) => Number.isFinite(n));
-    if (closes.length < 1) throw new Error('No aggregate bars');
-    const price = closes[closes.length - 1];
-    const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
-    const change = prevClose != null ? price - prevClose : null;
-    const changePct = change != null && prevClose ? (change / prevClose) * 100 : null;
-    const lastT = Number(results[results.length - 1]?.t);
-    const asOf = Number.isFinite(lastT) ? lastT : Date.now();
-    return {
-      price,
-      prevClose,
-      change,
-      changePct,
-      currency: 'USD',
-      asOf,
-      sparkline: closes.slice(-SPARK_MAX),
-    };
+    return json;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function barsFromResults(results: AggBar[]): MassiveCandle[] {
+  const out: MassiveCandle[] = [];
+  for (const b of results) {
+    const t = Number(b.t);
+    const o = Number(b.o);
+    const h = Number(b.h);
+    const l = Number(b.l);
+    const c = Number(b.c);
+    const v = Number(b.v);
+    if (![t, o, h, l, c].every(Number.isFinite) || o <= 0 || c <= 0) continue;
+    out.push({
+      t,
+      o,
+      h: Math.max(h, o, c),
+      l: Math.min(l || o, o, c),
+      c,
+      v: Number.isFinite(v) && v >= 0 ? v : 0,
+    });
+  }
+  out.sort((a, b) => a.t - b.t);
+  return out;
+}
+
+async function fetchTickerRange(ticker: string, fromYmd: string, toYmd: string, timespan: 'day' | 'week', limit: number): Promise<MassiveCandle[]> {
+  const path =
+    `/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/${timespan}/${fromYmd}/${toYmd}` +
+    `?adjusted=true&sort=asc&limit=${Math.min(50_000, Math.max(1, limit))}`;
+  const json = await massiveGet(path) as { results?: AggBar[] };
+  return barsFromResults(Array.isArray(json?.results) ? json.results : []);
+}
+
+async function fetchGroupedDay(dateYmd: string): Promise<Map<string, GroupedBar>> {
+  const hit = groupedCache.get(dateYmd);
+  if (hit && Date.now() - hit.at < GROUPED_TTL_MS) return hit.byTicker;
+
+  const path = `/v2/aggs/grouped/locale/us/market/stocks/${dateYmd}?adjusted=true`;
+  const json = await massiveGet(path) as { results?: AggBar[]; resultsCount?: number };
+  const byTicker = new Map<string, GroupedBar>();
+  for (const b of Array.isArray(json?.results) ? json.results : []) {
+    const T = String(b.T || '').toUpperCase();
+    if (!T) continue;
+    const o = Number(b.o);
+    const h = Number(b.h);
+    const l = Number(b.l);
+    const c = Number(b.c);
+    const v = Number(b.v);
+    const t = Number(b.t);
+    if (![o, h, l, c].every(Number.isFinite) || c <= 0) continue;
+    byTicker.set(T, {
+      o, h: Math.max(h, o, c), l: Math.min(l || o, o, c), c,
+      v: Number.isFinite(v) && v >= 0 ? v : 0,
+      t: Number.isFinite(t) ? t : Date.parse(`${dateYmd}T20:00:00Z`),
+    });
+  }
+  // Only cache non-empty (empty often means holiday — try another date next time).
+  if (byTicker.size) groupedCache.set(dateYmd, { at: Date.now(), byTicker });
+  return byTicker;
+}
+
+/** Load the two most recent US sessions that have grouped data. */
+async function loadRecentStockSessions(): Promise<{ latest: Map<string, GroupedBar>; prev: Map<string, GroupedBar>; latestDate: string | null }> {
+  let latest: Map<string, GroupedBar> | null = null;
+  let prev: Map<string, GroupedBar> | null = null;
+  let latestDate: string | null = null;
+  for (const d of recentDates(10)) {
+    const map = await fetchGroupedDay(d);
+    if (!map.size) continue;
+    if (!latest) {
+      latest = map;
+      latestDate = d;
+    } else {
+      prev = map;
+      break;
+    }
+  }
+  return { latest: latest || new Map(), prev: prev || new Map(), latestDate };
+}
+
+function quoteFromBars(
+  id: string,
+  last: { o: number; h: number; l: number; c: number; t: number },
+  prevClose: number | null,
+  sparkline: number[],
+): MassiveQuote {
+  const meta = MASSIVE_SYMBOLS[id]!;
+  const price = last.c;
+  const change = prevClose != null ? price - prevClose : null;
+  const changePct = change != null && prevClose ? (change / prevClose) * 100 : null;
+  return {
+    symbol: id,
+    providerSymbol: meta.ticker,
+    yahooSymbol: meta.ticker,
+    name: meta.name,
+    price,
+    open: last.o,
+    high: last.h,
+    low: last.l,
+    prevClose,
+    change,
+    changePct,
+    currency: meta.currency,
+    asOf: last.t,
+    sparkline,
+    delayed: true,
+    live: false,
+    ok: true,
+  };
+}
+
+async function fetchNonStockQuote(id: string): Promise<MassiveQuote> {
+  const meta = MASSIVE_SYMBOLS[id];
+  if (!meta) return emptyQuote(id, 'unknown symbol');
+  const to = new Date();
+  const from = new Date(to.getTime() - RANGE_DAYS_QUOTE * 86_400_000);
+  const bars = await fetchTickerRange(meta.ticker, ymdUTC(from), ymdUTC(to), 'day', 50);
+  if (!bars.length) throw new Error('No aggregate bars');
+  const last = bars[bars.length - 1];
+  const prev = bars.length >= 2 ? bars[bars.length - 2] : null;
+  return quoteFromBars(
+    id,
+    { o: last.o, h: last.h, l: last.l, c: last.c, t: last.t },
+    prev?.c ?? null,
+    bars.map((b) => b.c).slice(-SPARK_MAX),
+  );
 }
 
 /** Fetch one quote with short TTL cache; on failure return last good if any. */
@@ -185,7 +317,7 @@ export async function getMassiveQuote(id: string): Promise<{
   const meta = MASSIVE_SYMBOLS[id];
   if (!meta) return { quote: emptyQuote(id, 'unknown symbol'), stale: false, attribution: ATTRIBUTION };
 
-  const hit = cache.get(id);
+  const hit = quoteCache.get(id);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.quote.ok) {
     return { quote: hit.quote, stale: false, attribution: ATTRIBUTION };
   }
@@ -198,49 +330,157 @@ export async function getMassiveQuote(id: string): Promise<{
   }
 
   try {
-    const raw = await fetchRange(meta.ticker);
-    const quote: MassiveQuote = {
-      symbol: id,
-      providerSymbol: meta.ticker,
-      yahooSymbol: meta.ticker,
-      name: meta.name,
-      price: raw.price,
-      prevClose: raw.prevClose,
-      change: raw.change,
-      changePct: raw.changePct,
-      currency: meta.currency || raw.currency,
-      asOf: raw.asOf,
-      sparkline: raw.sparkline,
-      ok: true,
-    };
-    cache.set(id, { at: Date.now(), quote });
+    const quote = await fetchNonStockQuote(id);
+    quoteCache.set(id, { at: Date.now(), quote });
     return { quote, stale: false, attribution: ATTRIBUTION };
   } catch (err) {
     if (hit?.quote?.ok) {
       return { quote: { ...hit.quote, error: 'stale' }, stale: true, attribution: ATTRIBUTION };
     }
     const msg = err instanceof Error ? err.message : String(err);
-    const safe = apiKey() ? msg.replaceAll(apiKey(), '[REDACTED]') : msg;
-    return { quote: emptyQuote(id, safe), stale: false, attribution: ATTRIBUTION };
+    return { quote: emptyQuote(id, redact(msg)), stale: false, attribution: ATTRIBUTION };
   }
 }
 
+/**
+ * Batch quotes for the Live board. US stocks share 1–2 grouped-daily upstream calls;
+ * crypto/FX use paced per-ticker ranges. Respects ~5 req/min free tier.
+ */
 export async function getMassiveQuotes(ids: string[]): Promise<{
   quotes: MassiveQuote[];
   stale: boolean;
   attribution: string;
   fetchedAt: number;
+  delayed: boolean;
+  live: boolean;
 }> {
-  const list = (ids.length ? ids : Object.keys(MASSIVE_SYMBOLS)).filter((id) => MASSIVE_SYMBOLS[id]);
-  // Sequential — free tier is ~5 req/min; pace() enforces the gap. Cached ids skip upstream.
-  const quotes: MassiveQuote[] = [];
+  const wanted = (ids.length ? ids : Object.keys(MASSIVE_SYMBOLS))
+    .map((id) => String(id).toUpperCase())
+    .filter((id) => Object.hasOwn(MASSIVE_SYMBOLS, id));
+
+  if (!isMassiveConfigured()) {
+    return {
+      quotes: wanted.map((id) => emptyQuote(id, 'MASSIVE_API_KEY is not set')),
+      stale: false,
+      attribution: ATTRIBUTION,
+      fetchedAt: Date.now(),
+      delayed: true,
+      live: false,
+    };
+  }
+
+  const stocks = wanted.filter((id) => MASSIVE_SYMBOLS[id].asset === 'stocks');
+  const others = wanted.filter((id) => MASSIVE_SYMBOLS[id].asset !== 'stocks');
+
+  const byId = new Map<string, MassiveQuote>();
   let anyStale = false;
-  for (const id of list) {
+
+  // Serve fresh cache hits first (avoid upstream when the board is still warm).
+  const needStock: string[] = [];
+  for (const id of stocks) {
+    const hit = quoteCache.get(id);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.quote.ok) {
+      byId.set(id, hit.quote);
+    } else {
+      needStock.push(id);
+    }
+  }
+
+  if (needStock.length) {
+    try {
+      const { latest, prev } = await loadRecentStockSessions();
+      for (const id of needStock) {
+        const ticker = MASSIVE_SYMBOLS[id].ticker;
+        const bar = latest.get(ticker);
+        if (!bar) {
+          const prior = quoteCache.get(id);
+          if (prior?.quote?.ok) {
+            byId.set(id, { ...prior.quote, error: 'stale' });
+            anyStale = true;
+          } else {
+            byId.set(id, emptyQuote(id, 'No daily bar yet for this session'));
+          }
+          continue;
+        }
+        const prevClose = prev.get(ticker)?.c ?? null;
+        // Sparkline: reuse prior sparkline + new close, or just [prev, last].
+        const priorSpark = quoteCache.get(id)?.quote?.sparkline || [];
+        const spark = [...priorSpark.filter((n) => Number.isFinite(n)), bar.c].slice(-SPARK_MAX);
+        if (prevClose != null && spark.length < 2) spark.unshift(prevClose);
+        const quote = quoteFromBars(id, bar, prevClose, spark);
+        quoteCache.set(id, { at: Date.now(), quote });
+        byId.set(id, quote);
+      }
+    } catch (err) {
+      const msg = redact(err instanceof Error ? err.message : String(err));
+      for (const id of needStock) {
+        const prior = quoteCache.get(id);
+        if (prior?.quote?.ok) {
+          byId.set(id, { ...prior.quote, error: 'stale' });
+          anyStale = true;
+        } else {
+          byId.set(id, emptyQuote(id, msg));
+        }
+      }
+    }
+  }
+
+  for (const id of others) {
     const { quote, stale } = await getMassiveQuote(id);
-    quotes.push(quote);
+    byId.set(id, quote);
     if (stale) anyStale = true;
   }
-  return { quotes, stale: anyStale, attribution: ATTRIBUTION, fetchedAt: Date.now() };
+
+  const quotes = wanted.map((id) => byId.get(id) || emptyQuote(id, 'unavailable'));
+  return {
+    quotes,
+    stale: anyStale,
+    attribution: ATTRIBUTION,
+    fetchedAt: Date.now(),
+    delayed: true,
+    live: false,
+  };
+}
+
+/**
+ * Daily or weekly OHLC history for the Live chart (and any Massive-backed catalog interval).
+ * Free tier: day/week aggregates only.
+ */
+export async function getMassiveCandles(
+  id: string,
+  interval: '1d' | '1w',
+  limit = 90,
+): Promise<{ candles: MassiveCandle[]; attribution: string; delayed: boolean; stale: boolean; source: 'massive' }> {
+  const meta = MASSIVE_SYMBOLS[id];
+  if (!meta) throw new Error(`unknown symbol ${id}`);
+  if (!isMassiveConfigured()) throw new Error('MASSIVE_API_KEY is not set');
+
+  const cacheKey = `${id}|${interval}`;
+  const hit = candleCache.get(cacheKey);
+  if (hit && hit.interval === interval && Date.now() - hit.at < CANDLE_CACHE_TTL_MS && hit.candles.length) {
+    return {
+      candles: hit.candles.slice(-limit),
+      attribution: ATTRIBUTION,
+      delayed: true,
+      stale: false,
+      source: 'massive',
+    };
+  }
+
+  const timespan = interval === '1w' ? 'week' : 'day';
+  const days = interval === '1w' ? Math.max(limit * 7 + 14, 120) : Math.max(limit + 10, RANGE_DAYS_CHART);
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 86_400_000);
+  const candles = await fetchTickerRange(meta.ticker, ymdUTC(from), ymdUTC(to), timespan, Math.max(limit + 5, 50));
+  if (!candles.length) throw new Error('No aggregate bars');
+  candleCache.set(cacheKey, { at: Date.now(), candles, interval });
+  return {
+    candles: candles.slice(-limit),
+    attribution: ATTRIBUTION,
+    delayed: true,
+    stale: false,
+    source: 'massive',
+  };
 }
 
 export { ATTRIBUTION as MASSIVE_ATTRIBUTION, CACHE_TTL_MS as MASSIVE_CACHE_TTL_MS };

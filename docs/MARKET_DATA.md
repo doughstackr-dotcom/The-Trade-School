@@ -160,14 +160,28 @@ Without the secret, `POST { quotes: true }` returns **503** `{ unconfigured: tru
 
 | detail | value |
 |---|---|
-| Upstream | `https://api.massive.com/v2/aggs/ticker/{ticker}/range/1/day/{from}/{to}` (one call ≈ last + prev + sparkline) |
+| Upstream (stocks board) | `GET /v2/aggs/grouped/locale/us/market/stocks/{date}` — 1–2 calls for the whole US board (today + prior session) |
+| Upstream (crypto/FX + chart) | `GET /v2/aggs/ticker/{ticker}/range/1/{day\|week}/{from}/{to}` |
 | Auth | `Authorization: Bearer …` and `?apiKey=` (secret `MASSIVE_API_KEY`) |
 | Symbols | SPY, QQQ, AAPL, MSFT, NVDA, TSLA, GLD; crypto `X:BTCUSD` / `X:ETHUSD`; FX `C:EURUSD` |
-| Free tier | **End-of-day** aggregates, **~5 requests/min** (no snapshot on Basic) |
-| Server cache | ~55 seconds per symbol (in-memory); upstream calls paced ≥12.5s apart |
-| Client poll | ~45 seconds; pauses while the tab is hidden |
+| Free tier | **End-of-day** aggregates, **~5 requests/min** (no realtime snapshot on Basic) |
+| Server cache | ~55s quotes / grouped; ~120s candle history; upstream paced ≥12.5s apart |
+| Client poll | ~60 seconds; pauses while the tab is hidden; last daily bar OHLC patched from quotes |
 | On failure | Last good quote is kept and marked `stale`; the page never blanks |
-| Attribution | `Quotes: Massive.com (end-of-day on free tier). Educational use.` |
+| Unconfigured | **503** `{ unconfigured: true }` with clear `MASSIVE_API_KEY` message — never “unknown symbol” for catalog tickers |
+| Attribution | `Data: Massive.com (end-of-day on free tier…). Educational use.` |
 
-Historical OHLC for games still comes from Alpha Vantage / exchange feeds (sections 1–4). This
-Massive path is for the Live Lab quote board only.
+Live Lab **daily charts** also use Massive when the secret is set (`1d` / `1w` for Massive symbols).
+Games / lessons still prefer Alpha Vantage / exchange feeds when those are configured (sections 1–4).
+
+### Owner setup (required for live numbers)
+
+`MASSIVE_API_KEY` was **not** available in this agent environment and the Supabase CLI was not logged in, so the secret must be set by the project owner:
+
+```bash
+npx supabase login
+npx supabase secrets set MASSIVE_API_KEY=YOUR_KEY --project-ref pedcpgmowqhqgersxxqa
+npx supabase functions deploy market-data --project-ref pedcpgmowqhqgersxxqa
+```
+
+Or Dashboard → Project Settings → Edge Functions → Secrets → add `MASSIVE_API_KEY`, then redeploy `market-data` from the multi-file sources under `supabase/functions/market-data/` (index.ts, massive.ts, providers.ts, alphavantage.ts). A compact Massive-only restore may already be live; redeploying the git tree restores Alpha Vantage / exchange candle paths for games.

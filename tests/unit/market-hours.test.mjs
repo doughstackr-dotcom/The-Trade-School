@@ -11,6 +11,8 @@ import {
   getMarketHoursSnapshot,
   tzAbbrev,
   formatLocalTime,
+  sessionProgressBars,
+  overallSessionProgress,
 } from '../../js/core/market-hours.js';
 
 const byId = (id) => [...EQUITY_MARKETS, ...FOREX_SESSIONS].find((m) => m.id === id);
@@ -112,4 +114,27 @@ test('snapshot has all eight venues', () => {
   assert.equal(snap.forex.length, 4);
   assert.equal(snap.overlaps.length, 3);
   assert.ok(snap.clientTz);
+});
+
+
+test('session progress bars fill during an open NYSE session', () => {
+  const at = new Date('2026-06-15T15:00:00Z');
+  const bars = sessionProgressBars(byId('nyse'), at);
+  assert.equal(bars.length, 1);
+  assert.equal(bars[0].active, true);
+  assert.ok(bars[0].progress > 0.1 && bars[0].progress < 0.9);
+  const st = marketStatus(byId('nyse'), at);
+  assert.ok(st.sessionBars);
+  assert.ok(st.progress > 0);
+  assert.ok(st.dayProgress > 0 && st.dayProgress < 1);
+  assert.ok(overallSessionProgress(byId('nyse'), at) > 0);
+});
+
+test('session progress is zero before open and one after close', () => {
+  const before = sessionProgressBars(byId('nyse'), new Date('2026-06-15T12:00:00Z'));
+  assert.equal(before[0].active, false);
+  assert.equal(before[0].progress, 0);
+  const after = sessionProgressBars(byId('nyse'), new Date('2026-06-15T21:00:00Z'));
+  assert.equal(after[0].done, true);
+  assert.equal(after[0].progress, 1);
 });

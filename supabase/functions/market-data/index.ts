@@ -44,7 +44,13 @@ import {
   type SymbolMeta,
   SYMBOLS,
 } from './providers.ts';
-import { getMassiveQuotes, isMassiveConfigured, MASSIVE_SYMBOLS } from './massive.ts';
+import {
+  getMassiveCandles,
+  getMassiveQuotes,
+  isMassiveConfigured,
+  MASSIVE_ATTRIBUTION,
+  MASSIVE_SYMBOLS,
+} from './massive.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -363,20 +369,29 @@ function candleResponse(
 
 /** Which markets and intervals the configured providers serve right now. */
 function catalog() {
+  const massiveOn = isMassiveConfigured();
   const symbols = Object.values(SYMBOLS).map((meta) => {
     const serving = meta.providers
       .map((n) => PROVIDERS[n])
       .filter((p) => p.available() && INTERVALS.some((i) => p.supports(i, meta)));
     const realtime = serving.filter((p) => !p.delayed);
+    const intervals = new Set(INTERVALS.filter((i) => serving.some((p) => p.supports(i, meta))));
+    // Massive free tier covers daily + weekly for Live Lab symbols when the secret is set.
+    if (massiveOn && Object.hasOwn(MASSIVE_SYMBOLS, meta.id)) {
+      intervals.add('1d');
+      intervals.add('1w');
+    }
+    const list = INTERVALS.filter((i) => intervals.has(i));
+    const onlyMassive = !serving.length && massiveOn && Object.hasOwn(MASSIVE_SYMBOLS, meta.id);
     return {
       id: meta.id,
       name: meta.name,
       class: meta.class,
       decimals: meta.decimals,
-      intervals: INTERVALS.filter((i) => serving.some((p) => p.supports(i, meta))),
+      intervals: list,
       live: realtime.some((p) => INTERVALS.some((i) => INTRADAY.has(i) && p.supports(i, meta))),
       delayed: realtime.length === 0,
-      attribution: serving[0]?.attribution ?? null,
+      attribution: serving[0]?.attribution ?? (onlyMassive ? MASSIVE_ATTRIBUTION : null),
     };
   });
   return { symbols, status: symbols.some((s) => s.intervals.length > 0) ? 'ok' : 'unconfigured' };
@@ -604,26 +619,40 @@ Deno.serve(async (req) => {
 
   // Live Lab quotes via Massive.com (Polygon-compatible REST). Does not spend Alpha Vantage quota.
   if (wantsCatalog(p.quotes)) {
-    if (!isMassiveConfigured()) {
-      return respond({
-        error: 'Live quotes are not configured. Set the MASSIVE_API_KEY Edge Function secret (Massive.com / Polygon-compatible).',
-        unconfigured: true,
-        source: 'massive',
-        quotes: [],
-      }, 503);
-    }
     let ids: string[] = [];
     if (Array.isArray(p.symbols)) ids = p.symbols.map((s) => String(s).toUpperCase());
     else if (typeof p.symbols === 'string' && p.symbols.trim()) {
       ids = p.symbols.split(/[,\s]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
     }
-    ids = ids.filter((id) => Object.hasOwn(MASSIVE_SYMBOLS, id));
+    // Keep valid Massive catalog ids only — never answer "unknown symbol" for allow-listed tickers.
+    const known = ids.filter((id) => Object.hasOwn(MASSIVE_SYMBOLS, id));
+    if (!isMassiveConfigured()) {
+      return respond({
+        error: 'Live quotes are not configured. Set the MASSIVE_API_KEY Edge Function secret (Massive.com / Polygon-compatible), then redeploy market-data.',
+        unconfigured: true,
+        source: 'massive',
+        delayed: true,
+        live: false,
+        quotes: known.map((id) => ({
+          symbol: id,
+          providerSymbol: MASSIVE_SYMBOLS[id].ticker,
+          yahooSymbol: MASSIVE_SYMBOLS[id].ticker,
+          name: MASSIVE_SYMBOLS[id].name,
+          price: null, open: null, high: null, low: null, prevClose: null,
+          change: null, changePct: null, currency: MASSIVE_SYMBOLS[id].currency,
+          asOf: null, sparkline: [], delayed: true, live: false, ok: false,
+          error: 'MASSIVE_API_KEY is not set',
+        })),
+        fetchedAt: Date.now(),
+        attribution: MASSIVE_ATTRIBUTION,
+      }, 503);
+    }
     try {
-      const payload = await getMassiveQuotes(ids);
+      const payload = await getMassiveQuotes(known);
       return respond({ ...payload, source: 'massive' }, 200, 30_000);
     } catch (err) {
       console.error(`market-data quotes failed: ${logText(err)}`);
-      return respond({ error: 'Quotes unavailable right now.', source: 'massive', quotes: [] }, 502);
+      return respond({ error: 'Quotes unavailable right now.', source: 'massive', quotes: [], delayed: true, live: false }, 502);
     }
   }
 
@@ -642,9 +671,39 @@ Deno.serve(async (req) => {
   if (endMs !== null && !(Number.isFinite(endMs) && endMs >= MIN_END)) {
     return respond({ error: 'end must be a timestamp in milliseconds or an ISO 8601 date.' }, 400);
   }
+  // Massive daily/weekly bars for Live Lab symbols (free-tier EOD). Prefer when configured so
+  // the chart is not stuck on Alpha Vantage / exchange feeds that may be unconfigured.
+  if (
+    (interval === '1d' || interval === '1w') &&
+    Object.hasOwn(MASSIVE_SYMBOLS, symbol) &&
+    isMassiveConfigured() &&
+    endMs === null
+  ) {
+    try {
+      const got = await getMassiveCandles(symbol, interval, limit);
+      return respond({
+        symbol,
+        interval,
+        candles: got.candles,
+        source: got.source,
+        attribution: got.attribution,
+        delayed: got.delayed,
+        stale: got.stale,
+      }, 200, Math.min(TTL_MS[interval], 60_000));
+    } catch (err) {
+      console.error(`market-data massive ${symbol} ${interval}: ${logText(err)}`);
+      // Fall through to Alpha Vantage / exchange feeds if Massive fails.
+    }
+  }
+
   // The providers that can serve this symbol/interval now, in preference order.
   const chain = meta.providers.filter((n) => PROVIDERS[n].available() && PROVIDERS[n].supports(interval, meta));
-  if (!chain.length) return respond({ error: `${symbol} ${interval} is not available yet.`, unconfigured: true }, 503);
+  if (!chain.length) {
+    const hint = Object.hasOwn(MASSIVE_SYMBOLS, symbol) && (interval === '1d' || interval === '1w')
+      ? ' Set MASSIVE_API_KEY on the market-data Edge Function for daily/weekly Live Lab data.'
+      : '';
+    return respond({ error: `${symbol} ${interval} is not available yet.${hint}`, unconfigured: true }, 503);
+  }
 
   try {
     if (PROVIDERS[chain[0]].snapshot) return await serveMetered(meta, interval, limit, endMs, chain);

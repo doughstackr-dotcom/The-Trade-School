@@ -153,6 +153,106 @@
   line-height: 1.4;
 }
 
+/* Session timeline bars (theme tokens; fill advances with wall clock) */
+
+.live-hours-card--bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-hours-bar {
+  margin-top: 8px;
+}
+
+.live-hours-bar__track {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface) 70%, var(--line));
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.live-hours-bar__session {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-3) 28%, transparent);
+  overflow: hidden;
+}
+
+.live-hours-bar__session.is-done {
+  background: color-mix(in oklab, var(--bull) 22%, var(--surface-2));
+}
+
+.live-hours-bar__session.is-active {
+  background: color-mix(in oklab, var(--bull) 18%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--bull) 35%, transparent);
+}
+
+.live-hours-bar__fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--bull) 55%, transparent),
+    color-mix(in oklab, var(--bull-strong, var(--bull)) 85%, var(--accent))
+  );
+  transition: width 0.85s linear;
+}
+
+.live-hours-card.is-closed .live-hours-bar__fill {
+  background: color-mix(in oklab, var(--text-3) 45%, transparent);
+}
+
+.live-hours-bar__now {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.live-hours-bar__labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
+}
+
+.live-feed-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.live-feed-badge[data-kind="delayed"] { color: var(--text-2); }
+.live-feed-badge[data-kind="live"] {
+  color: var(--bull-strong, var(--bull));
+  border-color: color-mix(in oklab, var(--bull) 40%, var(--line));
+  background: var(--bull-soft);
+}
+.live-feed-badge[data-kind="off"] { color: var(--text-3); }
+
+.live-quote__err {
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+
 /* Open / closed pill */
 
 .live-pill {
@@ -307,6 +407,10 @@
     animation: none;
   }
 
+  .live-hours-bar__fill {
+    transition: none;
+  }
+
   .live-quote:hover {
     transform: none;
   }
@@ -326,4 +430,8 @@ html[data-motion="reduce"] .live-ticker.is-running .live-ticker__track {
 html[data-motion="reduce"] .live-pill--open .live-pill__dot,
 html[data-motion="reduce"] .live-overlap.is-active .live-overlap__dot {
   animation: none;
+}
+
+html[data-motion="reduce"] .live-hours-bar__fill {
+  transition: none;
 }

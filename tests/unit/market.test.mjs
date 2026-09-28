@@ -304,8 +304,10 @@ test('getQuotes: mock mode returns massive-shaped quotes; live path defaults sou
   });
   const miss = await getQuotes({ symbols: ['SPY'] });
   assert.equal(miss.source, 'massive');
+  assert.equal(miss.unconfigured, true);
   assert.deepEqual(miss.quotes, []);
   assert.ok(miss.error);
+  assert.equal(miss.delayed, true);
 });
 
 test('labels and candle clean-up helpers', () => {

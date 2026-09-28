@@ -115,8 +115,12 @@ export default {
     let lastQuotes = [];
     let lastFetchedAt = 0;
     let stale = false;
+    let delayed = true;
+    let liveFeed = false;
+    let unconfigured = false;
     let attribution = '';
     let chart = null;
+    let lastCandles = null;
     let liveMaId = null;
     let pollTimer = null;
     let hoursTimer = null;
@@ -125,12 +129,13 @@ export default {
     const statusEl = h('span', { class: 'live-status__text' });
     const dot = h('span', { class: 'live-dot live-dot--lg', 'aria-hidden': 'true' });
     const updatedEl = h('span', { class: 'live-updated mono faint' });
+    const feedEl = h('span', { class: 'live-feed-badge faint' });
     const board = h('div', { class: 'live-board', role: 'list', 'aria-label': 'Market quotes' });
     const chartHost = h('div', { class: 'chart-frame live__chart' });
     const attrib = h('p', { class: 'faint live-attrib' });
     const note = h('p', { class: 'faint live-footnote' },
-      'Quotes arrive through our server (Massive.com / Polygon-compatible REST) so the browser never sees the API key. ',
-      'On the free tier quotes are end-of-day (~5 requests/min upstream) with a ~55s server cache. ',
+      'Quotes and daily bars arrive through our server (Massive.com / Polygon-compatible REST) so the browser never sees the API key. ',
+      'On the free tier data is end-of-day delayed (~5 requests/min upstream) with a ~55s server cache — open/high/low/last update as Massive refreshes the daily bar, not tick-by-tick. ',
       'If a refresh fails we keep the last good numbers and mark them stale. Educational use — not for live trading decisions.');
 
     // —— Market hours / sessions UI ——————————————————————————————————————————
@@ -153,9 +158,26 @@ export default {
       dot.dataset.state = key;
     };
 
+    const paintFeedBadge = () => {
+      if (unconfigured) {
+        feedEl.textContent = 'Feed: not configured';
+        feedEl.dataset.kind = 'off';
+        return;
+      }
+      if (liveFeed && !delayed) {
+        feedEl.textContent = 'Feed: realtime';
+        feedEl.dataset.kind = 'live';
+        return;
+      }
+      feedEl.textContent = 'Feed: delayed EOD (Massive free tier)';
+      feedEl.dataset.kind = 'delayed';
+    };
+
     const paintUpdated = () => {
       if (!lastFetchedAt) {
-        updatedEl.textContent = 'Not updated yet';
+        updatedEl.textContent = unconfigured
+          ? 'Waiting — set MASSIVE_API_KEY'
+          : 'Waiting for first quote…';
         return;
       }
       const t = new Date(lastFetchedAt);
@@ -167,7 +189,8 @@ export default {
       const list = lastQuotes.filter((q) => q.ok !== false && q.price != null);
       if (!list.length) {
         tickerTrack.replaceChildren(
-          h('span', { class: 'live-ticker__item live-ticker__item--muted' }, 'Waiting for quotes…'),
+          h('span', { class: 'live-ticker__item live-ticker__item--muted' },
+            unconfigured ? 'Configure MASSIVE_API_KEY to load quotes…' : 'Waiting for quotes…'),
         );
         ticker.classList.remove('is-running');
         return;
@@ -208,7 +231,7 @@ export default {
         : 'Forex: no major session open';
       sessionActive.textContent = `${eq} · ${fx}`;
       sessionContext.textContent = snap.context;
-      clientTzEl.textContent = `Times use each venue’s local zone (DST-aware via your browser). Your clock: ${snap.clientTz}. Exchange holidays not tracked.`;
+      clientTzEl.textContent = `Bars fill as wall-clock time advances through each session (DST-aware). Your clock: ${snap.clientTz}. Exchange holidays not tracked.`;
     };
 
     /** Yellow SMA 20 only on real Massive-backed daily bars (not simulated fallback). */
@@ -227,18 +250,42 @@ export default {
       });
     };
 
+    /** Patch the chart’s forming daily bar from the latest quote OHLC (continuous open/last). */
+    const patchChartFromQuote = (q) => {
+      if (!chart || !lastCandles?.length || !q || q.ok === false) return;
+      if (q.price == null || !Number.isFinite(q.price)) return;
+      const last = { ...lastCandles[lastCandles.length - 1] };
+      const open = Number.isFinite(q.open) ? q.open : last.o;
+      const high = Number.isFinite(q.high) ? Math.max(q.high, open, q.price) : Math.max(last.h, q.price, open);
+      const low = Number.isFinite(q.low) ? Math.min(q.low, open, q.price) : Math.min(last.l, q.price, open);
+      last.o = open;
+      last.h = high;
+      last.l = low;
+      last.c = q.price;
+      lastCandles = [...lastCandles.slice(0, -1), last];
+      try {
+        chart.setCandles(lastCandles);
+        syncLiveIndicator(lastCandles, true);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
     const loadChart = async (symbol) => {
       if (!chartMod) return;
       chartHost.classList.add('is-switching');
       let candles = null;
+      let chartNote = null;
       if (marketMod?.getCandles) {
         try {
           const res = await marketMod.getCandles({ symbol, interval: '1d', limit: 90 });
           candles = res?.candles?.length ? res.candles : null;
-          if (res?.attribution) {
-            attrib.textContent = [
-              attribution,
+          if (res?.status === 'unconfigured') {
+            chartNote = res.error || 'Daily history not configured — set MASSIVE_API_KEY on the market-data Edge Function.';
+          } else if (res?.attribution) {
+            chartNote = [
               res.attribution,
+              res.delayed !== false ? 'Delayed EOD' : null,
               res.stale ? 'Chart cache stale' : null,
             ].filter(Boolean).join(' · ');
           }
@@ -247,25 +294,38 @@ export default {
         }
       }
       let isRealMassive = !!(candles?.length);
-      if (!candles?.length && dataMod) {
+      if (!candles?.length && dataMod && !unconfigured) {
         candles = dataMod.randomWalk({ seed: symbol.length * 99, count: 90, drift: 0.0003, vol: 0.012 });
-        attrib.textContent = [attribution, 'Chart: simulated (real daily history unavailable)'].filter(Boolean).join(' · ');
+        chartNote = [attribution, 'Chart: simulated (real daily history unavailable)'].filter(Boolean).join(' · ');
         isRealMassive = false;
+      } else if (!candles?.length && unconfigured) {
+        chartNote = 'Configure MASSIVE_API_KEY (Supabase Edge secret) and redeploy market-data to load real daily bars.';
       }
+      attrib.textContent = [attribution, chartNote].filter(Boolean).join(' · ');
       if (!candles?.length) {
+        lastCandles = null;
         syncLiveIndicator(null, false);
         chartHost.classList.remove('is-switching');
         return;
       }
+      lastCandles = candles;
+      const q = lastQuotes.find((x) => x.symbol === symbol && x.ok !== false);
+      if (q?.price != null) {
+        const last = { ...candles[candles.length - 1] };
+        if (Number.isFinite(q.open)) last.o = q.open;
+        if (Number.isFinite(q.high)) last.h = Math.max(q.high, last.o, q.price);
+        if (Number.isFinite(q.low)) last.l = Math.min(q.low, last.o, q.price);
+        last.c = q.price;
+        lastCandles = [...candles.slice(0, -1), last];
+      }
       if (!chart) {
         chart = new chartMod.CandleChart(chartHost, {
-          candles, height: 360, showVolume: true, ariaLabel: `${symbol} daily chart`,
+          candles: lastCandles, height: 360, showVolume: true, ariaLabel: `${symbol} daily chart`,
         });
       } else {
-        chart.setCandles(candles);
+        chart.setCandles(lastCandles);
       }
-      syncLiveIndicator(candles, isRealMassive);
-      // Allow CSS fade to settle
+      syncLiveIndicator(lastCandles, isRealMassive);
       requestAnimationFrame(() => {
         if (!destroyed) chartHost.classList.remove('is-switching');
       });
@@ -276,33 +336,55 @@ export default {
         setStatus('offline', 'Quotes module unavailable');
         return;
       }
-      setStatus(lastQuotes.length ? (stale ? 'stale' : 'live') : 'connecting',
-        lastQuotes.length ? (stale ? 'Refreshing… (showing last good)' : 'Refreshing…') : 'Connecting…');
+      setStatus(lastQuotes.some((q) => q.ok) ? (stale ? 'stale' : 'live') : 'connecting',
+        lastQuotes.some((q) => q.ok) ? (stale ? 'Refreshing… (showing last good)' : 'Refreshing…') : 'Connecting…');
       try {
         const res = await marketMod.getQuotes({ symbols: BOARD });
         if (destroyed) return;
-        if (res.quotes?.some((q) => q.ok)) {
-          lastQuotes = res.quotes;
+        const quotes = Array.isArray(res.quotes) ? res.quotes : [];
+        const anyOk = quotes.some((q) => q.ok);
+        unconfigured = !!(res.unconfigured || /MASSIVE_API_KEY/i.test(res.error || ''));
+        delayed = res.delayed !== false;
+        liveFeed = !!res.live;
+        if (anyOk) {
+          lastQuotes = quotes;
           lastFetchedAt = res.fetchedAt || Date.now();
           stale = !!res.stale;
           attribution = res.attribution || '';
-          setStatus(stale ? 'stale' : 'live', stale ? 'Live board · stale data' : 'Live board');
+          setStatus(
+            stale ? 'stale' : 'live',
+            stale
+              ? 'Live board · stale data'
+              : (delayed ? 'Live board · delayed EOD' : 'Live board'),
+          );
           attrib.textContent = attribution;
-        } else if (lastQuotes.length) {
+          const sel = quotes.find((q) => q.symbol === selected && q.ok);
+          if (sel) patchChartFromQuote(sel);
+        } else if (lastQuotes.some((q) => q.ok)) {
           stale = true;
           setStatus('stale', 'Refresh failed — showing last good quotes');
         } else {
-          setStatus('offline', res.error || 'Quotes unavailable');
-          attrib.textContent = res.error || '';
+          lastQuotes = quotes.length ? quotes : BOARD.map((id) => ({
+            symbol: id, name: id, price: null, change: null, changePct: null, sparkline: [], ok: false,
+            error: res.error || (unconfigured ? 'MASSIVE_API_KEY is not set' : 'unavailable'),
+          }));
+          setStatus(
+            'offline',
+            unconfigured
+              ? 'Configure MASSIVE_API_KEY (Edge secret) then redeploy market-data'
+              : (res.error || 'Quotes unavailable'),
+          );
+          attrib.textContent = res.error || attribution || '';
         }
       } catch (err) {
-        if (lastQuotes.length) {
+        if (lastQuotes.some((q) => q.ok)) {
           stale = true;
           setStatus('stale', 'Network error — showing last good quotes');
         } else {
           setStatus('offline', err?.message || 'Network error');
         }
       }
+      paintFeedBadge();
       paintUpdated();
       paintBoard();
     };
@@ -339,11 +421,12 @@ export default {
 
       h('div', { class: 'live__bar row' },
         h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
+        feedEl,
         updatedEl,
         h('span', { class: 'grow' }),
         h('button', {
           type: 'button', class: 'btn btn--ghost',
-          on: { click: () => refreshQuotes() },
+          on: { click: () => { refreshQuotes(); loadChart(selected); } },
         }, icon('restart', { size: 14 }), 'Refresh')),
       board,
       h('section', { class: 'live-detail card', 'aria-label': 'Selected market chart' },
@@ -351,10 +434,12 @@ export default {
         chartHost,
         attrib),
       note,
-      h('p', { class: 'faint' }, 'Educational only — not financial advice. Prices may be delayed.')));
+      h('p', { class: 'faint' }, 'Educational only — not financial advice. Free-tier prices are delayed end-of-day.')));
 
     paintBoard();
     paintHours();
+    paintFeedBadge();
+    paintUpdated();
     await refreshQuotes();
     if (!destroyed) await loadChart(selected);
     if (!destroyed) {

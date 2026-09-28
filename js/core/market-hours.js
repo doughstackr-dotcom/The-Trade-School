@@ -244,12 +244,66 @@ export function formatLocalTime(tz, at = Date.now(), { withSeconds = true } = {}
  * @param {MarketDef} market
  * @param {Date|number} [at]
  */
+/**
+ * Progress through each session window for bar UI.
+ * @returns {{ open: string, close: string, openMin: number, closeMin: number, progress: number, active: boolean, done: boolean }[]}
+ */
+export function sessionProgressBars(market, at = Date.now()) {
+  const date = at instanceof Date ? at : new Date(at);
+  const { weekday, minutes, second } = zonedParts(date, market.tz);
+  const weekdayOk = WEEKDAYS.has(weekday);
+  const fracMin = minutes + (Number.isFinite(second) ? second / 60 : 0);
+  return market.sessions.map((s) => {
+    const openMin = parseHm(s.open);
+    const closeMin = parseHm(s.close);
+    const span = Math.max(1, closeMin - openMin);
+    let progress = 0;
+    let active = false;
+    let done = false;
+    if (weekdayOk) {
+      if (fracMin >= closeMin) {
+        progress = 1;
+        done = true;
+      } else if (fracMin >= openMin) {
+        progress = Math.min(1, Math.max(0, (fracMin - openMin) / span));
+        active = true;
+      }
+    }
+    return {
+      open: s.open,
+      close: s.close,
+      openMin,
+      closeMin,
+      progress,
+      active,
+      done,
+    };
+  });
+}
+
+/** Overall 0–1 fill across today's sessions (weighted by duration) for a single progress bar. */
+export function overallSessionProgress(market, at = Date.now()) {
+  const bars = sessionProgressBars(market, at);
+  if (!bars.length) return 0;
+  let weighted = 0;
+  let total = 0;
+  for (const b of bars) {
+    const span = Math.max(1, b.closeMin - b.openMin);
+    total += span;
+    weighted += span * b.progress;
+  }
+  return total ? weighted / total : 0;
+}
+
 export function marketStatus(market, at = Date.now()) {
   const date = at instanceof Date ? at : new Date(at);
   const open = isMarketOpen(market, date);
   const boundary = nextBoundary(market, date);
   const local = formatLocalTime(market.tz, date);
   const abbrev = tzAbbrev(market.tz, date);
+  const { minutes, second } = zonedParts(date, market.tz);
+  const dayProgress = Math.min(1, Math.max(0, (minutes + second / 60) / (24 * 60)));
+  const sessionBars = sessionProgressBars(market, date);
   return {
     id: market.id,
     name: market.name,
@@ -263,6 +317,9 @@ export function marketStatus(market, at = Date.now()) {
     sessions: market.sessions.map((s) => `${s.open}–${s.close}`),
     note: market.note || '',
     boundary,
+    dayProgress,
+    sessionBars,
+    progress: overallSessionProgress(market, date),
   };
 }
 
