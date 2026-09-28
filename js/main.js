@@ -80,9 +80,11 @@ function riskTicker() {
       class: 'risk-ticker__text',
       ...(i === 0 ? {} : { 'aria-hidden': 'true' }),
     }, RISK_DISCLAIMER));
+  // role="note" (not "alert"): the disclaimer is static, so screen readers should read it once
+  // in page order rather than announce it assertively; the duplicate copies are aria-hidden.
   return h('aside', {
     class: 'risk-ticker',
-    role: 'alert',
+    role: 'note',
     'aria-label': 'Risk and educational disclaimer',
   },
     h('div', { class: 'risk-ticker__track' }, ...segments));
@@ -161,7 +163,20 @@ function buildShell(app) {
 
   const main = h('main', { id: 'main', class: 'main', tabindex: '-1' });
 
-  const skip = h('button', { type: 'button', class: 'skip-link', on: { click: () => main.focus() } }, 'Skip to content');
+  // Real link (works without JS semantics, shows in link lists). The click handler moves focus
+  // to <main> without touching location.hash, so the hash router never sees "#main".
+  const skip = h('a', {
+    class: 'skip-link',
+    href: '#main',
+    'data-no-route': '',
+    on: {
+      click: (e) => {
+        e.preventDefault();
+        main.focus({ preventScroll: true });
+        main.scrollIntoView({ block: 'start' });
+      },
+    },
+  }, 'Skip to content');
 
   // Sign in / Sign up (or Account when signed in) — always visible in the header.
   const authBtn = h('a', {
