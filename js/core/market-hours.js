@@ -56,9 +56,9 @@ export const EQUITY_MARKETS = Object.freeze([
     city: 'Tokyo',
     sessions: Object.freeze([
       { open: '09:00', close: '11:30' },
-      { open: '12:30', close: '15:00' },
+      { open: '12:30', close: '15:30' },
     ]),
-    note: 'Morning + afternoon (JST); lunch break 11:30–12:30',
+    note: 'Morning + afternoon (JST); lunch break 11:30–12:30; close 15:30',
   }),
 ]);
 

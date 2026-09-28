@@ -28,8 +28,9 @@ export class QuotaExhausted extends Error {
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 // Trimmed: a key pasted into the secrets form with a trailing space or newline must still work,
-// and a blank one means "not configured".
-const KEY = () => env('ALPHAVANTAGE_API_KEY').trim();
+// and a blank one means "not configured". ALPHA_VANTAGE_API_KEY (the spelling in older setup
+// notes) is accepted too; ALPHAVANTAGE_API_KEY wins when both are set.
+const KEY = () => env('ALPHAVANTAGE_API_KEY').trim() || env('ALPHA_VANTAGE_API_KEY').trim();
 const PREMIUM = () => env('ALPHAVANTAGE_PREMIUM').trim() === '1';
 const DAILY_LIMIT = () => Math.max(1, Number(env('ALPHAVANTAGE_DAILY_LIMIT')) || 24);
 /**

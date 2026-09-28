@@ -30,10 +30,11 @@ function planCard(planId, { highlight = false, current = null, onSubscribe } = {
           h('li', null, icon('check', { size: 14 }), ' Everything in Beginner'),
           h('li', null, icon('check', { size: 14 }), ' Every Advanced lesson and game'),
           h('li', null, icon('check', { size: 14 }), ' Trade Simulator, Fib Sniper, Trap or Trade'),
-          h('li', null, icon('check', { size: 14 }), ' Live Predict and capstone drills'),
+          h('li', null, icon('check', { size: 14 }), ' Capstone drills'),
         ]),
-    isCurrent && current === planId
-      ? h('p', { class: 'chip chip--bull' }, 'Your plan')
+    // Advanced includes Beginner: no live "Get Beginner" (it would switch the subscription down at once).
+    isCurrent
+      ? h('p', { class: 'chip chip--bull' }, current === planId ? 'Your plan' : 'Included')
       : h('button', {
         type: 'button',
         class: ['btn', highlight ? 'btn--primary' : 'btn--ghost', 'btn--block'],
@@ -106,7 +107,7 @@ export default {
             ? 'Your Beginner plan is active. Upgrade to Advanced to open this module.'
             : 'Your Beginner plan should unlock this — try refreshing.';
         } else {
-          status.textContent = 'Signed in on the free tier. Free unit modules stay open; choose a plan for the full tracks.';
+          status.textContent = 'Signed in on the free tier. The Daily Challenge stays free; choose a plan for the full tracks.';
         }
         plansHost.replaceChildren(
           planCard('beginner', { current: a.level, onSubscribe }),
@@ -134,7 +135,7 @@ export default {
         h('section', { class: 'card paywall__free' },
           h('h2', null, 'Free after you sign in'),
           h('p', { class: 'muted' }, 'No card required for these modules once you have an account:'),
-          h('ul', { class: 'lesson-list' }, freeList.length ? freeList : h('li', null, 'Candle anatomy, Candle Builder, Daily Challenge, Markets & Orders, Order Desk')),
+          h('ul', { class: 'lesson-list' }, freeList.length ? freeList : h('li', null, 'Daily Challenge')),
           h('p', { class: 'faint' }, 'Educational simulations only — not financial advice. Cancel anytime in the billing portal.'),
         ),
       ),

@@ -92,7 +92,7 @@ export default {
     for (const g of ordered) {
       const free = isFreeGame(g);
       const open = gameOpen(g);
-      const locked = paidHub && !free && !open;
+      const locked = enforcing && !free && !open; // Beginner members also see Advanced games locked (as on the Dashboard)
       const href = locked
         ? (access.getAccess().user ? '#paywall' : '#account.signup')
         : `#${hashFor(g.id)}`;

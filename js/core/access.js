@@ -178,6 +178,24 @@ export const ready = ((async () => {
       emit();
     });
   }
+  // Back from Stripe Checkout: the webhook writes the plan a few seconds later, so poll briefly
+  // (refresh() emits, pages repaint), then drop ?checkout= from the URL.
+  try {
+    const back = new URLSearchParams(location.search).get('checkout');
+    if (back) {
+      (async () => {
+        for (let i = 0; back === 'success' && i < 15 && session?.user && level === 'free'; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          await refresh();
+        }
+        try {
+          const u = new URL(location.href);
+          u.searchParams.delete('checkout');
+          history.replaceState(history.state, '', u.href);
+        } catch { /* ignore */ }
+      })();
+    }
+  } catch { /* no location (tests) */ }
   return snapshot();
 })());
 
@@ -363,6 +381,18 @@ export async function signOut() {
   emit();
 }
 
+/**
+ * supabase-js turns a non-2xx Edge Function reply into FunctionsHttpError ("Edge Function returned
+ * a non-2xx status code") with the Response in .context: surface the server's { error } text instead.
+ */
+async function fnError(error) {
+  try {
+    const body = await error?.context?.clone?.().json();
+    if (typeof body?.error === 'string' && body.error) return new Error(body.error);
+  } catch { /* not JSON */ }
+  return error;
+}
+
 /** Starts Stripe Checkout via Edge Function. Returns { ok, error } or redirects. */
 export async function checkout(plan) {
   const c = await getClient();
@@ -370,19 +400,25 @@ export async function checkout(plan) {
   if (!PLANS[plan]) return { ok: false, error: 'Unknown plan' };
   try {
     const { data, error } = await c.functions.invoke('create-checkout', { body: { plan } });
-    if (error) throw error;
+    if (error) throw await fnError(error);
     if (data?.url) {
       location.href = data.url;
       return { ok: true };
     }
     if (data?.switched) {
-      await refresh();
+      // Stripe switched the plan; the webhook updates access_level shortly after, so poll for it.
+      const want = data.plan || plan;
+      for (let i = 0; i < 12; i++) {
+        await refresh();
+        if (level === want || !session?.user) break;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
       return { ok: true, switched: true };
     }
     return { ok: false, error: data?.error || 'Subscriptions not open yet' };
   } catch (err) {
     const msg = err?.message || String(err);
-    if (/not open|not configured|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test(msg)) {
+    if (/not open|not configured|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test(`${err?.name || ''} ${msg}`)) {
       return { ok: false, error: 'Subscriptions not open yet' };
     }
     return { ok: false, error: msg };
@@ -395,7 +431,7 @@ export async function openBillingPortal() {
   if (!c || !session) return { ok: false, error: 'Sign in to manage billing' };
   try {
     const { data, error } = await c.functions.invoke('customer-portal', { body: {} });
-    if (error) throw error;
+    if (error) throw await fnError(error);
     if (data?.url) {
       location.href = data.url;
       return { ok: true };
@@ -403,7 +439,7 @@ export async function openBillingPortal() {
     return { ok: false, error: data?.error || 'Subscriptions not open yet' };
   } catch (err) {
     const msg = err?.message || String(err);
-    if (/not open|not configured|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test(msg)) {
+    if (/not open|not configured|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test(`${err?.name || ''} ${msg}`)) {
       return { ok: false, error: 'Subscriptions not open yet' };
     }
     return { ok: false, error: msg };

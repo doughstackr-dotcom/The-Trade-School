@@ -108,9 +108,11 @@ export function swipeCard({ chartNode, title, body, onTake, onSkip, takeLabel = 
   if (chartNode) card.append(h('div', { class: 'swipe-card__chart' }, chartNode));
   if (title) card.append(h('h3', { class: 'swipe-card__title' }, title));
   if (body) card.append(h('p', { class: 'swipe-card__body muted' }, body));
+  // Buttons the shell locked (aria-disabled, e.g. after "Time's up!") ignore clicks.
+  const locked = (e) => e.currentTarget.getAttribute('aria-disabled') === 'true';
   const actions = h('div', { class: 'swipe-card__actions' },
-    h('button', { type: 'button', class: ['btn', skipClass, 'btn--lg'], onclick: () => { card.classList.add('is-skip'); onSkip?.(); } }, skipLabel),
-    h('button', { type: 'button', class: ['btn', takeClass, 'btn--lg'], onclick: () => { card.classList.add('is-take'); onTake?.(); } }, takeLabel));
+    h('button', { type: 'button', class: ['btn', skipClass, 'btn--lg'], on: { click: (e) => { if (locked(e)) return; card.classList.add('is-skip'); onSkip?.(); } } }, skipLabel),
+    h('button', { type: 'button', class: ['btn', takeClass, 'btn--lg'], on: { click: (e) => { if (locked(e)) return; card.classList.add('is-take'); onTake?.(); } } }, takeLabel));
   card.append(actions);
   return card;
 }
@@ -127,7 +129,7 @@ export function memoryBoard({ faces, onMatch, onMismatch, onDone, columns = 4 } 
     else back.append(h('span', { class: 'mono' }, face.label || '?'));
     const card = h('button', { type: 'button', class: 'memory-card', 'aria-label': 'Hidden card', 'data-key': face.key, 'data-i': String(i) }, front, back);
     card.addEventListener('click', () => {
-      if (lock || card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
+      if (lock || card.getAttribute('aria-disabled') === 'true' || card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
       card.classList.add('is-flipped'); sfx.click();
       if (!first) { first = card; return; }
       lock = true;
@@ -170,10 +172,11 @@ export function orderLadder({ mid = 100, tick = 0.25, levels = 7, seed = 1, onPi
     }
     const bar = h('span', { class: 'order-desk__bar', style: { width: `${Math.min(100, r.size * 5)}%` } });
     const btn = h('button', { type: 'button', class: [`order-desk__row`, `order-desk__row--${r.side}`], role: 'listitem',
-      onclick: () => {
+      on: { click: () => {
+        if (btn.getAttribute('aria-disabled') === 'true') return;
         book.querySelectorAll('.is-picked').forEach((n) => n.classList.remove('is-picked'));
         btn.classList.add('is-picked'); onPick?.(r);
-      } },
+      } } },
       h('span', { class: 'order-desk__side' }, r.side.toUpperCase()),
       h('span', { class: 'order-desk__price mono' }, r.price.toFixed(2)),
       h('span', { class: 'order-desk__size mono' }, String(r.size)),

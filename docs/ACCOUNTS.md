@@ -1,11 +1,12 @@
 # Accounts & subscriptions — owner setup
 
-The Trade School uses **Supabase** for accounts, progress sync and access control, and
+The Trade School uses **Supabase** for accounts and access control (progress stays in the
+browser; the `progress` table exists but the current client does not sync it), and
 **Stripe** for the two monthly subscriptions.
 
 | plan | price | unlocks |
 |---|---|---|
-| Free account | $0 | Unit 1 (Candlestick anatomy + Candle Builder), Pattern Library, progress sync |
+| Free account | $0 | Daily Challenge (`FREE_IDS`); everything else, incl. Library, Playbook and Glossary, needs Beginner |
 | Beginner | **$19.99 / month** | Every Beginner lesson and game |
 | Advanced | **$29.99 / month** | Everything in Beginner **plus** every Advanced lesson and game |
 
@@ -127,8 +128,8 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 1. Sign up on the site, confirm the email, sign in.
 2. Open an Advanced lesson → the paywall appears → choose **Beginner** → pay with Stripe's
    test card `4242 4242 4242 4242`, any future date, any CVC.
-3. You return to **Account**, which shows "Unlocking…" and flips to **Beginner** within a
-   few seconds (the webhook updates the database).
+3. You return to **Account**, which flips to **Beginner** within a few seconds: the site
+   re-checks the plan every 2 s for about 30 s while the webhook updates the database.
 4. Choose **Upgrade to Advanced** → the plan switches with proration, Advanced unlocks.
 5. **Manage billing** → cancel → the plan stays active until the period ends.
 6. Check Supabase → Table editor → `subscriptions`, and Edge Functions → Logs if anything
@@ -142,9 +143,9 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
   low activity and have lower limits; upgrade the organization to a paid plan before real
   customers depend on it (Supabase Dashboard → Organization → Billing). Turn on backups.
 - Custom SMTP (step 5.3) must be configured.
-- Add your legal pages: the site ships draft Terms and Privacy pages (`#terms`, `#privacy`)
-  that you must review with a professional before charging customers. Stripe also requires a
-  visible refund/cancellation policy.
+- Add your legal pages: the current site has **no** Terms or Privacy pages (`#terms` and
+  `#privacy` are not routed), so write them and review them with a professional before
+  charging customers. Stripe also requires a visible refund/cancellation policy.
 - **Clear test-mode billing rows** before switching Stripe to live keys (test customer ids
   don't exist in live mode), in the SQL Editor:
   `delete from public.subscriptions; delete from public.customers; delete from public.stripe_events;`
@@ -159,8 +160,8 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 
 - The site itself is static files, so any CDN host (GitHub Pages, Cloudflare Pages,
   Netlify, Vercel) serves unlimited visitors cheaply.
-- The only per-user backend traffic is sign-in, one access-level check per session,
-  and progress sync, which is debounced into one small row per user.
+- The only per-user backend traffic is sign-in and one access-level check per session
+  (progress is kept in the browser).
 - Every table uses row-level security keyed on the user's id with an index, so checks stay
   fast as the user count grows.
 - Stripe webhooks are idempotent: repeated or out-of-order events re-read the subscription
@@ -180,3 +181,8 @@ so anyone can read it. To make paid content genuinely private:
    uploads the paid modules to the private `premium` bucket, and the deploy build leaves them
    out of the public files. The site then downloads them only for members whose plan allows
    it; Supabase checks `access_level()` on every download.
+
+> **Not implemented in the current client.** The router always loads lessons and games from
+> the public site: `PREMIUM_SOURCE` has no effect and `scripts/publish-premium.mjs` does not
+> exist. Do not remove paid modules from the public build (every lesson and game would 404).
+> Until the storage mode is rebuilt, paid content is protected only by client-side UX.

@@ -21,8 +21,8 @@ Set via Dashboard → Edge Functions → Secrets, or:
 | `STRIPE_PRICE_ADVANCED` | checkout | `price_…` |
 | `SITE_URL` | checkout / portal return URLs | `https://example.com/The-Trade-School/` |
 | `ALLOWED_ORIGINS` | optional CORS extras | `http://localhost:5173` |
-| `SUPABASE_SERVICE_ROLE_KEY` | deploy scripts / admin only | `eyJ…` (server only) |
-| `ALPHA_VANTAGE_API_KEY` | `market-data` function (if enabled) | `XXXXXXXX` |
+| `SUPABASE_SERVICE_ROLE_KEY` | auto-provided to every Edge Function (with `SUPABASE_URL`, `SUPABASE_ANON_KEY`) — do not set it (the CLI rejects `SUPABASE_*` names) and never ship it | — |
+| `ALPHAVANTAGE_API_KEY` (or `ALPHA_VANTAGE_API_KEY`) | `market-data` Alpha Vantage candles; if both are set, `ALPHAVANTAGE_API_KEY` is used | `XXXXXXXX` |
 | `MASSIVE_API_KEY` | `market-data` Live Lab quotes (Massive.com) | `XXXXXXXX` |
 
 Until Stripe secrets are present, the site shows **“Subscriptions not open yet”** on subscribe / billing buttons.
@@ -65,9 +65,9 @@ Test with card `4242 4242 4242 4242`. Rotate to **live** keys only at launch (se
 | `ACCESS_MODE = 'enforce' \| 'open'` | Force on / off |
 | `FREE_IDS` | Modules open without a paid plan |
 | `PREMIUM_SOURCE = 'site'` | Lessons/games load from the public static site (**current**) |
-| `PREMIUM_SOURCE = 'storage'` | Paid modules load from private Storage paths `beginner/…` and `advanced/…` (see ACCOUNTS.md §10). Use when the repo is private and you run `scripts/publish-premium.mjs` with the service role. |
+| `PREMIUM_SOURCE = 'storage'` | Planned: paid modules load from private Storage paths `beginner/…` and `advanced/…` (see ACCOUNTS.md §10). **Not implemented in the current client** — the flag has no effect and `scripts/publish-premium.mjs` does not exist. |
 
-Client checks are UX. Storage + RLS is the real content lock.
+Client checks are UX. Until the storage mode is rebuilt, nothing else protects paid content.
 
 ---
 

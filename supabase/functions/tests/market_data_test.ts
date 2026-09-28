@@ -77,6 +77,7 @@ function fresh(now = NOW0) {
   // market_data_av_test.ts for Alpha Vantage and for the feeds being off by default).
   Deno.env.set('MARKET_EXCHANGE_FEEDS', 'coinbase,kraken');
   Deno.env.delete('ALPHAVANTAGE_API_KEY');
+  Deno.env.delete('ALPHA_VANTAGE_API_KEY');
 }
 
 type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };

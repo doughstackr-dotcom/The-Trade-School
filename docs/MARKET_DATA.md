@@ -14,7 +14,8 @@ realistic market simulator, clearly labelled.
 2. Open **Supabase → project the-trade-school → Edge Functions → Secrets**:
    <https://supabase.com/dashboard/project/pedcpgmowqhqgersxxqa/functions/secrets>
 3. Click **Add new secret**:
-   - Name: `ALPHAVANTAGE_API_KEY`
+   - Name: `ALPHAVANTAGE_API_KEY` (`ALPHA_VANTAGE_API_KEY` also works; if both are set,
+     `ALPHAVANTAGE_API_KEY` is used)
    - Value: your key
 4. Save. It takes effect immediately — no redeploy needed.
 

@@ -102,6 +102,26 @@ function tradeLevelsChart(sc) {
   return { entry, stop, target, entryIdx, bull };
 }
 
+/** Failed-breakout fade: enter on the first close back inside, stop beyond the fakeout extreme, target the far side. */
+function fadeLevelsChart(sc) {
+  const { candles, breakoutIdx, direction, level, patternStart, patternEnd } = sc;
+  const up = direction > 0; // the breakout that failed went up → the fade is a short
+  const lvl = Number.isFinite(level) ? level : candles[breakoutIdx]?.o;
+  let entryIdx = candles.length - 1;
+  for (let i = breakoutIdx + 1; i < candles.length; i++) {
+    if (up ? candles[i].c < lvl : candles[i].c > lvl) { entryIdx = i; break; }
+  }
+  const pat = candles.slice(patternStart, patternEnd + 1);
+  const trap = candles.slice(breakoutIdx, entryIdx + 1);
+  const patHigh = Math.max(...pat.map((k) => k.h));
+  const patLow = Math.min(...pat.map((k) => k.l));
+  const buffer = (patHigh - patLow) * 0.03;
+  const entry = candles[entryIdx].c;
+  const stop = up ? Math.max(...trap.map((k) => k.h)) + buffer : Math.min(...trap.map((k) => k.l)) - buffer;
+  const target = up ? patLow : patHigh;
+  return { entry, stop, target, entryIdx, bull: !up, fade: true };
+}
+
 function buildCandlePlan(patternId, opts = {}) {
   const meta = CANDLE_PATTERNS[patternId];
   if (!meta) throw new Error(`Unknown candle pattern: ${patternId}`);
@@ -230,7 +250,10 @@ function buildChartPlan(patternId, opts = {}) {
     after: opts.after ?? 16,
     outcome: opts.outcome || 'success',
   });
-  const levels = tradeLevelsChart(sc);
+  // Playbook fades (outcome 'fail' with a bias against the breakout) trade the failure, not the break.
+  const fade = opts.outcome === 'fail' && (opts.bias === 'bullish' || opts.bias === 'bearish')
+    && (opts.bias === 'bullish') !== (sc.direction > 0);
+  const levels = fade ? fadeLevelsChart(sc) : tradeLevelsChart(sc);
   if (Number.isFinite(opts.entry)) levels.entry = opts.entry;
   if (Number.isFinite(opts.stop)) levels.stop = opts.stop;
   if (Number.isFinite(opts.target)) levels.target = opts.target;
@@ -299,8 +322,10 @@ function buildChartPlan(patternId, opts = {}) {
     {
       key: 'plan',
       label: 'Trade plan',
-      caption: `Entry ${levels.entry.toFixed(2)}, stop ${levels.stop.toFixed(2)}, measured target ${levels.target.toFixed(2)}.`,
-      to: Math.min(sc.candles.length, sc.breakoutIdx + 4),
+      caption: fade
+        ? `Fade: ${levels.bull ? 'buy' : 'sell'} the close back inside at ${levels.entry.toFixed(2)}, stop beyond the fakeout ${levels.bull ? 'low' : 'high'} (${levels.stop.toFixed(2)}), target the other side of the range (${levels.target.toFixed(2)}).`
+        : `Entry ${levels.entry.toFixed(2)}, stop ${levels.stop.toFixed(2)}, measured target ${levels.target.toFixed(2)}.`,
+      to: Math.min(sc.candles.length, levels.entryIdx + 4),
       apply(chart) {
         chart.addMarker({
           idx: levels.entryIdx,
@@ -316,9 +341,11 @@ function buildChartPlan(patternId, opts = {}) {
     {
       key: 'follow',
       label: 'Follow-through',
-      caption: sc.outcome === 'success'
-        ? 'Follow-through toward the measured move. Not every pattern gets there — manage risk.'
-        : 'This outcome failed — traps happen; the stop was there for a reason.',
+      caption: fade
+        ? 'The breakout failed: trapped breakout traders exit and fuel the move back across the range.'
+        : sc.outcome === 'success'
+          ? 'Follow-through toward the measured move. Not every pattern gets there — manage risk.'
+          : 'This outcome failed — traps happen; the stop was there for a reason.',
       to: sc.candles.length,
       apply() {},
     },
@@ -328,7 +355,7 @@ function buildChartPlan(patternId, opts = {}) {
     kind: 'chart',
     patternId,
     name,
-    bias: sc.bias,
+    bias: fade ? opts.bias : sc.bias,
     candles: sc.candles,
     steps,
     levels,

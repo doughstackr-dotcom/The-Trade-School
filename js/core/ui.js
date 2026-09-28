@@ -54,7 +54,8 @@ function applyAttrs(el, attrs, isSvg) {
         }
     } else if (key === 'on') {
       for (const [ev, fn] of Object.entries(value)) if (fn) el.addEventListener(ev, fn);
-    } else if (/^on[A-Z]/.test(key) && typeof value === 'function') {
+    } else if (/^on[A-Za-z]/.test(key) && typeof value === 'function') {
+      // onClick and onclick both bind (a function passed to setAttribute would never run).
       el.addEventListener(key.slice(2).toLowerCase(), value);
     } else if (key === 'html') {
       el.innerHTML = value;
@@ -589,7 +590,8 @@ export function choiceQuiz({ question = '', options = [], answer, explain = null
   root.append(grid, status, explainHost);
 
   function choose(i) {
-    if (answered) return;
+    // Options the game locked (aria-disabled, e.g. after "Time's up!") take no answer — click or 1–9 key.
+    if (answered || !buttons[i] || buttons[i].getAttribute('aria-disabled') === 'true') return;
     answered = true;
     const opt = options[i];
     const correct = !!isRight(opt.value);

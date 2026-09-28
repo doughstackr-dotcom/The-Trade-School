@@ -442,6 +442,7 @@ export class GameShell {
   }
 
   correct(text = '', { points = 100 } = {}) {
+    if (this._timedOut) return 0; // a late answer after "Time's up!" scores nothing
     const p = Math.round((points || 0) * this.roundCap);
     this.streak += 1;
     this.corrects += 1;
@@ -466,6 +467,7 @@ export class GameShell {
 
   /** Streak resets; in Survival it costs a life (the run ends at 0 — Next then shows the results). */
   wrong(text = '') {
+    if (this._timedOut) return; // the timeout already counted this round as wrong
     this.streak = 0;
     this.wrongs += 1;
     this._roundWrong = true;
@@ -566,6 +568,7 @@ export class GameShell {
       columns,
       sfx: false,
       onAnswer: (ok, value) => {
+        if (this._timedOut || this.state !== 'play') return;
         const ex = typeof explain === 'function' ? explain(ok, value) : explain;
         if (ok) this.correct(ex || '', { points });
         else this.wrong(ex || '');
@@ -699,6 +702,14 @@ export class GameShell {
     this.roundCap = 1;
     this.isRetry = false;
     this._hintUsedRound = false;
+    // Phones scroll down to Next: start the new round back at the top so the HUD, clock and question show.
+    if (this.round > 1) {
+      try {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      } catch {
+        window.scrollTo(0, 0);
+      }
+    }
     this._runRound();
   }
 
@@ -844,6 +855,7 @@ export class GameShell {
     this._hint = null;
     this._roundWrong = false;
     this._roundOver = false;
+    this._timedOut = false;
     this.source = this.sourcePref === 'real' && this._canReal() ? 'real' : 'textbook';
     this.roundSource = this.source;
     this.real = null;
@@ -1040,6 +1052,7 @@ export class GameShell {
     this._roundToken += 1;
     const token = this._roundToken;
     this._roundOver = false;
+    this._timedOut = false;
     this._roundWrong = false;
     this._hint = null;
     this._hintEl = null;
@@ -1109,6 +1122,7 @@ export class GameShell {
     });
     this.stage.classList.add('is-timeout');
     this.wrong("Time's up!");
+    this._timedOut = true; // ignore late answers (clicks, 1–9 keys, custom UIs) for this round
     this.nextButton();
   }
 

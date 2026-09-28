@@ -82,6 +82,7 @@ type Config = { key?: boolean; feeds?: string; premium?: boolean; limit?: number
 function configure(o: Config = {}) {
   const set = (k: string, v: string | undefined) => (v === undefined ? Deno.env.delete(k) : Deno.env.set(k, v));
   set('ALPHAVANTAGE_API_KEY', o.key === false ? undefined : av.apiKey);
+  set('ALPHA_VANTAGE_API_KEY', undefined); // the fallback spelling; one test sets it
   set('MARKET_EXCHANGE_FEEDS', o.feeds);
   set('ALPHAVANTAGE_PREMIUM', o.premium ? '1' : undefined);
   set('ALPHAVANTAGE_DAILY_LIMIT', o.limit === undefined ? undefined : String(o.limit));
@@ -1002,6 +1003,23 @@ Deno.test('a key pasted with spaces or a newline still works; a blank key is "no
   const r = await call({ symbol: 'QQQ', interval: '1d' });
   assertEquals([r.status, r.body.unconfigured], [503, true]);
   assertEquals(av.calls.length, 1);
+});
+
+Deno.test('the key also works under ALPHA_VANTAGE_API_KEY; ALPHAVANTAGE_API_KEY wins when both are set', async () => {
+  fresh(WED, { key: false });
+  Deno.env.set('ALPHA_VANTAGE_API_KEY', ` ${av.apiKey}\n`);
+  assertEquals((await call({ catalog: true })).body.status, 'ok');
+  assertEquals((await call({ symbol: 'SPY', interval: '1d' })).status, 200);
+  assertEquals(av.calls[0].url.searchParams.get('apikey'), av.apiKey);
+  // A blank preferred name still falls back; a real one is used instead of the fallback.
+  Deno.env.set('ALPHAVANTAGE_API_KEY', ' ');
+  assertEquals((await call({ symbol: 'QQQ', interval: '1d' })).status, 200);
+  assertEquals(av.calls[1].url.searchParams.get('apikey'), av.apiKey);
+  Deno.env.set('ALPHAVANTAGE_API_KEY', av.apiKey);
+  Deno.env.set('ALPHA_VANTAGE_API_KEY', 'other-key');
+  assertEquals((await call({ symbol: 'GLD', interval: '1d' })).status, 200);
+  assertEquals(av.calls[2].url.searchParams.get('apikey'), av.apiKey);
+  Deno.env.delete('ALPHA_VANTAGE_API_KEY');
 });
 
 Deno.test('one series that keeps failing uses at most 4 units a day, so the other markets keep refreshing', async () => {
