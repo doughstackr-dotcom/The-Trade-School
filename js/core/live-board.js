@@ -601,18 +601,7 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
     h('div', { class: 'live__bar row dash-live__bar' },
       h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
       feedEl,
-      updatedEl,
-      h('span', { class: 'grow' }),
-      h('button', {
-        type: 'button',
-        class: 'btn btn--ghost btn--sm',
-        on: {
-          click: () => {
-            refreshQuotes();
-            loadChart(selected);
-          },
-        },
-      }, icon('restart', { size: 14 }), 'Refresh')),
+      updatedEl),
     board,
     h('section', {
       class: 'live-detail card dash-live__detail',
@@ -647,6 +636,7 @@ export function mountLiveMarketsWidget(host, { symbols = DEFAULT_BOARD } = {}) {
       pollTimer = setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
         refreshQuotes();
+        loadChart(selected);
       }, POLL_MS);
       hoursTimer = setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;

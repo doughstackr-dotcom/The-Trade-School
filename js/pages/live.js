@@ -1,7 +1,7 @@
 // Live Market Lab — #live. Quote board (Massive.com via market-data edge function) + detail chart
-// + market-hours clock / session strip + scrolling ticker. Polls quotes every 45s; hours tick
-// every second from the client clock. Educational only.
-import { h, icon } from '../core/ui.js';
+// + market-hours clock / session strip + scrolling ticker. Auto-polls quotes (~45s); hours tick
+// every second. No manual refresh control. Educational only.
+import { h } from '../core/ui.js';
 import { getMarketHoursSnapshot } from '../core/market-hours.js';
 import { sma } from '../core/indicators.js';
 import {
@@ -354,12 +354,7 @@ export default {
       h('div', { class: 'live__bar row' },
         h('p', { class: 'live-status', role: 'status' }, dot, statusEl),
         feedEl,
-        updatedEl,
-        h('span', { class: 'grow' }),
-        h('button', {
-          type: 'button', class: 'btn btn--ghost',
-          on: { click: () => { refreshQuotes(); loadChart(selected); } },
-        }, icon('restart', { size: 14 }), 'Refresh')),
+        updatedEl),
       board,
       h('section', { class: 'live-detail card', 'aria-label': 'Selected market chart' },
         h('h2', { class: 't-18 live-detail__title' }, 'Daily chart'),
@@ -378,6 +373,7 @@ export default {
       pollTimer = setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
         refreshQuotes();
+        loadChart(selected);
       }, POLL_MS);
       hoursTimer = setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
