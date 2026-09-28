@@ -72,11 +72,6 @@ export default {
     const board = h('div', { class: 'live-board', role: 'list', 'aria-label': 'Market quotes' });
     const boardNote = h('p', { class: 'faint live-board__note', hidden: true });
     const chartHost = h('div', { class: 'chart-frame live__chart' });
-    const attrib = h('p', { class: 'faint live-attrib' });
-    const note = h('p', { class: 'faint live-footnote' },
-      'Quotes and daily bars arrive through our server (Massive.com / Polygon-compatible REST) so the browser never sees the API key. ',
-      'Open, high, low and last update as Massive refreshes the daily bar. ',
-      'If a refresh fails we keep the last good numbers and mark them stale. Educational use — not for trading decisions.');
 
     // —— Unified market hours timeline ——————————————————————————————————————
     const hoursHost = h('div', { class: 'live-hours__timeline-host' });
@@ -109,21 +104,9 @@ export default {
       feedEl.dataset.kind = 'live';
     };
 
-    const cleanAttrib = (s) => String(s || '')
-      .replace(/\s*\([^)]*free tier[^)]*\)/gi, '')
-      .replace(/\s*·?\s*Delayed EOD/gi, '')
-      .replace(/end-of-day on free tier[^.;]*/gi, '')
-      .replace(/free[- ]tier[^.·;]*/gi, '')
-      .replace(/\s{2,}/g, ' ')
-      .replace(/\s*·\s*·/g, ' · ')
-      .replace(/^\s*·\s*|\s*·\s*$/g, '')
-      .trim();
-
     const paintUpdated = () => {
       if (!lastFetchedAt) {
-        updatedEl.textContent = unconfigured
-          ? 'Waiting — set MASSIVE_API_KEY'
-          : 'Waiting for first quote…';
+        updatedEl.textContent = 'Waiting for first quote…';
         return;
       }
       const t = new Date(lastFetchedAt);
@@ -136,7 +119,7 @@ export default {
       if (!list.length) {
         tickerTrack.replaceChildren(
           h('span', { class: 'live-ticker__item live-ticker__item--muted' },
-            unconfigured ? 'Configure MASSIVE_API_KEY to load quotes…' : 'Waiting for quotes…'),
+            'Waiting for quotes…'),
         );
         ticker.classList.remove('is-running');
         return;
@@ -269,7 +252,6 @@ export default {
       if (!chartMod) return;
       chartHost.classList.add('is-switching');
       let candles = getCachedCandles(symbol);
-      let chartNote = null;
       let fromNetwork = false;
       if (marketMod?.getCandles) {
         try {
@@ -278,14 +260,6 @@ export default {
             candles = res.candles;
             fromNetwork = true;
           }
-          if (res?.status === 'unconfigured') {
-            chartNote = res.error || 'Daily history not configured — set MASSIVE_API_KEY on the market-data Edge Function.';
-          } else if (res?.attribution) {
-            chartNote = [
-              cleanAttrib(res.attribution),
-              res.stale ? 'Chart cache stale' : null,
-            ].filter(Boolean).join(' · ');
-          }
         } catch {
           candles = null;
         }
@@ -293,12 +267,8 @@ export default {
       let isRealMassive = fromNetwork || (!!candles?.length && !!getCachedCandles(symbol));
       if (!candles?.length && dataMod && !unconfigured) {
         candles = dataMod.randomWalk({ seed: symbol.length * 99, count: 90, drift: 0.0003, vol: 0.012 });
-        chartNote = [attribution, 'Chart: simulated (real daily history unavailable)'].filter(Boolean).join(' · ');
         isRealMassive = false;
-      } else if (!candles?.length && unconfigured) {
-        chartNote = 'Configure MASSIVE_API_KEY (Supabase Edge secret) and redeploy market-data to load real daily bars.';
       }
-      attrib.textContent = [cleanAttrib(attribution), chartNote].filter(Boolean).join(' · ');
       if (!candles?.length) {
         lastCandles = null;
         syncLiveIndicator(null, false);
@@ -349,7 +319,6 @@ export default {
             stale ? 'stale' : 'live',
             stale ? 'Live board · stale data' : 'Live board',
           );
-          attrib.textContent = cleanAttrib(attribution);
           const sel = quotes.find((q) => q.symbol === selected && q.ok);
           if (sel) patchChartFromQuote(sel);
         } else if (lastQuotes.some((q) => q.ok)) {
@@ -362,11 +331,8 @@ export default {
           }));
           setStatus(
             'offline',
-            unconfigured
-              ? 'Configure MASSIVE_API_KEY (Edge secret) then redeploy market-data'
-              : (res.error || 'Quotes unavailable'),
+            unconfigured ? 'Live quotes unavailable' : (res.error || 'Quotes unavailable'),
           );
-          attrib.textContent = cleanAttrib(res.error || attribution || '');
         }
       } catch (err) {
         if (lastQuotes.some((q) => q.ok)) {
@@ -408,9 +374,7 @@ export default {
       board,
       h('section', { class: 'live-detail card', 'aria-label': 'Selected market chart' },
         h('h2', { class: 't-18 live-detail__title' }, 'Daily chart'),
-        chartHost,
-        attrib),
-      note,
+        chartHost),
       h('p', { class: 'faint' }, 'Educational only — not financial advice.')));
 
     paintBoard();
