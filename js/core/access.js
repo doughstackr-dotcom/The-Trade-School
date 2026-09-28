@@ -224,7 +224,7 @@ export function requiredPlan(entryOrMode) {
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'dashboard', 'progress', // #progress aliases to dashboard
-  'library', 'glossary', 'playbook', 'live', 'affiliate',
+  'library', 'glossary', 'playbook', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);
 
@@ -257,7 +257,7 @@ export function peekReturn() {
 
 /**
  * True for Beginner / Advanced tracks and their lessons/games (tier beginner|advanced|both).
- * Only these are auth-gated; Home, Dashboard, Library, Playbook, Live, Glossary, Affiliate stay public.
+ * Only these are auth-gated; Home, Dashboard, Library, Playbook, Live, Glossary, Platforms stay public.
  */
 export function isCurriculumGated(entry, route = null) {
   if (route?.page === 'track') {
@@ -275,7 +275,7 @@ export function isCurriculumGated(entry, route = null) {
 
 /**
  * True when the current user may open this route.
- * When ACCESS_MODE enforces: Home / Dashboard / Library / Playbook / Live / Glossary / Affiliate stay
+ * When ACCESS_MODE enforces: Home / Dashboard / Library / Playbook / Live / Glossary / Platforms stay
  * open; Beginner + Advanced tracks and their lessons/games need a signed-in session.
  * Signed-in free members still need the right plan for paid modules (FREE_IDS stay free).
  */

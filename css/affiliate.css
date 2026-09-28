@@ -1,14 +1,42 @@
-/* Affiliate partners page
-   Hierarchy: risk banner → intro + disclosure → categorized rails → coming soon.
+/* Platforms page (file: affiliate.*)
+   Hierarchy: intro → Trading platforms rails → coming soon → disclosure → full-width risk banner.
    Surfaces/text/borders use design tokens so light & dark themes stay native.
    Brand logos sit on a near-white pad (official marks assume a light ground);
    no invert filter — pad keeps marks readable in both themes. */
 
+.affiliate {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-top: 16px;
+  padding-bottom: 56px;
+}
+
+.aff-intro {
+  max-width: 44rem;
+}
+
+.aff-partners {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.aff-disclaimer {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+/* Full-width horizontal risk banner (edge-to-edge inside .container) */
 .aff-risk {
-  margin: 8px 0 4px;
-  padding: 18px 20px;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 8px 0 0;
+  padding: 20px 24px;
   border: 2px solid #c62828;
-  border-radius: var(--radius);
+  border-radius: 0;
   background: color-mix(in oklab, #c62828 10%, var(--surface));
 }
 
@@ -19,6 +47,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.35;
+  text-align: center;
   text-wrap: balance;
 }
 
@@ -39,22 +68,6 @@
   :root:not([data-theme]) .aff-risk__text {
     color: #ff6b6b;
   }
-}
-
-.affiliate {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  padding-top: 16px;
-  padding-bottom: 56px;
-}
-
-.aff-intro {
-  max-width: 44rem;
-}
-
-.aff-disclaimer {
-  max-width: 720px;
 }
 
 .aff-disclaimer p + p {

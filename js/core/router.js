@@ -1,5 +1,5 @@
 // Hash router. Routes are plain tokens: #home, #beginner, #advanced, #library(.<id>),
-// #dashboard (#progress aliases here), #glossary, #affiliate, #playbook(.<setupId>), #live,
+// #dashboard (#progress aliases here), #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #live,
 // #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
@@ -12,7 +12,7 @@ const PAGE_PATHS = {
   // progress aliases to the merged dashboard (Progress visual shell + curriculum map).
   progress: '../pages/progress.js',
   glossary: '../pages/glossary.js',
-  affiliate: '../pages/affiliate.js',
+  platforms: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
   dashboard: '../pages/progress.js',
@@ -80,10 +80,12 @@ export function parseHash(hash) {
   }
   // #progress is an alias of #dashboard (merged progress + curriculum page).
   if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
+  // #affiliate is an alias of #platforms (renamed partners page).
+  if (token === 'affiliate') return { key: 'affiliate', kind: 'page', page: 'platforms' };
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'affiliate' || token === 'live' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -96,7 +98,7 @@ function titleFor(route, entry) {
     case 'track': return `${entry ? entry.title : 'Track'} · ${SITE}`;
     case 'library': return `Pattern Library · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
-    case 'affiliate': return `Affiliate · ${SITE}`;
+    case 'platforms': return `Platforms · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
     case 'dashboard': return `Dashboard · ${SITE}`;

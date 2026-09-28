@@ -438,13 +438,13 @@ export const ARCADE_FILTERS = [
   { id: 'live', label: 'Live', kinds: ['live'] },
 ];
 
-/** Stand-alone pages (routes: #playbook, #playbook.<setupId>, #live, #affiliate). */
+/** Stand-alone pages (routes: #playbook, #playbook.<setupId>, #live, #platforms; #affiliate aliases to platforms). */
 export const PAGES = [
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',
     blurb: 'A live chart with indicator toggles and a plain-English read of trend, levels and patterns.' },
-  { id: 'affiliate', title: 'Affiliate', hash: 'affiliate', param: false, path: './pages/affiliate.js',
+  { id: 'platforms', title: 'Platforms', hash: 'platforms', param: false, path: './pages/affiliate.js',
     blurb: 'Trading platforms and tools we partner with — affiliate / referral links with clear placeholders until filled.' },
 ];
 

@@ -19,10 +19,10 @@ function memStorage() {
   };
 }
 
-test('PUBLIC_PAGES keeps home, dashboard, tools and affiliate open', () => {
+test('PUBLIC_PAGES keeps home, dashboard, tools and platforms open', () => {
   for (const p of [
     'home', 'dashboard', 'progress', 'library', 'glossary',
-    'playbook', 'live', 'affiliate', 'account', 'paywall',
+    'playbook', 'live', 'platforms', 'affiliate', 'account', 'paywall',
   ]) {
     assert.ok(PUBLIC_PAGES.includes(p), `expected ${p} in PUBLIC_PAGES`);
   }
@@ -36,6 +36,7 @@ test('isCurriculumGated: only Beginner/Advanced tracks and their modules', () =>
   assert.equal(isCurriculumGated(null, { page: 'track', tier: 'advanced' }), true);
   assert.equal(isCurriculumGated(null, { page: 'home' }), false);
   assert.equal(isCurriculumGated(null, { page: 'dashboard' }), false);
+  assert.equal(isCurriculumGated(null, { page: 'platforms' }), false);
   assert.equal(isCurriculumGated(null, { page: 'affiliate' }), false);
   assert.equal(isCurriculumGated(null, { page: 'library' }), false);
   assert.equal(isCurriculumGated(null, { page: 'playbook' }), false);
@@ -81,6 +82,7 @@ test('canOpen (unsigned, enforcing): public pages yes; curriculum no', async () 
   // ACCESS_MODE auto + no browser location → isEnforcing() true; session stays null.
   assert.equal(canOpen(null, { page: 'home' }), true);
   assert.equal(canOpen(null, { page: 'dashboard' }), true);
+  assert.equal(canOpen(null, { page: 'platforms' }), true);
   assert.equal(canOpen(null, { page: 'affiliate' }), true);
   assert.equal(canOpen(null, { page: 'library' }), true);
   assert.equal(canOpen(null, { page: 'playbook' }), true);

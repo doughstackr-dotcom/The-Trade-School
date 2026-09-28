@@ -15,7 +15,7 @@ const NAV = [
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
   { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
-  { hash: 'affiliate', label: 'Affiliate', icon: 'spark', tab: false, wide: true },
+  { hash: 'platforms', label: 'Platforms', icon: 'spark', tab: false, wide: true },
 ];
 
 /** Small pulsing dot marking the Live Market Lab link. */
@@ -58,7 +58,7 @@ function navKeyFor(route, entry) {
   if (route.kind === 'page') {
     if (route.page === 'track') return route.tier;
     if (route.page === 'progress') return 'dashboard';
-    if (['library', 'glossary', 'playbook', 'live', 'dashboard', 'account', 'affiliate'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'dashboard', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if ((route.kind === 'lesson' || route.kind === 'game') && entry) {
@@ -193,7 +193,7 @@ function buildShell(app) {
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
         h('a', { href: '#glossary' }, 'Glossary'),
-        h('a', { href: '#affiliate' }, 'Affiliate'),
+        h('a', { href: '#platforms' }, 'Platforms'),
         h('a', { href: '#account' }, 'Account'))));
 
   app.replaceChildren(skip, header, main, footer, tabbar);
