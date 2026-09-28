@@ -1,5 +1,5 @@
 // Access control (ARCHITECTURE §9): Supabase session + access_level, FREE_IDS, plan unlocks.
-// Client-side gating is UX; PREMIUM_SOURCE='storage' is the real content lock (see docs/SECRETS.md).
+// Client-side gating is UX only; PREMIUM_SOURCE='storage' is not implemented yet (docs/ACCOUNTS.md §10).
 import {
   SUPABASE_URL, SUPABASE_KEY, PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE,
 } from '../config.js';
