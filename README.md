@@ -30,16 +30,17 @@ Two tracks. Each unit pairs a lesson with a game that drills the same skill.
 
 | # | Unit | Lesson | Game |
 |---|------|--------|------|
-| 1 | Markets, orders & the spread | Markets, orders and the spread | **Order Desk** — fill client orders on a live price ladder |
-| 2 | Candlestick anatomy | Anatomy of a candlestick | **Candle Builder** — build the candle a story describes |
-| 3 | Chart types, scales & timeframes | Chart types, scales and timeframes | **Chart Match** — flip cards to match candles, chart types and patterns |
+| 1 | Candlestick anatomy | Anatomy of a candlestick | **Candle Builder** — build the candle a story describes |
+| 2 | Chart types, scales & timeframes | Chart types, scales and timeframes | **Chart Match** — flip cards to match candles, chart types and patterns |
+| 3 | Risk & position sizing | Risk & position sizing (1% guideline, size from the stop, R, expectancy, drawdown, leverage & margin, costs) | **Risk Manager** — size positions, place stops and targets (Advanced-tier game, also paired here) |
 | 4 | Candlestick patterns | Candlestick patterns | **Pattern Flash** — name the pattern before the clock runs out |
 | 5 | Trends & market structure | Trends & market structure | **Trend Spotter** — call the trend, tag HH / HL / LH / LL |
 | 6 | Support & resistance | Support & resistance | **Level Hunter** — place the levels, call bounce or break |
 | 7 | Trend lines & channels | Trend lines & channels | **Trendline Challenge** — draw the line that best fits the swings |
-| 8 | Moving averages | Moving averages | **Cross Catcher** — catch golden and death crosses on a replay |
+| 8 | Moving averages | Moving averages (SMA vs EMA lag, dynamic support, crosses) | **Cross Catcher** — catch golden and death crosses on a replay |
 | 9 | Volume | Volume: the fuel behind moves | **Volume Verdict** — swipe: does volume confirm the move, or is it a trap? |
-| 10 | Put it together | — | **What Happens Next?** (Beginner mode), **Setup Swipe** — take or skip rapid-fire setups, **Daily Challenge** — five questions a day, keep your streak |
+| 10 | Markets, orders & the spread | Markets, orders and the spread (incl. stop-limit, trailing stops, time in force, gaps) | **Order Desk** — fill client orders on a live price ladder |
+| 11 | Put it together | — | **What Happens Next?** (Beginner mode), **Setup Swipe** — take or skip rapid-fire setups, **Daily Challenge** — five questions a day, keep your streak |
 
 ### Advanced — *Plan the trade*
 
@@ -50,8 +51,8 @@ Two tracks. Each unit pairs a lesson with a game that drills the same skill.
 | 3 | Indicators & divergence | Indicators & divergence (RSI, MACD, Bollinger, volume) | **Divergence Detective** — spot divergence before the turn |
 | 4 | Multi-timeframe analysis | Multi-timeframe analysis | **Timeframe Stack** — trade only when the timeframes agree |
 | 5 | Breakouts, fakeouts & liquidity | Breakouts, fakeouts and liquidity | **Trap or Trade** — trade the break, fade the trap, or wait for the retest |
-| 6 | Confluence, timing & risk | Confluence, timing & risk | **Risk Manager** — size positions, place stops and targets |
-| 7 | Trading psychology & your plan | Trading psychology and your plan | **Tilt Control** — a branching trading day full of temptations |
+| 6 | Confluence, timing & risk | Confluence, timing & risk (builds on Beginner risk: ATR-based stops, backtesting and its pitfalls) | **Risk Manager** — size positions, place stops and targets |
+| 7 | Trading psychology & your plan | Trading psychology and your plan (incl. trading journal & reviews) | **Tilt Control** — a branching trading day full of temptations |
 | 8 | Capstone | — | **What Happens Next?** (Advanced mode), **Trade Simulator** — replay a market bar by bar, **Live Predict** — call the next candles on a live or replayed real chart |
 
 ### Play your way
