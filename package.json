@@ -11,13 +11,16 @@
   "scripts": {
     "serve": "node scripts/serve.mjs . --port=5173 --no-vercel",
     "build": "node scripts/build.mjs",
+    "build:storage": "node scripts/build.mjs --premium-source=storage",
     "serve:dist": "node scripts/serve.mjs dist --port=4173",
     "test": "node --test tests/unit/*.test.mjs",
     "smoke": "node tests/smoke.mjs",
     "smoke:dist": "npm run build && node tests/smoke.mjs --dist",
+    "smoke:premium": "node scripts/build.mjs --premium-source=storage && node tests/smoke.mjs --premium",
     "test:all": "npm test && npm run smoke",
     "lint": "eslint .",
-    "test:functions": "deno test --no-config --node-modules-dir=none --allow-env --allow-read=supabase --allow-net=127.0.0.1 supabase/functions/tests/"
+    "test:functions": "deno test --no-config --node-modules-dir=none --allow-env --allow-read=supabase --allow-net=127.0.0.1 supabase/functions/tests/",
+    "publish:premium": "node scripts/publish-premium.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

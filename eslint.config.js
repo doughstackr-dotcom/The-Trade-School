@@ -4,7 +4,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['node_modules/', 'dist/', 'tests/screenshots/', 'supabase/', 'js/vendor/'],
+    ignores: ['node_modules/', 'dist/', 'dist-premium/', 'tests/screenshots/', 'supabase/', 'js/vendor/'],
   },
   {
     files: ['js/**/*.js'],
