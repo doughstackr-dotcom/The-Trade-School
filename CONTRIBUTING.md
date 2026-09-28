@@ -26,8 +26,11 @@ Node 22 or newer is required (the unit-test loader relies on Node 22's
 
 ## Ground rules
 
-- **No build step, no framework, no runtime dependency.** If a change needs a bundler or an
-  npm package at runtime, it needs a discussion first.
+- **No build step to develop, no framework, no runtime dependency.** The source runs as-is
+  (`npm run serve`); `npm run build` only minifies and content-hashes it for deploys. If a
+  change needs a bundler or an npm package at runtime, it needs a discussion first.
+- **Links use paths** (`href: '/dashboard'`, `pathFor(id)` for lessons / games), never `#…`
+  routes, and asset URLs are absolute (`/assets/…`) so they resolve on deep paths.
 - **Content lives in `js/lessons/` and `js/games/`.** Each module lazy-loads and default-exports
   `{ id, mount(root, ctx) → cleanup }`, building on the shared `LessonShell` / `GameShell`.
   Start from an existing module and keep its shape; `docs/ARCHITECTURE.md` §12.10 has the
@@ -40,5 +43,5 @@ Node 22 or newer is required (the unit-test loader relies on Node 22's
 
 ## Reporting bugs
 
-Open an issue with the route (e.g. `#g/fib-sniper`), browser, viewport and what you expected.
+Open an issue with the route (e.g. `/games/fib-sniper`), browser, viewport and what you expected.
 Screenshots from `tests/screenshots/` are welcome context.

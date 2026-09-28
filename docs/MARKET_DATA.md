@@ -163,7 +163,7 @@ adapter.
 
 ## 7. Live Lab quotes (Massive.com)
 
-The Live Market Lab (`#live`) needs last price / daily change for a quote board. Alpha Vantage’s
+The Live Market Lab (`/live`) needs last price / daily change for a quote board. Alpha Vantage’s
 free key is already used for candle history, so quotes use **Massive.com** (formerly Polygon.io;
 Polygon-compatible REST at `api.massive.com`), fetched **server-side** inside the `market-data`
 Edge Function (`POST { quotes: true, symbols: [...] }`).

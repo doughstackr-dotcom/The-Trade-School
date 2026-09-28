@@ -17,8 +17,8 @@ in your browser.
 
 ## Dashboard & access
 
-- **`#dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
-- **`#account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
+- **`/dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
+- **`/account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
 - Access gating: `js/core/access.js` + router `setAccessGate`. Free ids (`FREE_IDS` in `js/config.js`): the Daily Challenge and the Risk & position sizing lesson. See `docs/SECRETS.md`.
 
 
@@ -65,37 +65,77 @@ between **Textbook** charts (clean generated examples) and **Real market** chart
 windows from real markets, with the symbol and date revealed after you answer).
 
 Also included: a searchable **glossary** (85+ terms), a **pattern library**, the **Setup
-Playbook** (`#playbook`: rule-based setups with a checklist, entry, stop and target), the **Live
-Market Lab** (`#live`), and a **progress** page with levels (Paper Trader → Market Wizard),
+Playbook** (`/playbook`: rule-based setups with a checklist, entry, stop and target), the **Live
+Market Lab** (`/live`), and a **progress** page with levels (Paper Trader → Market Wizard),
 badges, best scores per play style and your Daily Challenge streak.
 
 ## Run it locally
 
-There is no build step and no runtime dependency. Serve the repository root with any static
-server and open it in a browser:
+There is no build step needed to develop and no runtime dependency. Serve the repository root
+and open it in a browser:
 
 ```sh
-npm run serve            # npx http-server -c-1 -p 5173 .   → http://localhost:5173
-# or
-python3 -m http.server 5173
+npm ci                   # dev tooling (lint, esbuild, Playwright) — not needed by the site
+npm run serve            # node scripts/serve.mjs → http://localhost:5173
 ```
 
-Opening `index.html` straight from the file system will not work, because browsers block
-ES-module imports from `file://` URLs.
+Pages have clean URLs (`/dashboard`, `/games/fib-sniper`, `/lessons/fibonacci`), so the server
+must answer unknown extension-less paths with `index.html`; `npm run serve` does that. (A plain
+file server such as `python3 -m http.server` only works when you start from `/` and click
+around.) Opening `index.html` from the file system will not work: browsers block ES-module
+imports from `file://` URLs.
 
-## Deploy (static host)
+To try the production build locally, with the same headers (CSP, caching) and rewrites as
+Vercel:
 
-This is **vanilla JS with native `import()`** — not Vite. There is no `vite.config`, no
-`dist/` folder, and no hashed route chunks. A host that runs `vite build` or looks for
-`/assets/index-*.js` will 404 every lazy route.
+```sh
+npm run build            # → dist/
+npm run serve:dist       # → http://127.0.0.1:4173
+```
 
-For Vercel (free tier): import the repo, Framework Preset **Other**, leave Build Command
-empty, Output Directory `.` (or rely on the included `vercel.json`). Deploy the feature
-branch as a static site. Attach the custom domain `thetradeschool.online` in Vercel → Project → Domains.
+## Routing
+
+The app is a single page with History API routing (`js/core/router.js`, mapping in
+`js/core/routes.js`): `/`, `/dashboard`, `/games`, `/games/<gameId>`, `/lessons/<lessonId>`,
+`/library(/<patternId>)`, `/playbook(/<setupId>)`, `/glossary`, `/live`, `/platforms`,
+`/account(/signup)`, `/paywall`, `/privacy`, `/terms`, `/refunds`. Old hash links from before
+(`/#l.fibonacci`, `/#dashboard`) are redirected to their path. Each route sets its own title,
+meta description and canonical link. See ARCHITECTURE §3.
+
+## Deploy (Vercel)
+
+Production: **https://thetradeschool.online** on Vercel, configured by `vercel.json`:
+
+- Install `npm ci`, build `npm run build`, output directory **`dist/`**. The build
+  (`scripts/build.mjs`, esbuild) minifies every JS/CSS file, content-hashes the file names
+  and rewrites every import and module path to them. Modules stay unbundled native ES
+  modules (one lazy file per page / lesson / game). Only the site's own files ship — not
+  `docs/`, `tests/`, `supabase/` or package files — and dev-only pages are left out.
+- Every extension-less path is rewritten to `/index.html` (clean URLs); real files win.
+- Hashed files are cached forever (`immutable`); `index.html` and everything else is
+  `no-cache`, so a deploy is live on the next page load. If an open tab asks for a file the
+  new deploy removed, it reloads itself once.
+- Security headers on every route: Content-Security-Policy, HSTS (preload), nosniff,
+  Referrer-Policy, Permissions-Policy (details and reasoning: ARCHITECTURE §13). Adding a new
+  external host (API, fonts, images) means updating the CSP in `vercel.json`; `npm run
+  smoke:dist` fails on any CSP violation.
+
+In Vercel → Project → Settings → Build & Deployment the Framework Preset is **Other**; leave
+the build / output / install overrides off so `vercel.json` applies. The custom domain is
+attached under Project → Domains.
+
+After switching to clean paths, these outside settings must list the new URLs:
+
+- **Supabase → Authentication → URL Configuration**: Site URL `https://thetradeschool.online`;
+  Redirect URLs include `https://thetradeschool.online/**` (sign-up confirmation emails return
+  to `/account`) and `http://localhost:5173/**`.
+- **Supabase Edge Functions**: redeploy `create-checkout` and `customer-portal` (Stripe now
+  returns to `/account`): `supabase functions deploy create-checkout customer-portal`.
 
 SEO files use the site's domain `https://thetradeschool.online` — if the domain changes, update
-the canonical / `og:url` / `og:image` / `twitter:image` tags and JSON-LD in
-`index.html`, the `Sitemap:` line in `robots.txt`, and `sitemap.xml`.
+the canonical / `og:url` / `og:image` / `twitter:image` tags and JSON-LD in `index.html`,
+`SITE_ORIGIN` in `js/core/routes.js`, the `Sitemap:` line in `robots.txt`, `sitemap.xml`, and
+the Supabase host in the CSP of `vercel.json` if the project changes.
 
 Basic browsing works without env vars. Real-market charts need the Supabase `market-data`
 edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `docs/SECRETS.md`).
@@ -107,17 +147,22 @@ edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `do
 npm run lint             # ESLint over the site JS
 npm test                 # node --test "tests/unit/*.test.mjs" — core-module unit tests (no DOM)
 npm run smoke            # node tests/smoke.mjs     — every route in Chromium
-npm run test:all         # lint + unit + smoke — must pass before pushing (CI runs the same)
+npm run smoke:dist       # build, then smoke dist/ with the vercel.json headers (CSP)
+npm run test:all         # lint + unit + smoke — must pass before pushing
 npm run test:functions   # Deno tests for the Supabase edge functions (needs Deno installed)
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint + unit tests and the smoke suite on every push and
-pull request.
+CI (`.github/workflows/ci.yml`) runs lint, unit tests, the build and an advisory
+`npm audit --audit-level=high`; the smoke suite against the source and against `dist/` (CSP
+enforced); and the Deno Edge Function tests — on every push and pull request (a newer push
+to the same branch cancels the running workflow).
 
 The smoke test starts its own static server, opens every page, lesson and game at desktop
 (1280×800), tablet (820×1180) and phone (390×844) sizes in light and dark themes, clicks through the first
-screen (Start / Next), and fails on console errors, page errors, failed requests or horizontal
-scrolling. Screenshots land in `tests/screenshots/` (git-ignored).
+screen (Start / Next), and fails on console errors, page errors, Content-Security-Policy
+violations, failed requests or horizontal scrolling. It opens routes by their path and also
+checks that old hash URLs redirect and that links navigate with the History API. Screenshots
+land in `tests/screenshots/` (git-ignored).
 
 ```sh
 node tests/smoke.mjs g.fib-sniper      # one route (prefixes work too: "g." = every game)
@@ -125,6 +170,8 @@ node tests/smoke.mjs --phone --dark    # one viewport / theme
 node tests/smoke.mjs --no-shots        # skip screenshots
 node tests/smoke.mjs --fonts           # load Google Fonts (uses $HTTPS_PROXY if set)
 node tests/smoke.mjs --no-storage      # every localStorage call throws (private-mode check)
+node tests/smoke.mjs legacy            # only the hash-redirect / navigation checks
+node tests/smoke.mjs --dist            # test dist/ (run `npm run build` first) with vercel.json headers
 ```
 
 Playwright is resolved from a local `node_modules` or the global npm root; it is only needed
@@ -133,7 +180,7 @@ for the smoke test.
 ## Project structure
 
 ```
-index.html            HTML shell: fonts, stylesheets, <div id="app">, js/main.js
+index.html            HTML shell: fonts, stylesheets, <div id="app">, js/main.js (absolute /… URLs)
 css/
   tokens.css          design tokens (light on :root, dark via media query + [data-theme])
   base.css            reset, type scale, layout primitives
@@ -142,10 +189,13 @@ css/
 js/
   main.js             app shell (top bar, phone tab bar, footer) + router start
   registry.js         curriculum catalogue: tiers, units, lessons, games, badges (pure data)
-  core/               router, store, ui kit, game-kit, lesson-kit, chart engine, data, indicators
+  core/               router + routes, store, ui kit, game-kit, lesson-kit, chart engine, data, indicators
   pages/              home, track, library, progress, glossary, playbook, live, dev-chart
   lessons/<id>.js     one module per lesson
   games/<id>.js       one module per game
+scripts/
+  build.mjs           production build → dist/ (minify, content hashes, rewritten imports)
+  serve.mjs           local static server: clean-path fallback, vercel.json headers
 tests/
   unit/               node:test unit tests
   smoke.mjs           Playwright smoke test
@@ -154,7 +204,7 @@ supabase/
   functions/          Deno edge functions: market-data proxy, billing (see docs/ACCOUNTS.md)
   migrations/         accounts, subscriptions and billing schema
 docs/
-  ARCHITECTURE.md     the build contract: routes, module API, design system, core APIs
+  ARCHITECTURE.md     the build contract: routes, module API, design system, core APIs, deploy
   ACCOUNTS.md         owner guide: Supabase, Stripe and premium-module setup
   MARKET_DATA.md      the market-data function: sources, budget, caching
 ```

@@ -37,7 +37,7 @@ Configure in Dashboard → Authentication (not Edge secrets):
 
 | Setting | Purpose |
 |---|---|
-| Site URL + Redirect URLs | PKCE return to `#account` / hash routes |
+| Site URL + Redirect URLs | Site URL `https://thetradeschool.online`; Redirect URLs must include `https://thetradeschool.online/account` (sign-up confirmation returns there with `?code=`, PKCE) — add `http://localhost:5173/account` for local testing |
 | Email confirmations | Keep on for production |
 | Custom SMTP (Resend, Postmark, SendGrid, SES, Brevo, …) | **Required before public launch** — built-in mail only reaches project team members |
 | Optional Google OAuth | Reduces email friction |

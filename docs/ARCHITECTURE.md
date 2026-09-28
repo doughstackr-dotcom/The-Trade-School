@@ -10,10 +10,12 @@ public API described here, update this file in the same change.
 
 ## 1. Ground rules
 
-- **No build step, no runtime dependencies.** Vanilla ES modules, HTML, CSS, inline SVG.
-  The site must run by serving the repo root with any static server
-  (`npx http-server -c-1 .` or `python3 -m http.server`). It must also work when every
-  file is published side-by-side on a static host (GitHub Pages, claude.ai artifact).
+- **No build step needed to run it, no runtime dependencies.** Vanilla ES modules, HTML,
+  CSS, inline SVG. The site runs by serving the repo root with a static server that answers
+  unknown extension-less paths with `index.html` (`npm run serve`); pages use clean paths
+  (`/games/fib-sniper`), so a plain file server only works from `/`. Production ships the
+  output of `npm run build` (`dist/`: minified, content-hashed files, still one ES module per
+  source file) — see §13.
 - Only external resource allowed: Google Fonts stylesheet (`fonts.googleapis.com`) with
   real fallback stacks. No CDNs, no images from other hosts, no fetch() to other hosts.
 - All pictures, diagrams and animations are drawn in code (SVG, occasionally Canvas).
@@ -37,7 +39,8 @@ css/components.css         buttons, cards, chips, quiz options, toasts, modal, m
 css/chart.css              .tc-* classes used by js/core/chart.js
 js/main.js                 boot: render shell, start router
 js/registry.js             curriculum catalogue (PURE DATA, importable from node)
-js/core/router.js          hash router
+js/core/router.js          History API router (clean paths; old #hash URLs redirect)
+js/core/routes.js          route token <-> URL path mapping, canonical paths (pure)
 js/core/store.js           progress: XP, levels, completions, badges, settings
 js/core/rng.js             seeded PRNG + helpers
 js/core/data.js            OHLC generators (random walk, path-following, trends, timeframe aggregation)
@@ -57,14 +60,17 @@ js/pages/library.js        pattern library (candlestick + chart patterns) with d
 js/pages/progress.js       XP, level, badges, per-module best scores
 js/pages/glossary.js       searchable glossary of terms
 js/pages/dev-chart.js      hidden kitchen-sink page exercising every CandleChart feature
-js/pages/playbook.js       #playbook Setup Playbook · js/pages/live.js  #live Live Market Lab (§12.6)
+js/pages/playbook.js       /playbook Setup Playbook · js/pages/live.js  /live Live Market Lab (§12.6)
 js/lessons/<id>.js         one file per lesson (see registry)
 js/games/<id>.js           one file per game (see registry)
 tests/unit/*.test.mjs      node:test unit tests for js/core (no DOM)
 tests/smoke.mjs            Playwright: every route, console errors, screenshots
 tests/fixtures/market/     market-data test fixtures (mock mode) + build-fixtures.mjs
 tests/visual/              contact sheets: patterns.html (generators), setups.html (scanner)
-package.json               scripts only; no dependencies required at runtime
+package.json               scripts + dev tooling only; no dependencies required at runtime
+scripts/build.mjs          production build → dist/ (§13)
+scripts/serve.mjs          static server with SPA fallback and vercel.json headers
+vercel.json                Vercel build settings, rewrites, security + cache headers
 ```
 
 Lessons and games may add private helper files next to themselves using the prefix of
@@ -73,19 +79,41 @@ another module.
 
 ## 3. Routing and the module contract
 
-Routes are plain hash tokens (letters, digits, `-`, `_`, `.` only — no slashes, no `=`):
+URLs are clean paths handled by the History API router (`js/core/router.js`, `pushState` +
+`popstate`; same-origin `<a>` clicks are intercepted). Internally every route is a short
+**token** — the old hash route without `#` (letters, digits, `-`, `_`, `.`) — and
+`js/core/routes.js` maps tokens to paths and back:
 
-| hash                | page                                  |
-|---------------------|---------------------------------------|
-| `#home` or empty    | home                                  |
-| `#beginner`         | beginner track                        |
-| `#advanced`         | advanced track                        |
-| `#library`          | pattern library (`#library.<patternId>` opens one pattern) |
-| `#progress`         | progress & badges                     |
-| `#glossary`         | glossary                              |
-| `#l.<lessonId>`     | lesson                                |
-| `#g.<gameId>`       | game                                  |
-| `#dev-chart`        | chart kitchen sink (not linked in nav)|
+| path                         | token                | page                                   |
+|------------------------------|----------------------|----------------------------------------|
+| `/`                          | `home`               | home                                   |
+| `/dashboard`                 | `dashboard`          | dashboard (`/progress` is an alias; `/beginner`, `/advanced` scroll to a track) |
+| `/games`                     | `games`              | games hub                              |
+| `/lessons/<lessonId>`        | `l.<lessonId>`       | lesson                                 |
+| `/games/<gameId>`            | `g.<gameId>`         | game                                   |
+| `/library`, `/library/<id>`  | `library(.<id>)`     | pattern library / one pattern          |
+| `/playbook`, `/playbook/<id>`| `playbook(.<id>)`    | setup playbook / one setup             |
+| `/glossary`, `/live`, `/platforms` (`/affiliate` alias) | same | glossary, Live Market Lab, platforms |
+| `/account`, `/account/signup`| `account(.signup)`   | account (sign in / create account)     |
+| `/paywall`                   | `paywall`            | plans                                  |
+| `/privacy`, `/terms`, `/refunds` | same             | legal pages                            |
+| `/dev-chart`                 | `dev-chart`          | chart kitchen sink (localhost only, not in production builds) |
+
+- Links use the path form: `href: '/dashboard'`, `href: pathFor(id)` (registry helper for a
+  lesson / game). `navigate()` accepts a token (`'g.fib-sniper'`), a path or an old `#hash`.
+- **Backward compatibility:** an old hash URL (`/#l.fibonacci`, `/#dashboard`, a stale
+  `href="#games"`) is rewritten to its path with `replaceState` on load and on `hashchange`.
+  Hashes that are not routes are left alone: in-page anchors (`#main` skip link, `#pricing`
+  — scrolled into view once the page mounts) and Supabase auth callbacks (`#access_token=…`;
+  PKCE uses `?code=…`).
+- Each navigation sets `document.title`, the meta description, `<link rel="canonical">` and
+  `og:url` (on `https://thetradeschool.online`, `SITE_ORIGIN` in routes.js; aliases point at
+  their main path) and `noindex` for not-found, account and paywall pages.
+- Hosting must answer every extension-less path with `index.html` (vercel.json `rewrites`;
+  `scripts/serve.mjs` locally) and all asset URLs in `index.html` are absolute (`/css/…`).
+- A failed dynamic `import()` (after a redeploy the old hashed file is gone) reloads the page
+  once; a `sessionStorage` flag (`tts-chunk-reload`, cleared after the next successful mount)
+  prevents loops, and without storage the error card shows instead.
 
 Every lesson and game file default-exports:
 
@@ -728,9 +756,10 @@ LEVELS = Paper Trader (0) · Chart Reader (150) · Swing Spotter (400) · Level 
   neckline / boundaries, target and confirmation level drawn in. Query: `?theme=dark`,
   `?only=candle|chart`, `?id=<patternId>`, `?seeds=1,2,3`, `?zoom=6`, `?fail=0`.
 - `npm run smoke` → `node tests/smoke.mjs`: starts a static server on a free port, opens
-  every route (desktop 1280×800 and phone 390×844, light and dark), fails on any console
-  error / page error / failed request, saves screenshots to `tests/screenshots/`
-  (git-ignored). `node tests/smoke.mjs g.fib-sniper` checks a single route.
+  every route by its path (desktop, tablet and phone, light and dark), fails on any console
+  error / page error / CSP violation / failed request, saves screenshots to
+  `tests/screenshots/` (git-ignored). `node tests/smoke.mjs g.fib-sniper` checks a single
+  route; `--dist` runs against the production build with the vercel.json headers (§11.8).
 - Playwright is resolved from the local `node_modules` or, failing that, the global npm
   root. Chromium path: `PLAYWRIGHT_BROWSERS_PATH` or `/opt/pw-browsers/chromium`.
 
@@ -766,10 +795,10 @@ js/core/auth.js      session, sign up/in/out, magic link, password reset, access
 js/core/access.js    requiredPlan(entry | mode) and canOpen(); lock labels for the UI
 js/core/sync.js      merges local progress with the `progress` row and pushes debounced
 js/pages/pricing.js  #pricing      plan cards, FAQ, current plan
-js/pages/account.js  #account      profile, plan status, manage billing, sign out
+js/pages/account.js  /account      profile, plan status, manage billing, sign out
 js/pages/auth.js     #signin #signup #reset #reset.update
 js/pages/paywall.js  rendered by the router in place of a locked lesson/game
-js/pages/legal.js    #terms #privacy (drafts for the owner to review)
+js/pages/legal.js    /terms /privacy /refunds (drafts for the owner to review)
 ```
 
 `auth` API:
@@ -793,10 +822,11 @@ auth.openBillingPortal()                // redirects to the Stripe customer port
 auth.on('change', fn) / auth.off('change', fn)
 ```
 
-- PKCE flow (`flowType: 'pkce'`), so email links come back as `?code=…` and never
-  collide with the hash router; the `code` param is stripped with `history.replaceState`
-  after the exchange. Password recovery lands on `#reset.update`.
-- Checkout returns to `?checkout=success#account`; the account page polls
+- PKCE flow (`flowType: 'pkce'`), so email links come back as `?code=…` (sign-up passes
+  `emailRedirectTo: <origin>/account`, which must be in Supabase's Redirect URLs); the `code`
+  param is stripped with `history.replaceState` after the exchange.
+- Checkout returns to `/account?checkout=success` (cancel: `/?checkout=cancel#pricing`; the
+  billing portal returns to `/account`); the account page polls
   `refreshAccess()` for up to ~30 s while the webhook lands.
 - Mock mode (only on localhost/127.0.0.1): `localStorage['tts-auth-mock']` holds a fake
   user and level so Playwright can exercise every flow without network access.
@@ -824,9 +854,6 @@ and landscape) and desktops (mouse + keyboard). Rules:
 - Pointer events only; hit targets ≥ 44 px on touch; no hover-only information (every
   hover readout also appears on tap).
 - Charts size to their container; at tablet widths lessons use a wider chart column.
-- `manifest.webmanifest` + icons (SVG, 192, 512, maskable, apple-touch-icon) make the site
-  installable to a home screen; `sw.js` caches the static shell (never Supabase requests or
-  premium modules) and is only registered on https or localhost.
 - The smoke test covers desktop 1280×800, tablet 820×1180 (touch) and phone 390×844
   (touch), light and dark.
 
@@ -836,15 +863,17 @@ Everything below is **additive** — the APIs in §3–§6 are unchanged. Use th
 
 ### 11.1 Router (`js/core/router.js`)
 
-- Exports: `startRouter(el, { store, onRoute })`, `navigate(hash)`, `parseHash(hash)`,
-  `currentRoute()`, `setAccessGate(gate)`.
+- Exports: `startRouter(el, { store, onRoute })`, `navigate(tokenOrPath)`, `parseHash(token)`
+  (= `routes.parseToken`), `currentRoute()`, `setAccessGate(gate)`.
 - `ctx` also carries `route` (`{ key, kind: 'page'|'lesson'|'game'|'notfound', page?, id?,
-  tier?, param? }`), `param` (e.g. the pattern id for `#library.<id>`), `access`
+  tier?, param? }`), `param` (e.g. the pattern id for `/library/<id>`), `access`
   (`{ level, can(plan) }`; everything allowed while no gate is registered) and `blocked`.
 - After `mount()` resolves, the route root gets `data-mounted="<route key>"` (the smoke
   test waits for it); failures add `data-route-error`.
-- Clicks on `<a href="#…">` are routed through `navigate()` (so links work even where
-  `location.hash` is read-only). Add `data-no-route` to opt a link out.
+- Clicks on same-origin `<a href="/…">` links (and old `href="#<route>"` links) go through
+  `navigate()` (`pushState`; if the History API is blocked the route still renders).
+  Links with `target`, `download`, a file extension or only a `#fragment` are left to the
+  browser; add `data-no-route` to opt any other link out.
 - `setAccessGate({ canOpen(entry, route) → bool|Promise, access, paywallPath? })` wires §9.3:
   when `canOpen` returns false for a lesson, game or library route, the router mounts
   `paywallPath` (default `js/pages/paywall.js`) with the requested `entry` in `ctx` and
@@ -856,7 +885,8 @@ Everything below is **additive** — the APIs in §3–§6 are unchanged. Use th
 Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-capstone` and
 `u-advanced-capstone`. Ace badges carry `game`. Helpers: `findTier(id)`, `findBadge(id)`,
 `unitsOf(tier)`, `unitOf(id, tier?)`, `learningPath(tier)` → `[{ type, id, unit }]`,
-`nextItem(id, tier?)` (Beginner continues into Advanced), `hashFor(id)`, `lessonsOf(tier)`,
+`nextItem(id, tier?)` (Beginner continues into Advanced), `hashFor(id)` (route token),
+`pathFor(id)` (`/lessons/<id>` / `/games/<id>`), `lessonsOf(tier)`,
 `gamesOf(tier)` (includes `'both'`).
 
 ### 11.3 Store (`js/core/store.js`)
@@ -964,9 +994,16 @@ Lesson/game entries carry `type`. Unit ids: `u-<lessonId>` plus `u-beginner-caps
 ### 11.8 Smoke test
 
 `node tests/smoke.mjs [routes…] [--desktop] [--tablet] [--phone] [--light|--dark]
-[--no-shots] [--no-interact] [--fonts] [--no-storage] [--real-market] [--concurrency=N]`. Routes: every
-page, lesson and game in the registry plus `PAGES`, `#playbook.hammer` and `DEV_ENTRIES`. Pages open
-with `?market=mock` (§12.3) unless `--real-market`. Viewports: desktop 1280×800,
+[--no-shots] [--no-interact] [--fonts] [--no-storage] [--real-market] [--concurrency=N] [--dist]`.
+Routes: every page, lesson and game in the registry plus `PAGES`, `playbook.hammer` and
+`DEV_ENTRIES`, each opened by its path (`/games/fib-sniper`). Pages open with `?market=mock`
+(§12.3) unless `--real-market`. Extra checks (filter `legacy`): old hash URLs (`/#l.risk-basics`,
+`/#dashboard`, …) must end on their path with the right canonical link, a nav click and Back
+must route via the History API, and `/#pricing` must scroll to the pricing section.
+`--dist` tests the production build: it serves `dist/` (run `npm run build` first) through
+`scripts/serve.mjs` with the headers of `vercel.json`, so any Content-Security-Policy violation
+fails the run (violations are also collected with a `securitypolicyviolation` listener);
+dev-only routes are skipped and the market fixtures are served next to `dist/`. Viewports: desktop 1280×800,
 tablet 820×1180 (touch), phone 390×844 (touch). Google Fonts requests are blocked unless
 `--fonts` is given. After the first screenshot it clicks Start (and one answer option) on
 games and Next on lessons, then screenshots `<route>-<viewport>-<theme>-play.png`.
@@ -1492,13 +1529,13 @@ annotateSetup(setup, chart, example)   // example: { candles, decisionIdx, lead 
 ```
 
 Use `yPad ≥ 0.14` on charts that carry text markers (the helpers do). A developer demo of every
-helper lives at `#l._kit-demo` (localhost only; `DEV_ENTRIES` in the registry).
+helper lives at `/lessons/_kit-demo` (localhost only; `DEV_ENTRIES` in the registry).
 
 ### 12.6 Pages added
 
-`#playbook` (and `#playbook.<setupId>`): the Setup Playbook — exact, rule-based setups with a
+`/playbook` (and `/playbook/<setupId>`): the Setup Playbook — exact, rule-based setups with a
 checklist, entry/stop/target rules, a ChartStory animation, textbook and real examples, how
-often the setup worked in the real-data sample, and common mistakes. `#live`: Live Market
+often the setup worked in the real-data sample, and common mistakes. `/live`: Live Market
 Lab — live chart with indicator toggles and an automatic plain-English read (trend, nearest
 levels, recent candle patterns, MA state, RSI) from the scanner.
 
@@ -1599,7 +1636,7 @@ store.recordDaily({ score, key }) → { first, streak, best, key, newBadges }
 Pages:
 
 - Home: a **Today** row (Daily Challenge card with date, streak and done/not-played status →
-  `#g.daily-challenge`; **Live now** card → `#live` with the market status from `market.js` —
+  `/games/daily-challenge`; **Live now** card → `/live` with the market status from `market.js` —
   it never fetches, it only reflects `marketStatus()` / mock mode and follows `onMarketStatus`),
   a **Play your way** section (the three styles and their rules), and the arcade with **filter
   chips** (All, Quiz, Draw, Predict, Memory, Swipe, Story, Simulation, Live; `aria-pressed`,
@@ -1613,7 +1650,7 @@ Testing notes: `tests/unit/kits-v2.test.mjs` covers registry integrity, per-styl
 daily streak. Starting a Real-market run (and therefore `g.live-predict`, which is real-only)
 calls the `market-data` function unless mock mode is on; the smoke test therefore opens every page
 with `?market=mock` (fixtures, no network; `--real-market` turns that off) and also visits the
-PAGES (`#playbook`, `#playbook.hammer`, `#live`) and DEV_ENTRIES (`#l._kit-demo`).
+PAGES (`/playbook`, `/playbook/hammer`, `/live`) and DEV_ENTRIES (`/lessons/_kit-demo`).
 
 
 ### 12.9 Engine v2: chart types, viewport, candle rules, market simulator
@@ -1720,7 +1757,7 @@ zigzag(candles, { atrMult = 2, period = 14, pct = 0, last = false })
   // last: true appends the unconfirmed extreme of the current leg (confirmedIdx null)
 ```
 
-**`#dev-chart`** also exercises: chart types / log scale / pan-zoom on 1500 candles
+**`/dev-chart`** also exercises: chart types / log scale / pan-zoom on 1500 candles
 (`[data-test="viewport-chart"]`, readout `[data-test="vp-readout"]`), a ChartStory, the scanner
 on a fixture with every setup marked plus describeChart, and market.js status (mock mode toggle,
 live / replay demo — no market-data request is made unless mock mode is on).
@@ -1833,6 +1870,54 @@ verified in mock mode, offline and on phone / tablet / desktop.
 16. **Labels are honest**: textbook / simulated charts never show a ticker or a date; real charts
     show the symbol, date and attribution only after the answer, plus "Delayed" / "Test data" flags.
 17. **Test what you build**: `node tests/smoke.mjs g.<id>` (all viewports × themes, market fixtures
-    via `?market=mock`, add `--no-storage`); open `/?market=mock#g.<id>` on a local server to play real
+    via `?market=mock`, add `--no-storage`); open `/games/<id>?market=mock` on a local server to play real
     rounds offline; `tests/visual/setups.html?kind=<id>` shows exactly what the scanner calls a
     `<id>` in the fixtures; generators and scanners are importable in node for unit tests.
+
+## 13. Build and deploy
+
+Production is `https://thetradeschool.online` on Vercel (static). `vercel.json` runs
+`npm ci` + `npm run build` and serves `dist/`.
+
+**`scripts/build.mjs`** (only dev dependency: esbuild):
+
+- Minifies every `js/**/*.js` and `css/*.css` file (esbuild `transform`, no bundling: each
+  source module stays its own file, so lazy routes still load one small module each).
+- Content-hashes the names (`js/core/router.3f2a9c1b7e.js`). A file's hash covers its own
+  minified content plus that of everything it references, transitively (import cycles
+  included), so any change renames every file that can reach it.
+- Rewrites every module reference to the hashed name: static `import`/`export … from`,
+  `import('…')`, and any other string literal naming a module relative to its file — which
+  covers the runtime-built paths: registry `path: './lessons/<id>.js'` (the router resolves
+  lesson / game modules from these), the router's `PAGE_PATHS`, `new URL('../vendor/…',
+  import.meta.url)`. The `<link>`/`<script>` tags of `index.html` are rewritten too.
+  `dist/asset-manifest.json` maps every original path to its hashed file.
+- Defines `globalThis.__TTS_DIST__ = true` and leaves out the dev-only modules
+  (`js/pages/dev-chart.js`, `js/lessons/_kit-demo.js`); the router refuses dev routes in a
+  build and, from source, on any host but localhost.
+- Fails on a module reference it cannot resolve, a dangling reference in the output, or an
+  inline `<script>` in `index.html` (the CSP allows none; the pre-paint theme script is
+  `js/theme-init.js`).
+- Ships only `index.html`, `js/`, `css/`, `assets/`, `og-image.png`, `robots.txt`,
+  `sitemap.xml` (and `favicon.ico` if added) — never `docs/`, `tests/`, `supabase/` or
+  package files.
+
+**Headers (`vercel.json`)**: hashed `*.<10 hex>.js|css` → `public, max-age=31536000,
+immutable`; everything else (`index.html`, `assets/`, `robots.txt` …) → `no-cache`. On all
+routes: `Content-Security-Policy` (`default-src 'self'`; `script-src 'self'` — Vercel Web
+Analytics is same-origin `/_vercel/insights`; `style-src-elem 'self'
+https://fonts.googleapis.com`; `style-src-attr 'unsafe-inline'` because the chart engine
+renders SVG markup with `style="…"` attributes through `innerHTML` (`style-src` repeats both
+for browsers without the `-elem`/`-attr` split); `font-src https://fonts.gstatic.com`;
+`img-src 'self' data: blob:`; `connect-src 'self'` + the Supabase project over https and
+wss — the market-data provider is only reached through the Supabase Edge Function;
+`frame-ancestors 'none'`; `object-src 'none'`; `base-uri 'self'`; `form-action 'self'
+https://checkout.stripe.com https://billing.stripe.com`), HSTS (2 years, preload),
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
+`Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`. A new external
+host (fonts, API, image) needs a CSP change here, and `npm run smoke:dist` catches what was
+missed. `rewrites` send every extension-less path to `/index.html`; files win over rewrites,
+so a missing `/js/….js` is a real 404 (which triggers the one-time stale-deploy reload).
+
+**Local preview**: `npm run build && npm run serve:dist` (http://127.0.0.1:4173, same
+headers and rewrites as Vercel via `scripts/serve.mjs`).

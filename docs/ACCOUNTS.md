@@ -120,9 +120,10 @@ into the SQL Editor). Hardening migrations added after the first setup:
 
 Supabase Dashboard → **Authentication**:
 
-1. **URL Configuration** → Site URL = your `SITE_URL`. Redirect URLs: add
-   `SITE_URL**` (e.g. `https://doughstackr-dotcom.github.io/The-Trade-School/**`) and
-   `http://localhost:5173/**`.
+1. **URL Configuration** → Site URL = your `SITE_URL` (`https://thetradeschool.online`).
+   Redirect URLs: add `https://thetradeschool.online/**` (covers `/account`, where sign-up
+   confirmation emails return with `?code=…`) and `http://localhost:5173/**`. The site uses
+   clean paths (`/account`, `/games/…`), not `#…` hash routes.
 2. **Sign In / Providers → Email**: keep **Confirm email** on.
 3. **Emails → SMTP Settings**: connect a real email provider (Resend, Postmark, SendGrid,
    Amazon SES, Brevo…). **This is required before launch.** Supabase's built-in sender only
@@ -163,7 +164,7 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
   low activity and have lower limits; upgrade the organization to a paid plan before real
   customers depend on it (Supabase Dashboard → Organization → Billing). Turn on backups.
 - Custom SMTP (step 5.3) must be configured.
-- Add your legal pages: the site ships draft Terms and Privacy pages (`#terms`, `#privacy`)
+- Add your legal pages: the site ships draft Terms and Privacy pages (`/terms`, `/privacy`)
   that you must review with a professional before charging customers. Stripe also requires a
   visible refund/cancellation policy.
 - **Clear test-mode billing rows** before switching Stripe to live keys (test customer ids
