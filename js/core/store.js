@@ -1,11 +1,19 @@
 // Progress store: XP, levels, lesson completions, game bests, badges and settings.
-// Persisted to localStorage under 'tts-progress-v1'. Every storage access is wrapped in
+// Persisted to localStorage under 'tts-progress-v1' (the key never changes; the saved shape is
+// versioned by `v` and upgraded on load by migrate()). Every storage access is wrapped in
 // try/catch; when storage is unavailable the app keeps working from memory.
 import { LESSONS, GAMES, findBadge, learningPath } from '../registry.js';
 import { toast, modal, h, icon } from './ui.js';
 
 const KEY = 'tts-progress-v1';
 const THEME_KEY = 'tts-theme';
+
+/** Current shape of the saved progress object (`state.v`). Bump it with a migrate() step. */
+export const SCHEMA_VERSION = 2;
+/** Question ids remembered per bank so a new run avoids repeating recent questions. */
+export const RECENT_PER_BANK = 40;
+/** Missed questions / patterns kept for spaced-repetition review (oldest dropped first). */
+export const MAX_MISSES = 60;
 
 export const LEVELS = [
   { title: 'Paper Trader', min: 0 },
@@ -20,7 +28,7 @@ export const LEVELS = [
 
 function defaults(settings) {
   return {
-    v: 1,
+    v: SCHEMA_VERSION,
     xp: 0,
     lessons: {},          // id -> { done, at }
     games: {},            // id -> { best, stars, plays, at, modes: { modeId: best }, lastStyle,
@@ -33,6 +41,8 @@ function defaults(settings) {
     bestStreak: 0,
     gamePrefs: {},        // id -> { style, source, level, mode }  (remembered intro choices)
     daily: { last: null, streak: 0, best: 0, history: {} },   // Daily Challenge (local dates)
+    recent: {},           // v2: bankId -> [question ids, oldest first] (QuestionBank avoids these)
+    misses: [],           // v2: [{ bank, id, n, at }] missed questions/patterns, newest last (review)
     settings: { sound: true, theme: 'system', ...(settings || {}) },
   };
 }
@@ -65,6 +75,39 @@ function stylesOf(g) {
   return g.styles;
 }
 
+/**
+ * Upgrades a parsed save to SCHEMA_VERSION, one step per version, and returns it (a shallow
+ * copy; the input is not mutated at the top level). Pure: no storage access, safe on junk input
+ * (non-objects → null). Saves from a NEWER version are returned unchanged (best effort: unknown
+ * fields are kept and load() fills anything missing from defaults).
+ *   v1 (or no v): game records from before play styles get styles.arcade (was patched lazily);
+ *                 adds `recent` and `misses`.
+ */
+export function migrate(saved) {
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return null;
+  const out = { ...saved };
+  let v = Number.isFinite(out.v) ? out.v : 1;
+  if (v > SCHEMA_VERSION) return out;
+  if (v < 2) {
+    if (out.games && typeof out.games === 'object') {
+      const games = {};
+      for (const [id, g] of Object.entries(out.games)) {
+        if (g && typeof g === 'object') {
+          const copy = { ...g };
+          stylesOf(copy);
+          games[id] = copy;
+        } else games[id] = g;
+      }
+      out.games = games;
+    }
+    if (!out.recent || typeof out.recent !== 'object' || Array.isArray(out.recent)) out.recent = {};
+    if (!Array.isArray(out.misses)) out.misses = [];
+    v = 2;
+  }
+  out.v = v;
+  return out;
+}
+
 function readTheme() {
   try {
     const t = globalThis.localStorage?.getItem(THEME_KEY);
@@ -79,8 +122,8 @@ function load() {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
     if (raw) {
-      const saved = JSON.parse(raw);
-      if (saved && typeof saved === 'object') {
+      const saved = migrate(JSON.parse(raw));
+      if (saved) {
         Object.assign(base, saved);
         base.settings = { ...defaults().settings, ...(saved.settings || {}) };
         for (const k of ['lessons', 'games', 'badgeDates', 'lessonSteps', 'gamePrefs']) {
@@ -90,6 +133,8 @@ function load() {
         base.daily = base.daily && typeof base.daily === 'object' ? { ...dd, ...base.daily } : dd;
         if (!base.daily.history || typeof base.daily.history !== 'object') base.daily.history = {};
         if (!Array.isArray(base.badges)) base.badges = [];
+        if (!base.recent || typeof base.recent !== 'object' || Array.isArray(base.recent)) base.recent = {};
+        base.misses = Array.isArray(base.misses) ? base.misses.filter((m) => m && m.bank && m.id != null).slice(-MAX_MISSES) : [];
         base.xp = Number.isFinite(base.xp) ? base.xp : 0;
       }
     }
@@ -376,6 +421,58 @@ export const store = {
     if (d.streak >= 7 && this.award('daily-streak-7', { silent: true })) newBadges.push('daily-streak-7');
     changed();
     return { first: true, streak: d.streak, best: d.best, key: k, newBadges };
+  },
+
+  // ---------------------------------------------------------- question history (QuestionBank)
+
+  /** Ids of questions recently shown from a bank (oldest first). */
+  recentQuestions(bank) {
+    const list = state.recent?.[bank];
+    return Array.isArray(list) ? list : [];
+  },
+
+  /** Remember that question `id` of `bank` was shown (keeps the newest RECENT_PER_BANK). */
+  noteQuestionSeen(bank, id, { keep = RECENT_PER_BANK } = {}) {
+    if (!bank || id == null) return;
+    if (!state.recent || typeof state.recent !== 'object') state.recent = {};
+    const list = (state.recent[bank] || []).filter((x) => x !== id);
+    list.push(id);
+    state.recent[bank] = list.slice(-Math.max(1, keep));
+    save();
+  },
+
+  // ---------------------------------------------------------- spaced repetition (misses)
+
+  /**
+   * Records a missed question or pattern: { bank, id } (e.g. { bank: 'order-desk', id:
+   * 'od-stop-limit' } or { bank: 'candle-pattern', id: 'hanging-man' }). A repeat miss moves it to
+   * the newest end and counts it (n). Bounded to MAX_MISSES.
+   */
+  recordMiss(bank, id) {
+    if (!bank || id == null) return;
+    if (!Array.isArray(state.misses)) state.misses = [];
+    const prev = state.misses.find((m) => m.bank === bank && m.id === id);
+    state.misses = state.misses.filter((m) => m !== prev);
+    state.misses.push({ bank, id, n: (prev?.n || 0) + 1, at: Date.now() });
+    if (state.misses.length > MAX_MISSES) state.misses = state.misses.slice(-MAX_MISSES);
+    save();
+  },
+
+  /** Forget a miss (answered correctly on review). Returns true if it was there. */
+  clearMiss(bank, id) {
+    if (!Array.isArray(state.misses)) return false;
+    const before = state.misses.length;
+    state.misses = state.misses.filter((m) => !(m.bank === bank && m.id === id));
+    if (state.misses.length === before) return false;
+    save();
+    return true;
+  },
+
+  /** Recent misses, newest first. opts: { banks: [bank ids] (default all), limit }. */
+  recentMisses({ banks = null, limit = MAX_MISSES } = {}) {
+    const list = Array.isArray(state.misses) ? state.misses : [];
+    const want = banks ? new Set(banks) : null;
+    return list.filter((m) => !want || want.has(m.bank)).slice().reverse().slice(0, Math.max(0, limit));
   },
 
   /** Awards a badge. Returns true if newly earned (toasts unless opts.silent). */

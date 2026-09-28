@@ -1,5 +1,5 @@
 // Cross Catcher — spot golden / death-style MA crosses and price/MA relationships.
-import { GameShell } from '../core/game-kit.js';
+import { GameShell, explainChoice } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
@@ -35,8 +35,10 @@ export default {
         'Use MA location as a regime filter — not a crystal ball.',
       ],
       async onRound(g, { rng, stage, difficulty }) {
+        // Real rounds: charts around a 20/50 SMA cross; the drawn line is SMA 20 (warmed up on
+        // the lead candles) and the answer is read from it at the freeze.
         const real = await g.realRound({
-          kinds: difficulty < 0.5 ? ['price-above-ma', 'price-below-ma'] : ['price-above-ma', 'price-below-ma', 'golden-cross', 'death-cross'],
+          kinds: ['golden-cross', 'death-cross'],
           before: 120,
           after: 15,
           maFast: 20,
@@ -44,11 +46,15 @@ export default {
         });
         let r;
         if (real) {
-          const k = real.setup?.kind || '';
+          const lead = Array.isArray(real.lead) ? real.lead : [];
+          const ma = sma([...lead, ...real.candles].map((c) => c.c), 20).slice(lead.length);
+          const d = real.decisionIdx;
+          const close = real.candles[d]?.c;
           r = {
             candles: real.candles,
-            decisionIdx: real.decisionIdx,
-            answer: /above|golden|cross-up/i.test(k) || real.setup?.direction === 'bullish' ? 'above' : 'below',
+            decisionIdx: d,
+            ma,
+            answer: Number.isFinite(ma[d]) ? (close > ma[d] ? 'above' : 'below') : real.setup?.direction === 'bullish' ? 'above' : 'below',
             decimals: real.decimals,
             setup: real.setup,
           };
@@ -70,7 +76,12 @@ export default {
             { label: 'Price below MA (bearish filter)', value: 'below' },
           ],
           answer: r.answer,
-          explain: `<strong>Price ${r.answer} MA</strong> at the freeze. Filters lag; combine with structure.`,
+          explain: explainChoice(
+            `<strong>Price ${r.answer} MA</strong> at the freeze. Filters lag; combine with structure.`,
+            () => (r.answer === 'above'
+              ? 'Look only at the LAST visible candle: its close sits above the average line. Earlier candles below the line, or a falling average, do not change where price is now.'
+              : 'Look only at the LAST visible candle: its close sits below the average line. Earlier candles above the line, or a rising average, do not change where price is now.'),
+          ),
           onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });

@@ -1,9 +1,28 @@
 // Trend Spotter — call up, down or range from structure on a mystery chart.
-import { GameShell } from '../core/game-kit.js';
+import { GameShell, explainChoice } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
+
+const NAME = { bullish: 'Bullish (HH / HL)', bearish: 'Bearish (LH / LL)', range: 'Range' };
+
+/** Why `pick` misreads a chart whose structure is `answer`. */
+export function trendWhy(answer, pick) {
+  if (answer === 'range') {
+    return pick === 'bullish'
+      ? 'An uptrend needs BOTH higher highs and higher lows. Here the swing highs keep stalling near the same ceiling and the lows near the same floor, so one up-leg is not a trend.'
+      : 'A downtrend needs BOTH lower highs and lower lows. Here the swing highs keep stalling near the same ceiling and the lows near the same floor, so one down-leg is not a trend.';
+  }
+  if (pick === 'range') {
+    return answer === 'bullish'
+      ? 'A range keeps returning to the same highs and lows. Here each swing high and each swing low is higher than the one before: an uptrend, even if the last few candles pulled back.'
+      : 'A range keeps returning to the same highs and lows. Here each swing high and each swing low is lower than the one before: a downtrend, even if the last few candles bounced.';
+  }
+  return answer === 'bullish'
+    ? 'A pullback is not a downtrend: the latest swing low is still above the previous one and the highs are still rising. It turns bearish only once price makes a lower high and a lower low.'
+    : 'A bounce is not an uptrend: the latest swing high is still below the previous one and the lows are still falling. It turns bullish only once price makes a higher low and a higher high.';
+}
 
 function textbook(rng, difficulty) {
   const direction = rng.pick(difficulty < 0.35 ? ['up', 'down'] : ['up', 'down', 'range']);
@@ -57,7 +76,10 @@ export default {
             { label: 'Range / unclear', value: 'range' },
           ],
           answer: r.direction,
-          explain: `<strong>${r.direction}</strong> structure at the freeze. Always re-check after new swings print.`,
+          explain: explainChoice(
+            `<strong>${NAME[r.direction] || r.direction}</strong> structure at the freeze. Always re-check after new swings print.`,
+            (pick) => trendWhy(r.direction, pick),
+          ),
           onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });

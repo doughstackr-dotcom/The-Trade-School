@@ -1,10 +1,27 @@
 // Trap or Trade — breakout, fakeout or wait on a live decision chart.
-import { GameShell } from '../core/game-kit.js';
+import { GameShell, explainChoice } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { annotateSetup } from '../core/lesson-kit.js';
 import { chartScenario } from '../core/patterns.js';
+
+/** First candle after the break that closes back inside the level (-1 if none). */
+function closeBackIdx(candles, from, level, dir) {
+  for (let i = from + 1; i < candles.length; i++) {
+    if (dir > 0 ? candles[i].c < level : candles[i].c > level) return i;
+  }
+  return -1;
+}
+
+const WHY = {
+  'trade|fade': 'Fading needs evidence that the break failed: a close back inside the level. Here the candle closed through the level and has not come back.',
+  'trade|wait': 'Waiting for a retest is a valid style, but this is the signal itself: a clean close through the level. Retests do not always come, so the breakout trade is the read here.',
+  'fade|trade': 'The break already failed: price closed back inside the level. Trading the breakout now means joining the side that just got trapped.',
+  'fade|wait': 'Waiting is never a disaster, but the signal is already on the chart: a break that closes back inside the level is the classic trap, and fading it has a clear stop beyond the failed break’s extreme.',
+  'wait|trade': 'There is no break yet: price is still on the near side of the level. Buying (or selling) before a close through the level is anticipating, not trading the signal.',
+  'wait|fade': 'Nothing has failed yet: price has not even closed through the level. A fade needs a break that then closes back inside.',
+};
 
 function textbook(rng, difficulty) {
   const trap = rng.chance(0.4 + 0.15 * difficulty);
@@ -17,11 +34,22 @@ function textbook(rng, difficulty) {
     outcome: trap ? 'fail' : 'success',
   });
   let answer = 'trade';
-  if (trap) answer = 'fade';
-  else if (wait) answer = 'wait';
+  let decisionIdx = sc.breakoutIdx;
+  if (trap) {
+    // Freeze on the close back inside the level, so the trap is visible before you answer.
+    const back = closeBackIdx(sc.candles, sc.breakoutIdx, sc.level, sc.direction);
+    if (back > 0 && back < sc.candles.length - 3) {
+      answer = 'fade';
+      decisionIdx = back;
+    } else answer = 'wait';
+  } else if (wait) {
+    answer = 'wait';
+    decisionIdx = Math.max(5, sc.breakoutIdx - 2);
+  }
+  if (answer === 'wait' && decisionIdx === sc.breakoutIdx) decisionIdx = Math.max(5, sc.breakoutIdx - 2);
   return {
     candles: sc.candles,
-    decisionIdx: wait ? Math.max(5, sc.breakoutIdx - 2) : sc.breakoutIdx,
+    decisionIdx,
     level: sc.level,
     answer,
     name: sc.name,
@@ -37,7 +65,7 @@ export default {
       rounds: 8,
       timer: { seconds: 28, perRound: true },
       howTo: [
-        'Price is challenging a level. Read the close and the volume context.',
+        'Price is challenging a level. Read where the last candle closed relative to it, and the volume.',
         'Trade the breakout, fade the trap, or wait for a retest.',
         'We grade your read; the reveal shows what this sample did next.',
       ],
@@ -51,12 +79,12 @@ export default {
         let r;
         if (real) {
           const k = real.setup?.kind || '';
-          const breakIdx = /^fakeout/.test(k) && Number.isFinite(real.setup.meta?.breakoutIdx)
-            ? real.setup.meta.breakoutIdx
-            : real.decisionIdx;
+          // Breakouts freeze on the breakout close; fakeouts on the close back inside the level
+          // (the scanner's decision candle), so the trap is visible before you answer.
           r = {
             candles: real.candles,
-            decisionIdx: breakIdx,
+            decisionIdx: real.decisionIdx,
+            direction: /-down$/.test(k) ? -1 : 1,
             level: real.setup?.meta?.level,
             answer: /^fakeout/.test(k) ? 'fade' : 'trade',
             name: real.setup?.meta?.name || k,
@@ -74,8 +102,8 @@ export default {
           ariaLabel: 'Breakout decision chart with volume',
         });
         if (Number.isFinite(r.level)) chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
-        chart.addMarker({ idx: r.decisionIdx, position: 'above', shape: 'dot', color: 'accent' });
-        g.setHint('Decisive close + expanding volume → trade. Close back inside → fade. Marginal poke → wait.');
+        chart.addMarker({ idx: r.decisionIdx, position: r.direction < 0 ? 'below' : 'above', shape: 'dot', color: 'accent' });
+        g.setHint('A close through the level → trade. A break that then closed back inside → fade. No close through the level yet → wait.');
         g.ask({
           options: [
             { label: 'Trade the breakout', value: 'trade' },
@@ -83,7 +111,10 @@ export default {
             { label: 'Wait for retest / clarity', value: 'wait' },
           ],
           answer: r.answer,
-          explain: `<strong>${r.answer === 'trade' ? 'Trade' : r.answer === 'fade' ? 'Fade' : 'Wait'}</strong> · ${r.name || ''}. Sample result: ${r.outcome?.result || 'see reveal'}.`,
+          explain: explainChoice(
+            `<strong>${r.answer === 'trade' ? 'Trade' : r.answer === 'fade' ? 'Fade' : 'Wait'}</strong> · ${r.name || ''}. Sample result: ${r.outcome?.result || 'see reveal'}.`,
+            (pick) => WHY[`${r.answer}|${pick}`],
+          ),
           onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             try { if (r.setup) annotateSetup(r.setup, chart, r); } catch { /* */ }
