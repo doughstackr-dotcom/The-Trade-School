@@ -74,8 +74,9 @@ const steps = [
   },
   storyStep({ title: 'Divergence idea', story: divStory }),
   realExampleStep({
-    title: 'Momentum contexts',
-    kinds: ['rsi-divergence-bear', 'rsi-divergence-bull', 'macd-cross-up', 'macd-cross-down'],
+    title: 'Divergence & cross contexts',
+    // Must be scanner SETUP_KIND_IDS (js/core/scanner.js).
+    kinds: ['bearish-divergence', 'bullish-divergence', 'golden-cross', 'death-cross'],
     intervals: ['1d'],
     caption: 'Scanner labels are a starting point. Confirm with your own eyes.',
   }),
@@ -94,12 +95,26 @@ const steps = [
       question: 'Strong downtrend, RSI at 25, no reversal pattern yet. Best action?',
       options: [
         { label: 'Wait — oversold is a condition, not a buy signal', value: 0 },
-        { label: 'Buy immediately, it must bounce', value: 1 },
-        { label: 'Short with no stop', value: 2 },
-        { label: 'Delete RSI forever', value: 3 },
+        { label: 'Buy now — below 30 means the selling is exhausted', value: 1 },
+        { label: 'Buy now with a smaller size and no stop, since RSI will recover', value: 2 },
+        { label: 'Switch RSI to a shorter period until it shows a buy signal', value: 3 },
       ],
       answer: 0,
-      explain: '<strong>Wait.</strong> Markets can stay oversold. Need structure or a confirmed trigger.',
+      explain: '<strong>Wait.</strong> Markets can stay oversold for a long time in strong trends. Look for structure (a higher low, a reclaimed level) or a confirmed trigger — and tuning settings until they agree with you is not confirmation.',
+    },
+  },
+  {
+    title: 'Quick check: divergence',
+    quiz: {
+      question: 'Price makes a higher high, RSI makes a lower high. What is the most accurate read?',
+      options: [
+        { label: 'Short now — bearish divergence means the top is in', value: 0 },
+        { label: 'Momentum is fading: a warning to tighten risk or wait for structure to break', value: 1 },
+        { label: 'Bullish — a higher high in price always overrides the indicator', value: 2 },
+        { label: 'Nothing — divergence only counts on the weekly chart', value: 3 },
+      ],
+      answer: 1,
+      explain: 'This is <strong>bearish divergence</strong>: the push higher had less momentum. It is a warning, not a timing signal — strong trends can show divergence several times before turning.',
     },
   },
   compareStep({
