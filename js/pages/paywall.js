@@ -57,6 +57,9 @@ export default {
       ? 'dashboard'
       : 'home';
     const routeKey = ctx.route?.key || '';
+    // Signed-out visitors heading to #account come back here after signing in.
+    const rememberHere = () => access.rememberReturn(routeKey);
+    const toAccount = { click: rememberHere };
 
     const status = h('p', { class: 'muted paywall__status', 'aria-live': 'polite' }, '');
     const plansHost = h('section', { class: 'paywall__plans', 'aria-label': 'Subscription plans' });
@@ -69,6 +72,7 @@ export default {
       await access.ready;
       const a = access.getAccess();
       if (!a.user) {
+        rememberHere();
         ctx.navigate('account');
         toast('Sign in (or create an account) to subscribe.', { type: 'info' });
         return;
@@ -98,7 +102,7 @@ export default {
                 ? `${title} is part of the course. Accounts are free — paid plans unlock the full tracks later.`
                 : 'Course pages need a signed-in account. Sign-up takes about a minute.'),
             h('div', { class: 'row' },
-              h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Sign in / create account'),
+              h('a', { class: 'btn btn--primary', href: '#account', on: toAccount }, icon('lock', { size: 16 }), 'Sign in / create account'),
               h('a', { class: 'btn btn--ghost', href: '#home' }, 'Back to home')),
           ),
         );
@@ -129,7 +133,7 @@ export default {
             'The Trade School keeps the landing page public. Lessons, games, tracks and labs need a free account — subscriptions unlock the full Beginner and Advanced tracks.'),
           status,
           h('div', { class: 'row paywall__actions' },
-            h('a', { class: 'btn btn--primary', href: '#account' }, icon('lock', { size: 16 }), 'Account / sign in'),
+            h('a', { class: 'btn btn--primary', href: '#account', on: toAccount }, icon('lock', { size: 16 }), 'Account / sign in'),
             h('a', { class: 'btn btn--ghost', href: `#${back}` }, icon('arrow-left', { size: 16 }),
               back === 'home' ? 'Back home' : 'Back to Dashboard'),
           ),

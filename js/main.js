@@ -228,6 +228,17 @@ function buildShell(app) {
     renderSound();
   });
   access.onChange(() => renderAuth());
+  // Post-login return: when a visitor signs in after being sent to #account from a paywall
+  // (access.rememberReturn), take them back to where they were headed.
+  let wasSignedIn = !!access.getAccess().user;
+  access.onChange((snap) => {
+    const now = !!snap?.user;
+    if (now && !wasSignedIn) {
+      const ret = access.consumeReturn();
+      if (ret) navigate(ret);
+    }
+    wasSignedIn = now;
+  });
   access.ready.then(() => renderAuth()).catch(() => {});
 
   function setActive(route, entry) {
