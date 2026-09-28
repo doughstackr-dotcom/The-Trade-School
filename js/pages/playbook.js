@@ -17,6 +17,9 @@ import { CANDLE_PATTERNS, CHART_PATTERNS } from '../core/patterns.js';
 import { toolsTeaser } from '../core/teaser.js';
 import * as access from '../core/access.js';
 
+/** Shown on every setup card and detail page. */
+const EXAMPLE_NOTE = 'Educational example — not a recommendation.';
+
 /** Primary entry/exit framework id by trade difficulty; time-stop is always appended. */
 const FRAMEWORK_BY_DIFFICULTY = {
   easy: 'confirm-close',
@@ -133,6 +136,7 @@ function setupCard(s, mods) {
         h('span', { class: 'chip chip--sm chip--outline playbook-card__play' }, icon('play', { size: 12 }), ' Sim')),
       h('h2', { class: 'playbook-card__title' }, s.name),
       h('p', { class: 'playbook-card__summary' }, s.summary),
+      h('p', { class: 'playbook-card__note faint t-12' }, EXAMPLE_NOTE),
       h('span', { class: 'playbook-card__go' }, `${s.rules.length}-point checklist`, icon('arrow-right', { size: 16 }))),
     patternBlock);
 }
@@ -190,7 +194,7 @@ function listView(root, mods) {
     ...setupSections(mods),
     h('p', { class: 'faint playbook__note' },
       'Simulations are educational — not live signals or financial advice. ',
-      'Japanese candle setups are framed for short-timeframe scalps with tight stops. ',
+      'Setups are framed as day- or swing-trade examples on hourly to daily charts. On shorter timeframes, spread, fees and slippage take a bigger share of each R — include them. ',
       'Curriculum Beginner/Advanced chips mark lesson track; Easy/Medium/Hard mark how hard the trade is to execute. ',
       'All catalog patterns appear on at least one setup card.')));
 }
@@ -332,7 +336,8 @@ function detailView(root, setup, mods) {
         h('span', { class: `chip ${setup.bias === 'bullish' ? 'chip--bull' : setup.bias === 'bearish' ? 'chip--bear' : 'chip--outline'}` },
           setup.bias === 'bullish' ? 'Long setup' : setup.bias === 'bearish' ? 'Short setup' : 'Indecision / break')),
       h('p', { class: 'muted playbook-detail__diff' }, `Trade difficulty: ${diff.label} — ${diff.blurb}`),
-      h('p', { class: 'lead' }, setup.summary)),
+      h('p', { class: 'lead' }, setup.summary),
+      h('p', { class: 'faint t-12 playbook-detail__note' }, EXAMPLE_NOTE)),
     figure(diagram(setup, ...mods, 720, 260), 'Textbook snapshot of the completed setup.', { label: 'Diagram' }),
     h('section', { class: 'section--tight playbook-sim-section', 'aria-labelledby': 'playbook-sim-h' },
       h('div', { class: 'section-head' },
@@ -362,7 +367,7 @@ function detailView(root, setup, mods) {
       fib: !!setup.fib,
       height: 300,
       autoplay: false,
-      interval: setup.kind === 'candle' ? '5M' : '1H',
+      interval: setup.kind === 'candle' ? '1H' : '1D',
     });
   } catch (err) {
     console.error('[playbook] playback failed:', err);

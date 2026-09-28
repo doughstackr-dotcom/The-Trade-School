@@ -2,7 +2,7 @@
 // Pure module (no DOM) so pages and tests can import it without pulling UI.
 
 export const DIFFICULTIES = [
-  { id: 'easy', label: 'Easy', blurb: 'High-clarity candle reversals at levels — clean single-idea scalps.' },
+  { id: 'easy', label: 'Easy', blurb: 'High-clarity candle reversals at levels — single-idea day- or swing-trade examples on hourly to daily charts.' },
   { id: 'medium', label: 'Medium', blurb: 'Weaker candles that need confirmation, plus straightforward chart continuations.' },
   { id: 'hard', label: 'Hard', blurb: 'Trap / fade trades and multi-leg or confluence setups.' },
 ];
@@ -14,19 +14,19 @@ export const SETUPS = [
   {
     id: 'hammer', name: 'Hammer at support', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
     pattern: 'hammer', fib: true,
-    summary: 'After a decline, a candle with a long lower wick closes near its high at a support zone — classic long scalp trigger.',
+    summary: 'After a decline, a candle with a long lower wick closes near its high at a support zone — a classic long trigger on hourly or daily charts.',
     rules: [
       'A clear decline into the candle',
       'Lower wick at least 2× the body, little or no upper wick',
-      'At or near a support zone or Fib golden pocket',
+      'At or near a support zone or the Fib 50–61.8% retracement zone',
       'Next candle closes above the hammer high',
     ],
     entry: 'Buy on the close of the confirmation candle (or a tick above the hammer high).',
-    stop: 'Just below the hammer’s low — tight for scalps.',
-    target: '1.5–2R or the next micro resistance.',
+    stop: 'Just below the hammer’s low, with a small buffer for the spread.',
+    target: '1.5–2R or the next resistance.',
   },
   {
-    id: 'shooting-star', name: 'Shooting star scalp', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
+    id: 'shooting-star', name: 'Shooting star rejection', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
     pattern: 'shooting-star', fib: true,
     summary: 'After a short-term rally, a small body with a long upper wick rejects the high — fade with a stop above the wick.',
     rules: [
@@ -37,26 +37,26 @@ export const SETUPS = [
     ],
     entry: 'Sell the confirmation close below the star.',
     stop: 'A few ticks above the upper wick.',
-    target: '1.5–2R or next micro support.',
+    target: '1.5–2R or next support.',
   },
   {
     id: 'bullish-engulfing', name: 'Bullish engulfing', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
     pattern: 'bullish-engulfing', fib: true,
-    summary: 'A bullish body completely engulfs the previous bearish body after a pullback — strong scalp long when it prints at a level.',
+    summary: 'A bullish body completely engulfs the previous bearish body after a pullback — a stronger long idea when it prints at a level.',
     rules: [
       'A downtrend or a pullback in an uptrend',
       'The green body engulfs the prior red body',
       'Forms at a level (support, MA, Fib 50–61.8%, trend line)',
       'Above-average volume on the engulfing candle',
     ],
-    entry: 'Buy above the engulfing candle’s high (or on its close for aggressive scalps).',
+    entry: 'Buy above the engulfing candle’s high (or on its close for a more aggressive entry).',
     stop: 'Below the engulfing candle’s low.',
     target: '1.5–2R or the prior swing high.',
   },
   {
     id: 'bearish-engulfing', name: 'Bearish engulfing', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
     pattern: 'bearish-engulfing', fib: true,
-    summary: 'A bearish body engulfs the prior bullish body after a rally — short scalp with stop above the pattern high.',
+    summary: 'A bearish body engulfs the prior bullish body after a rally — a short idea with the stop above the pattern high.',
     rules: [
       'Uptrend or bounce into resistance',
       'Red body fully engulfs the prior green body',
@@ -65,12 +65,12 @@ export const SETUPS = [
     ],
     entry: 'Sell below the engulfing low (or on the close).',
     stop: 'Above the engulfing high.',
-    target: '1.5–2R or prior micro swing low.',
+    target: '1.5–2R or prior swing low.',
   },
   {
-    id: 'dragonfly-doji', name: 'Dragonfly doji scalp', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
+    id: 'dragonfly-doji', name: 'Dragonfly doji reclaim', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
     pattern: 'dragonfly-doji', fib: true,
-    summary: 'Long lower wick, open/high/close near the top after a dip — buyers absorbed the sell. Scalp the reclaim.',
+    summary: 'Long lower wick, open/high/close near the top after a dip — buyers absorbed the selling. Trade the reclaim only with confirmation.',
     rules: [
       'Short-term decline or flush into support / Fib 50–61.8%',
       'Open, high and close clustered at the top of a long lower wick',
@@ -79,12 +79,12 @@ export const SETUPS = [
     ],
     entry: 'Buy the close above the dragonfly high (or a 1-tick break).',
     stop: 'Just below the long wick low.',
-    target: '1.5–2R or prior micro swing high.',
+    target: '1.5–2R or prior swing high.',
   },
   {
-    id: 'gravestone-doji', name: 'Gravestone doji scalp', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
+    id: 'gravestone-doji', name: 'Gravestone doji rejection', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
     pattern: 'gravestone-doji', fib: true,
-    summary: 'Long upper wick with open/low/close at the bottom after a pop — sellers rejected the high. Scalp the failure.',
+    summary: 'Long upper wick with open/low/close at the bottom after a pop — sellers rejected the high. Trade the failure only with confirmation.',
     rules: [
       'Short-term rally into resistance / Fib retracement of the last drop',
       'Open, low and close clustered at the bottom of a long upper wick',
@@ -93,14 +93,14 @@ export const SETUPS = [
     ],
     entry: 'Sell the close below the gravestone low.',
     stop: 'Just above the upper wick high.',
-    target: '1.5–2R or prior micro swing low.',
+    target: '1.5–2R or prior swing low.',
   },
   {
     id: 'piercing-line', name: 'Piercing line reclaim', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
     pattern: 'piercing-line', fib: true,
     summary: 'After a selloff, a green candle opens below the prior low and closes deep into the prior red body — buyers reclaiming control at a level.',
     rules: [
-      'Clear short-term decline into support or a Fib pocket',
+      'Clear short-term decline into support or the Fib 50–61.8% zone',
       'Second candle opens below (or near) the first candle’s low',
       'Closes above the midpoint of the prior red body',
       'Prefer a level touch; skip mid-range piercings',
@@ -121,7 +121,7 @@ export const SETUPS = [
     ],
     entry: 'Sell the close of the dark-cloud candle (or a tick below its low).',
     stop: 'Just above the pattern high.',
-    target: '1.5–2R or the prior micro swing low.',
+    target: '1.5–2R or the prior swing low.',
   },
   {
     id: 'tweezer-bottom', name: 'Tweezer bottom', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
@@ -135,39 +135,39 @@ export const SETUPS = [
     ],
     entry: 'Buy the confirmation close above the tweezer high.',
     stop: 'A few ticks below the shared low.',
-    target: '1.5–2R or next micro resistance.',
+    target: '1.5–2R or next resistance.',
   },
 
   {
     id: 'bullish-marubozu', name: 'Bullish marubozu thrust', tier: 'beginner', difficulty: 'easy', bias: 'bullish', kind: 'candle',
     pattern: 'bullish-marubozu',
-    summary: 'A long green body with almost no wicks — buyers controlled the whole bar. Scalp continuation when it prints from a level.',
+    summary: 'A long green body with almost no wicks — buyers controlled the whole bar. A continuation idea when it prints from a level.',
     rules: [
-      'Prior dip or pause into support / VWAP / Fib',
+      'Prior dip or pause into support / rising MA / Fib',
       'Open near the low, close near the high, little or no wick',
       'Above-average range versus recent bars',
       'Next candle does not immediately engulf it back down',
     ],
-    entry: 'Buy a tick above the marubozu high (or on its close for aggressive scalps).',
+    entry: 'Buy a tick above the marubozu high (or on its close for a more aggressive entry).',
     stop: 'Just below the marubozu low.',
-    target: '1.5–2R or the next micro resistance.',
+    target: '1.5–2R or the next resistance.',
   },
   {
     id: 'bearish-marubozu', name: 'Bearish marubozu thrust', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
     pattern: 'bearish-marubozu',
     summary: 'A long red body with almost no wicks — sellers owned the bar. Fade / continue lower when it rejects a level.',
     rules: [
-      'Prior pop into resistance / VWAP / Fib',
+      'Prior pop into resistance / rising MA / Fib',
       'Open near the high, close near the low, little or no wick',
       'Above-average range versus recent bars',
       'Next candle does not reclaim the open',
     ],
     entry: 'Sell a tick below the marubozu low (or on its close).',
     stop: 'Just above the marubozu high.',
-    target: '1.5–2R or the next micro support.',
+    target: '1.5–2R or the next support.',
   },
   {
-    id: 'tweezer-top', name: 'Tweezer top scalp', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
+    id: 'tweezer-top', name: 'Tweezer top', tier: 'beginner', difficulty: 'easy', bias: 'bearish', kind: 'candle',
     pattern: 'tweezer-top', fib: true,
     summary: 'Two candles share the same high after a rally — sellers defended the level twice. Short the failure.',
     rules: [
@@ -178,42 +178,42 @@ export const SETUPS = [
     ],
     entry: 'Sell the confirmation close below the pattern low.',
     stop: 'Just above the shared highs.',
-    target: '1.5–2R or prior micro swing low.',
+    target: '1.5–2R or prior swing low.',
   },
 
   // —— Medium: weaker / confirmation-needed candles + straightforward chart continuation ——
   {
-    id: 'doji', name: 'Doji pause (scalp)', tier: 'beginner', difficulty: 'medium', bias: 'neutral', kind: 'candle',
+    id: 'doji', name: 'Doji pause', tier: 'beginner', difficulty: 'medium', bias: 'neutral', kind: 'candle',
     pattern: 'doji', fib: true,
-    summary: 'On a short timeframe, a doji at a micro level flags indecision — trade only the break of its range with a tight stop.',
+    summary: 'A doji at a clear level flags indecision — trade only the break of its range, with the stop beyond the opposite wick.',
     rules: [
-      'Clear prior push into a level (VWAP, prior high/low, or session open)',
+      'Clear prior push into a level (prior swing high/low or a well-tested support/resistance)',
       'Doji body ≤ ~8% of its range',
       'Wait for the next candle to close beyond the doji high (long) or low (short)',
       'Skip if the doji is mid-range with no level',
     ],
     entry: 'Buy/sell the confirmation close beyond the doji extreme.',
-    stop: 'A few ticks beyond the opposite wick — scalp-tight.',
-    target: '1–1.5R or the next micro swing; take profit quick.',
+    stop: 'A few ticks beyond the opposite wick (allow for the spread).',
+    target: '1–1.5R or the next swing; a weak signal deserves a modest target.',
   },
   {
-    id: 'inverted-hammer', name: 'Inverted hammer scalp', tier: 'beginner', difficulty: 'medium', bias: 'bullish', kind: 'candle',
+    id: 'inverted-hammer', name: 'Inverted hammer', tier: 'beginner', difficulty: 'medium', bias: 'bullish', kind: 'candle',
     pattern: 'inverted-hammer',
     summary: 'After a dip, a long upper wick with a small body near the low shows buyers probing — weaker than a hammer; demand confirmation.',
     rules: [
       'Short-term decline into a level',
       'Long upper wick, small body near the low',
       'Next candle closes above the inverted hammer high',
-      'Prefer confluence with support or VWAP',
+      'Prefer confluence with support or a rising moving average',
     ],
     entry: 'Buy only after a close above the pattern high.',
     stop: 'Below the pattern low.',
-    target: '1–2R; take profit at the first micro resistance.',
+    target: '1–2R; take profit at the first resistance.',
   },
   {
-    id: 'bullish-harami', name: 'Bullish harami scalp', tier: 'beginner', difficulty: 'medium', bias: 'bullish', kind: 'candle',
+    id: 'bullish-harami', name: 'Bullish harami', tier: 'beginner', difficulty: 'medium', bias: 'bullish', kind: 'candle',
     pattern: 'bullish-harami',
-    summary: 'A small green body inside a large red body after a selloff — momentum stall. Scalp only with a break of the mother candle.',
+    summary: 'A small green body inside a large red body after a selloff — momentum stall. Act only on a break of the mother candle.',
     rules: [
       'Clear short-term decline',
       'Small green body inside the prior long red body',
@@ -222,10 +222,10 @@ export const SETUPS = [
     ],
     entry: 'Buy the close above the first candle’s open.',
     stop: 'Below the pattern low (tight).',
-    target: '1–2R; harami is weaker — bank quick.',
+    target: '1–2R; harami is a weaker signal — keep targets modest.',
   },
   {
-    id: 'bearish-harami', name: 'Bearish harami scalp', tier: 'beginner', difficulty: 'medium', bias: 'bearish', kind: 'candle',
+    id: 'bearish-harami', name: 'Bearish harami', tier: 'beginner', difficulty: 'medium', bias: 'bearish', kind: 'candle',
     pattern: 'bearish-harami',
     summary: 'A small red body inside a large green body after a rally — stall warning. Short the break of the mother candle.',
     rules: [
@@ -236,7 +236,7 @@ export const SETUPS = [
     ],
     entry: 'Sell the close below the first candle’s open.',
     stop: 'Above the pattern high.',
-    target: '1–2R; take profit at the first micro support.',
+    target: '1–2R; take profit at the first support.',
   },
   {
     id: 'bull-flag', name: 'Bull flag', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'chart',
@@ -264,7 +264,7 @@ export const SETUPS = [
     pattern: 'morning-star', fib: true,
     summary: 'Three-candle bottom: long red, small indecision, then a strong green that closes well into the first body — classic reclaim after a flush.',
     rules: [
-      'Clear decline into support or a Fib pocket',
+      'Clear decline into support or the Fib 50–61.8% zone',
       'Middle candle is a small body / doji (gap preferred)',
       'Third candle closes above the midpoint of the first red body',
       'Volume expands on the third candle',
@@ -335,14 +335,14 @@ export const SETUPS = [
     pattern: 'spinning-top',
     summary: 'Small body mid-range with wicks both ways — indecision at a level. Trade only the break of its range.',
     rules: [
-      'Prints at a clear micro level (VWAP, prior high/low, session open)',
+      'Prints at a clear level (prior swing high/low or a well-tested support/resistance)',
       'Body small relative to the full range; both wicks present',
       'Wait for the next candle to close beyond the spinning-top high or low',
       'Skip if it prints mid-range with no level',
     ],
     entry: 'Buy/sell the confirmation close beyond the pattern extreme.',
     stop: 'A few ticks beyond the opposite wick.',
-    target: '1–1.5R or the next micro swing; bank quick.',
+    target: '1–1.5R or the next swing; a weak signal deserves a modest target.',
   },
   {
     id: 'three-white-soldiers', name: 'Three white soldiers', tier: 'advanced', difficulty: 'medium', bias: 'bullish', kind: 'candle',
@@ -519,7 +519,7 @@ export const SETUPS = [
     ],
     entry: 'Sell the confirmation close below the pattern low.',
     stop: 'Just above the pattern high.',
-    target: '1.5–2R or prior micro swing low.',
+    target: '1.5–2R or prior swing low.',
   },
   {
     id: 'fakeout-down', name: 'Failed breakdown (fade)', tier: 'advanced', difficulty: 'hard', bias: 'bullish', kind: 'chart',
@@ -609,7 +609,7 @@ export const RISK_RULES = [
   {
     id: 'asymmetric-payoff',
     title: 'Prefer asymmetric payoff',
-    body: 'Scalps often aim for 1.5–2R; swing setups may stretch further. Skipping sub-1R ideas keeps a string of small wins from being erased by one normal loss.',
+    body: 'Many short-term setups aim for 1.5–2R; swing setups may stretch further. Skipping sub-1R ideas keeps a string of small wins from being erased by one normal loss. On short timeframes, spread and fees are a bigger share of each R — include them.',
   },
   {
     id: 'daily-cap',
@@ -636,7 +636,7 @@ export const ENTRY_EXIT_FRAMEWORKS = [
     when: 'Best for Easy candle reversals at levels.',
     entry: 'Wait for the next candle to close beyond the pattern extreme (hammer high, engulfing high/low, etc.).',
     stop: 'Beyond the pattern’s invalidation wick — usually the pattern low (longs) or high (shorts).',
-    exit: 'Scale at 1R; trail or bank the rest at 1.5–2R or the next micro level.',
+    exit: 'Scale at 1R; trail or bank the rest at 1.5–2R or the next level.',
   },
   {
     id: 'break-retest',
@@ -657,7 +657,7 @@ export const ENTRY_EXIT_FRAMEWORKS = [
   {
     id: 'time-stop',
     title: 'Time stop',
-    when: 'Useful when a scalp goes nowhere.',
+    when: 'Useful when a trade goes nowhere.',
     entry: 'Same as your primary framework.',
     stop: 'If price has not reached +1R (or your first scale) within N bars of your timeframe, flatten — the edge was immediacy.',
     exit: 'Treat “no follow-through” as information; journal it as a scratch, not a moral failure.',
@@ -702,10 +702,10 @@ export const SCENARIOS = [
     steps: [
       'Index opens soft; your name sells into a well-tested overnight low / Fib 61.8%.',
       'A hammer prints with a long lower wick; volume on the flush is heavy, reclaim volume is not dead.',
-      'Next 5-minute candle closes above the hammer high — checklist complete.',
-      'Long with stop under the wick, first scale at 1.5R into VWAP.',
+      'The next 15-minute candle closes above the hammer high — checklist complete.',
+      'Long with stop under the wick, first scale at 1.5R into the prior swing high.',
     ],
-    lesson: 'Easy setups win by being obvious. If you need to squint at the wick ratio, it is not a hammer trade.',
+    lesson: 'Easy setups are easy because they are obvious — if you need to squint at the wick ratio, it is not a hammer trade. Intraday example: spread, fees and slippage take a bigger bite of each R on short timeframes, so include them in the plan.',
   },
   {
     id: 'scenario-flag-trend',
@@ -731,7 +731,7 @@ export const SCENARIOS = [
       'No follow-through on the next bar — trapped longs start dumping.',
       'Short the reclaim close; stop above the fakeout wick; target the opposite side of the range.',
     ],
-    lesson: 'Hard fades punish impatience. Entering on the poke (before the close back inside) is a different, worse trade.',
+    lesson: 'Hard fades punish impatience. Entering on the poke (before the close back inside) is a different, worse trade. Intraday example: spread and slippage around a busy level can be a meaningful share of 1R.',
   },
   {
     id: 'scenario-star-reversal',
