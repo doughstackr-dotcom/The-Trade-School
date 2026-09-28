@@ -103,12 +103,26 @@ const steps = [
       question: 'Weekly chart is a clean uptrend; 5-minute chart looks toppy. Best default?',
       options: [
         { label: 'Favour pullback longs or wait — respect the weekly bias', value: 0 },
-        { label: 'Short aggressively with huge size', value: 1 },
-        { label: 'Ignore the weekly completely', value: 2 },
-        { label: 'Only trade the 5-minute forever', value: 3 },
+        { label: 'Short the 5-minute top — the lowest timeframe is the most current information', value: 1 },
+        { label: 'Close the weekly chart — it is too slow to matter for entries', value: 2 },
+        { label: 'Buy at market now — the weekly trend guarantees the dip gets bought', value: 3 },
       ],
       answer: 0,
       explain: '<strong>Respect HTF.</strong> A toppy LTF often is just a pullback in a larger uptrend.',
+    },
+  },
+  {
+    title: 'Quick check: alignment',
+    quiz: {
+      question: 'Daily trend is up; the 1-hour chart pulls back into daily support; the 5-minute chart just made a higher low. What does this alignment give you?',
+      options: [
+        { label: 'A guaranteed winner, because all three timeframes agree', value: 0 },
+        { label: 'A short, because the 1-hour chart is falling', value: 1 },
+        { label: 'A long idea with direction, location and a trigger — still sized with a stop', value: 2 },
+        { label: 'Nothing — timeframes should never be combined', value: 3 },
+      ],
+      answer: 2,
+      explain: 'Direction from the higher timeframe, <strong>location</strong> from the middle one, <strong>timing</strong> from the lower one. Alignment improves the setup; it does not remove the need for a stop.',
     },
   },
   compareStep({

@@ -26,7 +26,7 @@ test('registry: every unit item exists, every lesson/game sits in a unit, kinds/
 
 test('registry: curriculum order and the new entries', () => {
   assert.deepEqual(reg.unitsOf('beginner').map((u) => u.id), [
-    'u-candle-anatomy', 'u-chart-basics', 'u-candle-patterns', 'u-trends', 'u-support-resistance',
+    'u-candle-anatomy', 'u-chart-basics', 'u-risk-basics', 'u-candle-patterns', 'u-trends', 'u-support-resistance',
     'u-trendlines', 'u-moving-averages', 'u-volume', 'u-markets-orders', 'u-beginner-capstone',
   ]);
   assert.deepEqual(reg.unitsOf('advanced').map((u) => u.id), [
@@ -43,6 +43,10 @@ test('registry: curriculum order and the new entries', () => {
   assert.equal(reg.nextItem('live-predict'), null);
   assert.equal(reg.nextItem('daily-challenge').id, 'chart-patterns');
   assert.equal(reg.nextItem('order-desk').id, 'what-next');
+  // Risk & position sizing sits early in Beginner; Risk Manager is paired in both tracks.
+  assert.equal(reg.nextItem('chart-match').id, 'risk-basics');
+  assert.equal(reg.nextItem('risk-manager', 'beginner').id, 'candle-patterns');
+  assert.equal(reg.nextItem('risk-manager', 'advanced').id, 'psychology');
   assert.equal(reg.findPage('playbook').hash, 'playbook');
   assert.equal(reg.findPage('games').hash, 'games');
   assert.equal(reg.findEntry('_kit-demo').dev, true);

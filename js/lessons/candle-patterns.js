@@ -97,6 +97,20 @@ const steps = [
     },
   },
   {
+    title: 'Quick check: context',
+    quiz: {
+      question: 'A textbook hammer prints in the middle of a choppy range, far from any support. Best read?',
+      options: [
+        { label: 'Strong buy — a hammer is a bullish reversal signal anywhere', value: 0 },
+        { label: 'Buy — the longer the wick, the more certain the reversal', value: 1 },
+        { label: 'Low weight: without a prior decline into a level it says little — wait or pass', value: 2 },
+        { label: 'Short it — hammers in ranges mean the opposite', value: 3 },
+      ],
+      answer: 2,
+      explain: '<strong>Context decides.</strong> A hammer matters most after a decline into support, confirmed by the next candle. Mid-range, it is mostly noise.',
+    },
+  },
+  {
     title: 'Patterns fail',
     render(el) {
       el.append(

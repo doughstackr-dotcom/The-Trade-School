@@ -65,12 +65,26 @@ const steps = [
       question: 'You swing-trade for days to weeks. Which primary chart is usually most appropriate?',
       options: [
         { label: 'Daily (with a higher timeframe weekly for bias)', value: 0 },
-        { label: '1-second ticks only', value: 1 },
-        { label: 'Yearly candles only', value: 2 },
-        { label: 'Any random timeframe is fine', value: 3 },
+        { label: '1-minute — more candles give more precise entries', value: 1 },
+        { label: 'Monthly only — a longer timeframe is always more reliable', value: 2 },
+        { label: 'Whichever timeframe shows the pattern you are hoping for', value: 3 },
       ],
       answer: 0,
-      explain: '<strong>Daily with a weekly bias</strong> matches multi-day holds. Tick charts are for very short horizons; yearly candles hide the swings you trade.',
+      explain: '<strong>Daily with a weekly bias</strong> matches multi-day holds. 1-minute charts add noise for that horizon, monthly candles hide the swings you trade, and hunting for the timeframe that agrees with you is confirmation bias.',
+    },
+  },
+  {
+    title: 'Quick check: log scale',
+    quiz: {
+      question: 'A stock climbed from $10 to $100 over several years. On which scale does the move from 10→20 look the same size as the move from 50→100?',
+      options: [
+        { label: 'Linear scale', value: 0 },
+        { label: 'Log scale', value: 1 },
+        { label: 'Both scales', value: 2 },
+        { label: 'Neither — only candlestick charts show that', value: 3 },
+      ],
+      answer: 1,
+      explain: 'Both moves are +100%. A <strong>log scale</strong> spaces equal percentage moves equally; a linear scale spaces equal dollar moves equally, so 10→20 looks tiny next to 50→100.',
     },
   },
   {

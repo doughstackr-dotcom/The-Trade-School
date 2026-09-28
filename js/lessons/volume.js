@@ -57,12 +57,26 @@ const steps = [
       question: 'A breakout closes above resistance on the lowest volume of the month. Best read?',
       options: [
         { label: 'Treat with suspicion — wait for confirmation', value: 0 },
-        { label: 'Buy maximum size immediately', value: 1 },
-        { label: 'Volume never matters', value: 2 },
-        { label: 'Short automatically every thin break', value: 3 },
+        { label: 'Buy full size — low volume means there is little selling pressure', value: 1 },
+        { label: 'Ignore it — volume only matters for day traders', value: 2 },
+        { label: 'Short immediately — low-volume breakouts always fail', value: 3 },
       ],
       answer: 0,
       explain: '<strong>Suspicion.</strong> Thin participation means fewer buyers joined. Wait or fade only with a plan — do not blindly size up.',
+    },
+  },
+  {
+    title: 'Quick check: climax',
+    quiz: {
+      question: 'After a long rally, the biggest-volume candle in months prints with a long upper wick. What is a common read?',
+      options: [
+        { label: 'Record volume always means the trend will keep going', value: 0 },
+        { label: 'Buyers are certain to push higher next session', value: 1 },
+        { label: 'Possible buying climax — watch whether price fails to make new highs', value: 2 },
+        { label: 'Volume says nothing at the top of a move', value: 3 },
+      ],
+      answer: 2,
+      explain: 'Huge volume with a rejection wick late in a move can mark <strong>exhaustion</strong>: late buyers meet heavy selling. It is a warning, not a guarantee — confirm with structure.',
     },
   },
   {

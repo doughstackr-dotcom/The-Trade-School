@@ -55,12 +55,26 @@ const steps = [
       question: 'Price makes a lower high then breaks the prior swing low on a closing basis. Best read?',
       options: [
         { label: 'Uptrend structure is breaking — bias shifts down or to caution', value: 0 },
-        { label: 'Guaranteed new long-term bull market', value: 1 },
-        { label: 'Trends never end', value: 2 },
-        { label: 'Ignore closes; only wicks matter', value: 3 },
+        { label: 'Buy the dip — every pullback in an uptrend is an opportunity', value: 1 },
+        { label: 'Nothing has changed until a moving-average crossover confirms it', value: 2 },
+        { label: 'The uptrend holds as long as the all-time high has not been broken', value: 3 },
       ],
       answer: 0,
       explain: '<strong>Structure break.</strong> A lower high plus a close below the prior low is classic trend damage. Not a prophecy — a change in bias.',
+    },
+  },
+  {
+    title: 'Quick check: label the swings',
+    quiz: {
+      question: 'Swing lows at 90, 94 and 97; swing highs at 100, 105 and 109. What is the structure?',
+      options: [
+        { label: 'A range — price keeps returning to similar levels', value: 0 },
+        { label: 'An uptrend — higher highs and higher lows', value: 1 },
+        { label: 'A downtrend — each high is followed by a low', value: 2 },
+        { label: 'Impossible to say without an indicator', value: 3 },
+      ],
+      answer: 1,
+      explain: 'Each high and each low is above the one before: <strong>higher highs and higher lows</strong>. Structure alone is enough to call it — no indicator needed.',
     },
   },
   {

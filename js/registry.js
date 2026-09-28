@@ -7,8 +7,8 @@ export const TIERS = [
     title: 'Beginner',
     subtitle: 'Read the chart',
     blurb:
-      'How markets and orders work, what every candle is telling you, how trends and levels form, and how ' +
-      'moving averages and volume confirm a move. Nine short units, each with a game to lock it in, then a capstone that puts it all together.',
+      'What every candle is telling you, how much to risk on a trade, how trends and levels form, how ' +
+      'moving averages and volume confirm a move, and how orders fill. Ten short units, each with a game to lock it in, then a capstone that puts it all together.',
   },
   {
     id: 'advanced',
@@ -24,6 +24,9 @@ export const TIERS = [
 export const UNITS = [
   { id: 'u-candle-anatomy', tier: 'beginner', title: 'Candlestick anatomy', lesson: 'candle-anatomy', games: ['candle-builder'] },
   { id: 'u-chart-basics', tier: 'beginner', title: 'Chart types, scales & timeframes', lesson: 'chart-basics', games: ['chart-match'] },
+  // Risk sits before any pattern/setup lesson so sizing is a habit before learners meet trade ideas.
+  // Risk Manager stays an Advanced-tier game (plan access unchanged); it is paired here as well.
+  { id: 'u-risk-basics', tier: 'beginner', title: 'Risk & position sizing', lesson: 'risk-basics', games: ['risk-manager'] },
   { id: 'u-candle-patterns', tier: 'beginner', title: 'Candlestick patterns', lesson: 'candle-patterns', games: ['pattern-flash'] },
   { id: 'u-trends', tier: 'beginner', title: 'Trends & market structure', lesson: 'trends', games: ['trend-spotter'] },
   { id: 'u-support-resistance', tier: 'beginner', title: 'Support & resistance', lesson: 'support-resistance', games: ['level-hunter'] },
@@ -57,6 +60,13 @@ export const LESSONS = [
     blurb: 'Line, bar and candlestick charts, linear versus log scale, and how the same market looks on a daily and a weekly chart. Pick the right view before you read it.',
     topics: ['Line vs bar vs candle', 'Linear vs log scale', 'Timeframes', 'Volume bars'],
     path: './lessons/chart-basics.js',
+  },
+  {
+    id: 'risk-basics', type: 'lesson', tier: 'beginner', minutes: 14,
+    title: 'Risk & position sizing',
+    blurb: 'Decide what you can lose before you look for trades: the 1% guideline, sizing a position from your stop, R-multiples, expectancy, drawdown math, leverage and margin, and what spreads and fees really cost.',
+    topics: ['Risk per trade', 'Position sizing', 'R-multiples & expectancy', 'Drawdown & risk of ruin', 'Leverage & margin', 'Trading costs'],
+    path: './lessons/risk-basics.js',
   },
   {
     id: 'candle-patterns', type: 'lesson', tier: 'beginner', minutes: 14,
@@ -103,8 +113,8 @@ export const LESSONS = [
   {
     id: 'markets-orders', type: 'lesson', tier: 'beginner', minutes: 10,
     title: 'Markets, orders and the spread',
-    blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
-    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
+    blurb: 'What a market is, who is on the other side of your trade, and how market, limit, stop, stop-limit and trailing orders fill. Read the bid, the ask and the spread, and know what a gap does to a stop, before you ever click Buy.',
+    topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market & limit orders', 'Stop, stop-limit & trailing stops', 'Time in force', 'Gaps & slippage'],
     path: './lessons/markets-orders.js',
   },
   {
@@ -145,15 +155,15 @@ export const LESSONS = [
   {
     id: 'confluence-risk', type: 'lesson', tier: 'advanced', minutes: 15,
     title: 'Confluence, timing & risk',
-    blurb: 'Stack independent reasons for a trade, choose the moment to act, then size the position so one loss never hurts much. Stops, targets, R-multiples and expectancy.',
-    topics: ['Confluence', 'Entry triggers', 'Stop placement', 'Position sizing', 'R-multiples & expectancy'],
+    blurb: 'Stack independent reasons for a trade, choose the moment to act, place stops with structure and ATR, and test an idea (backtest, forward test) before you trust it. Builds on Beginner risk & sizing.',
+    topics: ['Confluence', 'Entry triggers', 'ATR-based stops', 'Sizing recap', 'Backtesting & its pitfalls'],
     path: './lessons/confluence-risk.js',
   },
   {
     id: 'psychology', type: 'lesson', tier: 'advanced', minutes: 12,
     title: 'Trading psychology and your plan',
-    blurb: 'Fear, greed, revenge trading and tilt: the mistakes that cost more than any bad setup. Write a trading plan and a checklist you will actually follow.',
-    topics: ['Fear & greed', 'Tilt & revenge trading', 'Trading plan', 'Journaling', 'Process over outcome'],
+    blurb: 'Fear, greed, revenge trading and tilt: the mistakes that cost more than any bad setup. Write a trading plan you will actually follow, keep a trading journal, and review your trades honestly.',
+    topics: ['Fear & greed', 'Tilt & revenge trading', 'Trading plan', 'Trading journal & reviews', 'Process over outcome'],
     path: './lessons/psychology.js',
   },
 ];

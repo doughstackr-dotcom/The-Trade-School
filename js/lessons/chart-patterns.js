@@ -164,6 +164,20 @@ const steps = [
     },
   },
   {
+    title: 'Quick check: confirmation',
+    quiz: {
+      question: 'A head and shoulders has formed, but price has not closed below the neckline yet. Best stance?',
+      options: [
+        { label: 'Short now — the pattern is complete once the right shoulder forms', value: 0 },
+        { label: 'Buy — the right shoulder is a higher low', value: 1 },
+        { label: 'Short now and aim for twice the pattern height', value: 2 },
+        { label: 'Treat it as a potential pattern until a close below the neckline', value: 3 },
+      ],
+      answer: 3,
+      explain: 'Until the neckline breaks, it is only a <strong>potential</strong> pattern — many resolve higher instead. Measured-move targets are rough guides, not promises.',
+    },
+  },
+  {
     title: 'Caveats',
     render(el) {
       const sc = chartScenario('bull-flag', { seed: 19, count: 90, after: 16, outcome: 'fail' });

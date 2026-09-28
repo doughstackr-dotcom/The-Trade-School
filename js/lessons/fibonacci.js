@@ -138,6 +138,20 @@ const steps = [
       explain: 'Range 10 × 0.618 = 6.18. From the high: 60 − 6.18 = <strong>53.82</strong>. (56.18 is 38.2%.)',
     },
   },
+  {
+    title: 'Quick check: zones, not magic',
+    quiz: {
+      question: 'Why do many traders treat Fibonacci levels as zones rather than exact prices?',
+      options: [
+        { label: 'Price is mathematically attracted to 61.8%', value: 0 },
+        { label: 'Levels depend on which swing you anchor, and price rarely turns to the cent', value: 1 },
+        { label: 'Fibonacci levels only work on weekly charts', value: 2 },
+        { label: 'A level only counts when three ratios line up exactly', value: 3 },
+      ],
+      answer: 1,
+      explain: 'Different anchors give different levels, and reactions happen <strong>around</strong> them. Fib areas are most useful where they overlap other evidence, like prior support.',
+    },
+  },
   compareStep({
     title: 'Caveats',
     text: 'Wrong swing = wrong map. Drill the habit of picking the impulse you actually care about.',

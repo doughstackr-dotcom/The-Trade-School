@@ -56,12 +56,26 @@ const steps = [
       question: 'Price closes clearly through support on rising volume. Best next idea?',
       options: [
         { label: 'Treat the old support as potential resistance; wait for a reaction', value: 0 },
-        { label: 'Buy immediately because it must bounce back', value: 1 },
-        { label: 'Delete the level and never use levels again', value: 2 },
-        { label: 'Double size with no stop', value: 3 },
+        { label: 'Buy immediately — support levels usually get reclaimed', value: 1 },
+        { label: 'Ignore the level from now on — once broken it no longer matters', value: 2 },
+        { label: 'Short at market with no stop — broken support always holds as resistance', value: 3 },
       ],
       answer: 0,
       explain: '<strong>Role reversal.</strong> Broken support often acts as resistance on the way back. Plan the retest; do not blindly fade or chase.',
+    },
+  },
+  {
+    title: 'Quick check: zones',
+    quiz: {
+      question: 'Why draw support as a zone rather than a single thin line?',
+      options: [
+        { label: 'A zone guarantees the level will hold', value: 0 },
+        { label: 'Exchanges publish official support zones', value: 1 },
+        { label: 'So the stop can be widened whenever price gets close', value: 2 },
+        { label: 'Reactions cluster around an area: wicks overshoot and orders sit at slightly different prices', value: 3 },
+      ],
+      answer: 3,
+      explain: 'Levels are <strong>areas</strong> where buying or selling has shown up before. A zone reflects that; it does not make the level any more likely to hold.',
     },
   },
   {
