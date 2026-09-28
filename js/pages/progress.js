@@ -1,12 +1,13 @@
 // Dashboard hub (#dashboard, aliased as #progress; #beginner / #advanced scroll here):
-// 1) Account overview  2) Beginner + Advanced curriculum (shared with Home)  3) Progress extras.
+// 1) Account overview  2) Beginner + Advanced track panels (route + ladder)  3) Progress extras.
+// Home keeps the compact curriculum cards that link here.
 import { h, icon, starRow, meter, tierChip, fmt, toast } from '../core/ui.js';
 import { LEVELS } from '../core/store.js';
 import {
   LESSONS, GAMES, BADGES, STYLES, UNITS, stylesOf, hashFor, findEntry,
 } from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
-import { curriculumTracks } from '../core/curriculum.js';
+import { trackPanels } from '../core/track-panel.js';
 import * as access from '../core/access.js';
 import { PLANS, FREE_IDS } from '../config.js';
 
@@ -277,7 +278,7 @@ export default {
             h('p', { class: 'eyebrow eyebrow--accent' }, 'Dashboard'),
             h('h1', null, 'Your school hub'),
             h('p', { class: 'lead' },
-              'Account status, the Beginner and Advanced curriculum (same cards as Home), and your progress. Locked lessons stay visible as teasers — subscribe to open them.')),
+              'Account status, the full Beginner and Advanced tracks (route map + unit ladder), and your progress. Locked lessons stay visible as teasers — subscribe to open them.')),
           accountOverview(store, snap),
           h('section', {
             class: 'section tracks dash-curriculum-section',
@@ -287,10 +288,10 @@ export default {
             h('div', { class: 'section-head' },
               h('div', null,
                 h('p', { class: 'eyebrow' }, 'The curriculum'),
-                h('h2', { id: 'dash-curr-h' }, 'Beginner & Advanced lessons')),
+                h('h2', { id: 'dash-curr-h' }, 'Beginner & Advanced tracks')),
               h('p', { class: 'muted' },
-                'Same layout as Home. Cards are always visible; locked rows open the paywall until you are signed in with the right plan.')),
-            curriculumTracks(store, { cta: false, idPrefix: 'dash-' })),
+                'Route map and unit ladder for each track. Home still shows the compact card list; locked items open the paywall until you are signed in with the right plan.')),
+            trackPanels(store, { idPrefix: 'dash-' })),
           levelCard(store),
           statsRow(store),
           h('section', { class: 'section section--tight', 'aria-labelledby': 'badges-h' },
@@ -309,6 +310,9 @@ export default {
           h('p', { class: 'faint dash-disclaimer' }, 'Educational simulations only — not financial advice.')));
 
       const section = ctx.route?.section;
+      if (section === 'beginner' || section === 'advanced') {
+        try { store.setLastTier?.(section); } catch { /* ignore */ }
+      }
       if (section) {
         requestAnimationFrame(() => scrollToSection(section));
       }

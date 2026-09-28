@@ -30,6 +30,7 @@ test('PUBLIC_PAGES keeps home, dashboard, tools and platforms open', () => {
   }
   assert.equal(PUBLIC_PAGES.includes('beginner'), false);
   assert.equal(PUBLIC_PAGES.includes('advanced'), false);
+  // Legacy standalone track page removed; #beginner/#advanced → dashboard.
   assert.equal(PUBLIC_PAGES.includes('track'), false);
 });
 
@@ -47,9 +48,11 @@ test('hasPaidAccess is false when unsigned under enforcement', () => {
   assert.equal(hasPaidAccess(), false);
 });
 
-test('isCurriculumGated: only Beginner/Advanced tracks and their modules', () => {
-  assert.equal(isCurriculumGated(null, { page: 'track', tier: 'beginner' }), true);
-  assert.equal(isCurriculumGated(null, { page: 'track', tier: 'advanced' }), true);
+test('isCurriculumGated: only Beginner/Advanced lessons/games (not Dashboard hub)', () => {
+  // Standalone track pages removed — Dashboard (and section hashes) stay ungated.
+  assert.equal(isCurriculumGated(null, { page: 'track', tier: 'beginner' }), false);
+  assert.equal(isCurriculumGated(null, { page: 'dashboard', section: 'beginner' }), false);
+  assert.equal(isCurriculumGated(null, { page: 'dashboard', section: 'advanced' }), false);
   assert.equal(isCurriculumGated(null, { page: 'home' }), false);
   assert.equal(isCurriculumGated(null, { page: 'dashboard' }), false);
   assert.equal(isCurriculumGated(null, { page: 'platforms' }), false);
@@ -106,8 +109,10 @@ test('canOpen (unsigned, enforcing): public pages yes; curriculum no', async () 
   assert.equal(canOpen(null, { page: 'glossary' }), true);
   assert.equal(canOpen(null, { page: 'account' }), true);
 
-  assert.equal(canOpen(null, { page: 'track', tier: 'beginner' }), false);
-  assert.equal(canOpen(null, { page: 'track', tier: 'advanced' }), false);
+  // Dead track page key is not curriculum-gated; Dashboard sections stay open.
+  assert.equal(canOpen(null, { page: 'track', tier: 'beginner' }), true);
+  assert.equal(canOpen(null, { page: 'dashboard', section: 'beginner' }), true);
+  assert.equal(canOpen(null, { page: 'dashboard', section: 'advanced' }), true);
   assert.equal(
     canOpen({ type: 'lesson', tier: 'beginner', id: 'candle-anatomy' }, { kind: 'lesson', id: 'candle-anatomy' }),
     false,

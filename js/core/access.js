@@ -273,13 +273,11 @@ export function peekReturn() {
 }
 
 /**
- * True for Beginner / Advanced tracks and their lessons/games (tier beginner|advanced|both).
+ * True for Beginner / Advanced lessons/games (tier beginner|advanced|both).
  * Only these are auth-gated; Home, Dashboard, Library, Playbook, Live, Glossary, Platforms stay public.
  */
 export function isCurriculumGated(entry, route = null) {
-  if (route?.page === 'track') {
-    return route.tier === 'beginner' || route.tier === 'advanced';
-  }
+  // Standalone track pages are gone; #beginner / #advanced land on public Dashboard.
   const kind = route?.kind || entry?.type;
   if (kind === 'lesson' || kind === 'game') {
     const tier = entry?.tier;
@@ -293,7 +291,7 @@ export function isCurriculumGated(entry, route = null) {
 /**
  * True when the current user may open this route.
  * When ACCESS_MODE enforces: Home / Dashboard / Library / Playbook / Live / Glossary / Platforms stay
- * open; Beginner + Advanced tracks and their lessons/games need a signed-in session.
+ * open; Beginner + Advanced lessons/games need a signed-in session.
  * Signed-in free members still need the right plan for paid modules (FREE_IDS stay free).
  */
 export function canOpen(entry, route = null) {
@@ -304,11 +302,8 @@ export function canOpen(entry, route = null) {
   // Do not newly lock non-curriculum pages (Playbook, Live, Library, Glossary, …).
   if (!isCurriculumGated(entry, route)) return true;
 
-  // Beginner / Advanced: need a session first.
+  // Beginner / Advanced lessons and games: need a session first.
   if (!session?.user) return false;
-
-  // Track outline is visible to any signed-in member; individual modules still check plan.
-  if (route?.page === 'track') return true;
 
   const need = requiredPlan(entry);
   if (need === 'free') return true;

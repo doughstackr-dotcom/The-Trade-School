@@ -56,7 +56,6 @@ function navKeyFor(route) {
   if (route.kind === 'page') {
     // Legacy #beginner / #advanced land on dashboard with a section.
     if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
-    if (route.page === 'track') return 'dashboard';
     if (['library', 'glossary', 'playbook', 'live', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }

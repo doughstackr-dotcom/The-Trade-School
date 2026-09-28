@@ -8,9 +8,8 @@ import { h, icon } from './ui.js';
 
 const PAGE_PATHS = {
   home: '../pages/home.js',
-  track: '../pages/track.js',
   library: '../pages/library.js',
-  // progress aliases to the merged dashboard (Progress visual shell + curriculum map).
+  // progress aliases to the merged dashboard (Progress visual shell + track panels).
   progress: '../pages/progress.js',
   glossary: '../pages/glossary.js',
   platforms: '../pages/affiliate.js',
@@ -99,7 +98,6 @@ function titleFor(route, entry) {
   if (route.kind === 'lesson' || route.kind === 'game') return entry ? `${entry.title} · ${SITE}` : SITE;
   switch (route.page) {
     case 'home': return `${SITE} — Learn to read the market`;
-    case 'track': return `${entry ? entry.title : 'Track'} · ${SITE}`;
     case 'library': return `Pattern Library · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
     case 'platforms': return `Platforms · ${SITE}`;
@@ -203,8 +201,9 @@ async function render(hash, { initial = false, retry = false } = {}) {
       path = new URL('../' + entry.path.replace(/^\.\//, ''), import.meta.url).href;
     } else entry = null;
   } else if (route.kind === 'page') {
-    path = new URL(PAGE_PATHS[route.page], import.meta.url).href;
-    if (route.page === 'track') entry = registry.findTier(route.tier);
+    path = PAGE_PATHS[route.page]
+      ? new URL(PAGE_PATHS[route.page], import.meta.url).href
+      : null;
   }
 
   document.title = titleFor(route, entry);

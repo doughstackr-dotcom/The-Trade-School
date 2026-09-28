@@ -3275,7 +3275,7 @@ figcaption {
   }
 }
 
-/* ---------------------------------------------------------------- track page */
+/* ------------------------------------------ track panels (Dashboard sections) */
 
 .track-hero {
   padding: 16px 0 40px;
@@ -7182,3 +7182,37 @@ figcaption {
 .dash-account__actions { flex-wrap: wrap; margin-top: 0.25rem; }
 .dash-curriculum-section { padding-inline: 0; }
 .dashboard-hub .tracks__grid { margin-top: var(--space-4); }
+
+.dash-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(40px, 6vw, 72px);
+  margin-top: var(--space-4);
+}
+
+.dash-track {
+  scroll-margin-top: 88px;
+}
+
+.dash-track__hero.track-hero {
+  padding: 8px 0 28px;
+  border-bottom: none;
+}
+
+.dash-track__ladder {
+  max-width: 900px;
+}
+
+.item-btn.is-locked {
+  opacity: 0.92;
+}
+
+.item-btn.is-locked .item-btn__icon {
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.item-btn.is-locked:hover {
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--line));
+}
+
