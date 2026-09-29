@@ -2,12 +2,65 @@
    Theme-aware via design tokens (--accent, --surface, --btn-primary, …).
    Surface / white base; no hardcoded gold. */
 
+.account--gate {
+  min-height: calc(100dvh - var(--chrome-h) - 56px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  text-align: center;
+  padding-block: clamp(2rem, 6vh, 4.5rem);
+}
+
+@media (max-width: 719px) {
+  .account--gate {
+    justify-content: flex-start;
+    min-height: 0;
+    padding-top: 1.25rem;
+    padding-bottom: 5.5rem;
+  }
+}
+
+.account--gate .account-body,
+.account--gate .account-forms {
+  width: min(100%, 28rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.account--gate .lead,
+.account--gate .account__return,
+.account--gate .account__msg,
+.account--gate .account__gate-note {
+  text-align: center;
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.account--gate h1 {
+  text-wrap: balance;
+}
+
 .account-auth {
   margin-top: var(--space-4, 1rem);
   display: grid;
   justify-items: stretch;
   width: 100%;
-  max-width: 24rem;
+  max-width: 28rem;
+}
+
+.account--gate .account-auth {
+  margin-inline: auto;
+}
+
+.account-card--auth .account-card__title,
+.account-card--auth .account-card__hint {
+  text-align: center;
+}
+
+.account-card--auth {
+  text-align: start;
 }
 
 .account-card--auth {

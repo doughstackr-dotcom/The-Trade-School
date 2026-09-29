@@ -78,9 +78,6 @@ export default {
           },
         },
       },
-        h('h2', { class: 'account-card__title' }, 'Sign in'),
-        h('p', { class: 'muted account-card__hint' },
-          'Use your email and password to open Beginner and Advanced lessons.'),
         h('label', { class: 'field' },
           h('span', null, 'Email'),
           h('input', {
@@ -142,9 +139,6 @@ export default {
           },
         },
       },
-        h('h2', { class: 'account-card__title' }, 'Create account'),
-        h('p', { class: 'muted account-card__hint' },
-          'Free account — no card required. Beginner and Advanced tracks unlock with a plan.'),
         h('label', { class: 'field' },
           h('span', null, 'Display name'),
           h('input', {
@@ -191,19 +185,11 @@ export default {
           '.')
         : null;
 
-      const gateNote = view === 'signup'
-        ? h('p', { class: 'lead account__gate-note' },
-          'Create a free account, then choose a Beginner or Advanced plan to open the tracks. Home, Dashboard and the other tools stay open without signing in.')
-        : null;
-
       formWrap.replaceChildren(...kids(
         returnNote,
-        gateNote,
         h('div', { class: 'account-auth' },
           view === 'signup' ? renderSignUpForm() : renderSignInForm()),
         msg,
-        h('p', { class: 'faint account__footnote' },
-          'If subscribe buttons say “Subscriptions not open yet”, Stripe secrets are not configured — see docs/SECRETS.md.'),
       ));
 
       queueMicrotask(() => {
@@ -281,22 +267,24 @@ export default {
       // Already signed in with a pending return (e.g. session restored after gate redirect).
       if (a.user && goAfterAuth(ctx)) return;
       const signupMode = !a.user && view === 'signup';
-      body.replaceChildren(
-        h('p', { class: 'eyebrow' }, signupMode ? 'Join The Trade School' : 'Account'),
+      shell.classList.toggle('account--gate', !a.user);
+      body.replaceChildren(...kids(
+        a.user ? h('p', { class: 'eyebrow' }, 'Account') : null,
         h('h1', null, signupMode ? 'Create your account' : a.user ? 'Your account' : 'Sign in'),
         h('p', { class: 'lead' },
           signupMode
             ? 'Beginner and Advanced lessons need an account and a Beginner or Advanced plan. Home, Dashboard and the other tools stay open without signing in. Educational use only — not financial advice.'
             : a.user
               ? 'Plan status and billing live here. Educational use only — not financial advice.'
-              : 'Sign in with email and password to open Beginner and Advanced lessons and games. Educational use only — not financial advice.'),
+              : 'Sign in with email and password to open Beginner and Advanced lessons and games. Educational use only — not financial advice.')),
       );
       msg.textContent = '';
       if (a.user) renderSignedIn(a);
       else renderSignedOut();
     }
 
-    root.append(h('div', { class: 'container account' }, body, formWrap));
+    const shell = h('div', { class: 'container account' }, body, formWrap);
+    root.append(shell);
     let unsub = null;
     access.ready.then(() => {
       paint();

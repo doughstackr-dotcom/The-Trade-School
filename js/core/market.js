@@ -100,6 +100,10 @@ export function resetMarketCache() {
 
 const fetchFn = () => override.fetch || (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
 const nowMs = () => (typeof override.now === 'function' ? override.now() : Date.now());
+/** Which market config a cached catalog belongs to (config change ⇒ cache miss). */
+function configFingerprint() {
+  return JSON.stringify([isMockMode(), override.url || null, override.key || null]);
+}
 function storage(kind = 'localStorage') {
   if (override.storage) return override.storage;
   try {
@@ -383,7 +387,12 @@ async function loadCatalog() {
   if (cached) {
     try {
       const c = JSON.parse(cached);
-      if (c && Array.isArray(c.symbols) && nowMs() - (c.at || 0) < 30 * 60_000) return normalizeCatalog(c, 'online');
+      // A catalog cached under a different market config (url / key / mock) must not be
+      // reused — configureMarket() between tests or in the dev page would otherwise serve
+      // the previous config's session cache.
+      if (c && Array.isArray(c.symbols) && c.cfg === configFingerprint() && nowMs() - (c.at || 0) < 30 * 60_000) {
+        return normalizeCatalog(c, 'online');
+      }
     } catch {
       /* ignore */
     }
@@ -392,7 +401,7 @@ async function loadCatalog() {
   if (r.kind === 'ok' && Array.isArray(r.data?.symbols)) {
     setStatus('online');
     const cat = normalizeCatalog(r.data, 'online');
-    storeSet(CATALOG_KEY, JSON.stringify({ symbols: cat.symbols, at: nowMs() }), 'sessionStorage');
+    storeSet(CATALOG_KEY, JSON.stringify({ symbols: cat.symbols, at: nowMs(), cfg: configFingerprint() }), 'sessionStorage');
     return cat;
   }
   state.catalogFailed = true;

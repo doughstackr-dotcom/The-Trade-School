@@ -7,7 +7,7 @@ import { simRound, outcomeOf } from '../core/scanner.js';
 import { annotateSetup } from '../core/lesson-kit.js';
 import { rsi, swings, atr } from '../core/indicators.js';
 
-// Scanner setup kinds (js/core/scanner.js): RSI 14 divergences.
+// Scanner setup kinds (js/core/scanner.js SETUP_KINDS): the two RSI divergences.
 const KINDS = ['bearish-divergence', 'bullish-divergence'];
 const LABELS = { 'bear-div': 'Bearish divergence', 'bull-div': 'Bullish divergence', confirm: 'Confirmation / no clear divergence' };
 
@@ -56,7 +56,10 @@ export default {
           r = confirmation(realTrend);
           for (let t = 0; !r && !realTrend && t < 4; t++) r = confirmation(simRound(rng, cq));
         }
-        if (!r) r = (await g.realRound(q)) || simRound(rng, q) || simRound(rng, { ...q, before: 80 });
+        if (!r) r = await g.realRound(q);
+        // simRound is stochastic (random markets × limited tries) and can return null —
+        // retry with fresh rng draws, then show a skip card instead of a broken round.
+        for (let i = 0; !r && i < 6; i++) r = simRound(rng, q);
         if (!r) {
           stage.append(h('p', { class: 'muted' }, 'Could not build a chart for this round.'));
           g.nextButton();

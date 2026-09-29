@@ -122,7 +122,7 @@ test('sw.js: handles same-origin navigations and static assets; never cross-orig
 });
 
 test('sw.js: version stamp placeholder, required shell files exist, module graph parser finds main.js imports', () => {
-  const src = read('sw.js');
+  const src = read('sw.js').split(String.fromCharCode(13, 10)).join(String.fromCharCode(10));
   assert.match(src, /const BUILD = 'dev';/, 'the deploy workflow replaces this exact text');
   assert.match(src, /const CACHE = `\$\{PREFIX\}\$\{VERSION\}-\$\{BUILD\}`/);
   const core = vm.runInNewContext(`${src.match(/const CORE = \[[\s\S]*?\];/)[0]}; CORE`);

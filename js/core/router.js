@@ -94,7 +94,16 @@ export function parseHash(hash) {
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall' || token === 'dev-chart') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
+  // #dev-chart is a chart-rendering dev tool: localhost only; other hosts see Not found.
+  if (token === 'dev-chart') {
+    let local = false;
+    try {
+      const h = globalThis.location?.hostname || '';
+      local = h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
+    } catch { /* no location: not a browser */ }
+    if (local) return { key: token, kind: 'page', page: token };
+  }
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
@@ -116,6 +125,41 @@ function titleFor(route, entry) {
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
     default: return `Not found · ${SITE}`;
   }
+}
+
+const DEFAULT_DESC = 'Learn trading fundamentals by playing: candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, moving averages, indicators, multi-timeframe analysis and risk. Beginner and Advanced tracks with interactive lessons, games and simulations.';
+
+/** Per-route meta description for share previews and crawlers (falls back to the static tag). */
+function descriptionFor(route, entry) {
+  if (route.kind === 'lesson' || route.kind === 'game') {
+    return entry
+      ? `${entry.title} — interactive ${route.kind} in The Trade School: learn to read the market by playing. Educational only, not financial advice.`
+      : DEFAULT_DESC;
+  }
+  switch (route.page) {
+    case 'home': return DEFAULT_DESC;
+    case 'library': return 'Candlestick and chart-pattern library with annotated diagrams — every pattern explained and shown. Educational only.';
+    case 'glossary': return 'A searchable glossary of 85+ trading terms, from ask price to Wick. Educational only.';
+    case 'platforms': return 'Trading platforms and tools The Trade School partners with. Some links are affiliate links. Educational only.';
+    case 'playbook': return 'Rule-based chart setups with a checklist, entry, stop and target. Educational only, not financial advice.';
+    case 'live': return 'The Live Market Lab: quotes, market hours and real charts with source and delay labelled. Educational only.';
+    case 'games': return 'Every game in The Trade School — drills for candlesticks, patterns, trends, Fibonacci, risk and more. Educational only.';
+    case 'dashboard': return 'Your progress across both tracks: lessons, games, XP, badges and daily streak. Educational only.';
+    case 'account': return 'Sign in or create a free account to open the Beginner and Advanced tracks. Educational only.';
+    case 'paywall': return 'Unlock every lesson and game in the Beginner and Advanced tracks. Educational only.';
+    case 'dev-chart': return 'Chart rendering dev page.';
+    default: return DEFAULT_DESC;
+  }
+}
+
+function setMetaDescription(text) {
+  let m = document.querySelector('meta[name="description"]');
+  if (!m) {
+    m = document.createElement('meta');
+    m.setAttribute('name', 'description');
+    document.head.append(m);
+  }
+  m.setAttribute('content', text);
 }
 
 function currentHash() {
@@ -214,6 +258,7 @@ async function render(hash, { initial = false, retry = false } = {}) {
   }
 
   document.title = titleFor(route, entry);
+  setMetaDescription(descriptionFor(route, entry));
   try {
     onRouteCb?.(route, entry);
   } catch (err) {
