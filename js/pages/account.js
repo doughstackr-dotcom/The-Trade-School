@@ -208,7 +208,7 @@ export default {
           h('h2', null, a.user?.email || 'Member'),
           h('p', { class: 'account__plan' },
             h('span', { class: 'chip' }, levelLabel(a.level)),
-            plan ? h('span', { class: 'muted' }, ` · $${plan.price}/mo`) : h('span', { class: 'muted' }, ' · free unit + library')),
+            plan ? h('span', { class: 'muted' }, ` · $${plan.price}/mo`) : h('span', { class: 'muted' }, ' · Daily Challenge free')),
           h('div', { class: 'row' },
             a.level !== 'advanced'
               ? h('button', {
@@ -273,7 +273,7 @@ export default {
         h('h1', null, signupMode ? 'Create your account' : a.user ? 'Your account' : 'Sign in'),
         h('p', { class: 'lead' },
           signupMode
-            ? 'Beginner and Advanced lessons need a free account. Home, Dashboard and the other tools stay open without signing in. Educational use only — not financial advice.'
+            ? 'Beginner and Advanced lessons need an account and a Beginner or Advanced plan. Home, Dashboard and the other tools stay open without signing in. Educational use only — not financial advice.'
             : a.user
               ? 'Plan status and billing live here. Educational use only — not financial advice.'
               : 'Sign in with email and password to open Beginner and Advanced lessons and games. Educational use only — not financial advice.')),

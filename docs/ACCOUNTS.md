@@ -1,11 +1,12 @@
 # Accounts & subscriptions — owner setup
 
-The Trade School uses **Supabase** for accounts, progress sync and access control, and
+The Trade School uses **Supabase** for accounts and access control (progress stays in the
+browser; the `progress` table exists but the current client does not sync it), and
 **Stripe** for the two monthly subscriptions.
 
 | plan | price | unlocks |
 |---|---|---|
-| Free account | $0 | Unit 1 (Candlestick anatomy + Candle Builder), Pattern Library, progress sync |
+| Free account | $0 | Daily Challenge (`FREE_IDS`); everything else, incl. Library, Playbook and Glossary, needs Beginner |
 | Beginner | **$19.99 / month** | Every Beginner lesson and game |
 | Advanced | **$29.99 / month** | Everything in Beginner **plus** every Advanced lesson and game |
 
@@ -19,6 +20,27 @@ Already done for you:
 - Edge Functions deployed: `create-checkout`, `customer-portal`, `stripe-webhook`
   (`supabase/functions/`).
 - A private `premium` Storage bucket that only paying members can read.
+
+### Stripe test mode: already created (account "New business")
+
+These were created through the Stripe API on 2026-09-28, so steps 1–3 below are done for
+**test mode**:
+
+| object | id |
+|---|---|
+| Product "The Trade School — Beginner" | `prod_VLIzZYlR7gtphI` |
+| Price Beginner $19.99/month (lookup key `beginner_monthly`) | `price_1UKcNeDCFUwEFxvd7qT1FkOQ` |
+| Product "The Trade School — Advanced" | `prod_VLIzoSPe7LgLgt` |
+| Price Advanced $29.99/month (lookup key `advanced_monthly`) | `price_1UKcNjDCFUwEFxvdwWKmnR5t` |
+| Customer portal configuration (default: switch plans with proration, cancel at period end, card + invoices) | `bpc_1UKcOcDCFUwEFxvd7k4EcKoj` |
+| Webhook endpoint → `…/functions/v1/stripe-webhook` (8 events) | `we_1UKcP1DCFUwEFxvdZ2g6wmkw` |
+
+What's left for test mode is step 4 (Supabase secrets): `STRIPE_PRICE_BEGINNER` and
+`STRIPE_PRICE_ADVANCED` are the two price ids above; `STRIPE_SECRET_KEY` is your test secret
+key (Stripe → Developers → API keys); `STRIPE_WEBHOOK_SECRET` is the endpoint's signing
+secret (Stripe → Developers → Webhooks → the endpoint → Signing secret → Reveal); `SITE_URL`
+is your live site address. When you go live, repeat steps 1–3 in live mode (or ask for them to
+be created) and swap every `STRIPE_*` secret for its live value.
 
 What you need to do is below. Do it in Stripe **test mode** first, then repeat the Stripe
 parts in live mode when you launch. Never paste secret keys into chat, code or GitHub —
@@ -106,8 +128,8 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 1. Sign up on the site, confirm the email, sign in.
 2. Open an Advanced lesson → the paywall appears → choose **Beginner** → pay with Stripe's
    test card `4242 4242 4242 4242`, any future date, any CVC.
-3. You return to **Account**, which shows "Unlocking…" and flips to **Beginner** within a
-   few seconds (the webhook updates the database).
+3. You return to **Account**, which flips to **Beginner** within a few seconds: the site
+   re-checks the plan every 2 s for about 30 s while the webhook updates the database.
 4. Choose **Upgrade to Advanced** → the plan switches with proration, Advanced unlocks.
 5. **Manage billing** → cancel → the plan stays active until the period ends.
 6. Check Supabase → Table editor → `subscriptions`, and Edge Functions → Logs if anything
@@ -121,9 +143,9 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
   low activity and have lower limits; upgrade the organization to a paid plan before real
   customers depend on it (Supabase Dashboard → Organization → Billing). Turn on backups.
 - Custom SMTP (step 5.3) must be configured.
-- Add your legal pages: the site ships draft Terms and Privacy pages (`#terms`, `#privacy`)
-  that you must review with a professional before charging customers. Stripe also requires a
-  visible refund/cancellation policy.
+- Add your legal pages: the current site has **no** Terms or Privacy pages (`#terms` and
+  `#privacy` are not routed), so write them and review them with a professional before
+  charging customers. Stripe also requires a visible refund/cancellation policy.
 - **Clear test-mode billing rows** before switching Stripe to live keys (test customer ids
   don't exist in live mode), in the SQL Editor:
   `delete from public.subscriptions; delete from public.customers; delete from public.stripe_events;`
@@ -138,8 +160,8 @@ Grants can expire: add `expires_at = now() + interval '30 days'`.
 
 - The site itself is static files, so any CDN host (GitHub Pages, Cloudflare Pages,
   Netlify, Vercel) serves unlimited visitors cheaply.
-- The only per-user backend traffic is sign-in, one access-level check per session,
-  and progress sync, which is debounced into one small row per user.
+- The only per-user backend traffic is sign-in and one access-level check per session
+  (progress is kept in the browser).
 - Every table uses row-level security keyed on the user's id with an index, so checks stay
   fast as the user count grows.
 - Stripe webhooks are idempotent: repeated or out-of-order events re-read the subscription
@@ -159,3 +181,8 @@ so anyone can read it. To make paid content genuinely private:
    uploads the paid modules to the private `premium` bucket, and the deploy build leaves them
    out of the public files. The site then downloads them only for members whose plan allows
    it; Supabase checks `access_level()` on every download.
+
+> **Not implemented in the current client.** The router always loads lessons and games from
+> the public site: `PREMIUM_SOURCE` has no effect and `scripts/publish-premium.mjs` does not
+> exist. Do not remove paid modules from the public build (every lesson and game would 404).
+> Until the storage mode is rebuilt, paid content is protected only by client-side UX.

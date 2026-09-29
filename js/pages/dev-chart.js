@@ -57,6 +57,10 @@ const CSS = `
 .dev-chart .dc-kv dt { color: var(--text-3); }
 .dev-chart .dc-kv dd { margin: 0; overflow-wrap: anywhere; }
 .dev-chart .dc-read { font: 15px/1.55 var(--font-body); color: var(--text); margin: 0; }
+@media (pointer: coarse) {
+  .dev-chart .dc-btn, .dev-chart .dc-list button { min-height: 44px; }
+  .dev-chart select { min-height: 44px; font-size: 16px; }
+}
 `;
 
 export function mount(root, ctx = {}) {

@@ -746,9 +746,9 @@ owner live in `docs/ACCOUNTS.md`.
 
 | plan | price | unlocks |
 |---|---|---|
-| (signed out) | — | home, track overviews, pricing, glossary, sign-in pages |
-| `free` (account, no subscription) | $0 | + unit 1 (`candle-anatomy`, `candle-builder`), the Pattern Library, progress sync |
-| `beginner` | **$19.99 / month** | + every Beginner lesson and game, `what-next` Beginner mode |
+| (signed out) | — | home, dashboard, live, platforms, `#paywall`, `#account`; Library / Playbook / Glossary / Games as teasers |
+| `free` (account, no subscription) | $0 | + the Daily Challenge (`FREE_IDS`) |
+| `beginner` | **$19.99 / month** | + every Beginner lesson and game (incl. tier `both`), Library, Playbook, Glossary, `what-next` Beginner mode |
 | `advanced` | **$29.99 / month** | + everything in Beginner **and** every Advanced lesson and game |
 
 `public.access_level()` (SQL, security invoker) returns `'free' | 'beginner' | 'advanced'`
@@ -760,46 +760,41 @@ for the caller from `subscriptions` (status active/trialing/past_due) and `acces
 js/config.js         public config: SUPABASE_URL, SUPABASE_KEY (publishable key — safe in
                      the browser), PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE
 js/vendor/supabase.js  vendored @supabase/supabase-js UMD build (window.supabase), loaded
-                     lazily by auth.js — no CDN
-js/core/auth.js      session, sign up/in/out, magic link, password reset, access level,
-                     checkout + billing portal, 'change' events; mock mode for tests
-js/core/access.js    requiredPlan(entry | mode) and canOpen(); lock labels for the UI
-js/core/sync.js      merges local progress with the `progress` row and pushes debounced
-js/pages/pricing.js  #pricing      plan cards, FAQ, current plan
-js/pages/account.js  #account      profile, plan status, manage billing, sign out
-js/pages/auth.js     #signin #signup #reset #reset.update
-js/pages/paywall.js  rendered by the router in place of a locked lesson/game
-js/pages/legal.js    #terms #privacy (drafts for the owner to review)
+                     lazily by access.js — no CDN
+js/core/access.js    session, sign up/in/out, access level, checkout + billing portal,
+                     requiredPlan / canOpen / hasPaidAccess, lock labels, change events
+js/core/teaser.js    in-page locks for Library / Playbook / Glossary without a paid plan
+js/pages/account.js  #account #account.signup   sign in / sign up, plan status, billing, sign out
+js/pages/paywall.js  #paywall, and rendered by the router in place of a locked lesson/game
 ```
 
-`auth` API:
+Router aliases: `#pricing(.<plan>)` → paywall, `#signin` / `#signup` → account, and Supabase
+Auth fragments (`#error=…`, `#access_token=…`) → account. There is no password-reset,
+magic-link, progress-sync or `#terms` / `#privacy` page in the current client.
+
+`access` API:
 
 ```js
-import { auth } from './core/auth.js';
-await auth.ready;                       // session restored (or none)
-auth.user          // null | { id, email }
-auth.profile       // null | { display_name }
-auth.level         // null (signed out) | 'free' | 'beginner' | 'advanced'
-auth.mode          // 'supabase' | 'mock' | 'offline' (vendor/network unavailable)
-auth.signUp({ email, password, displayName }) → { needsConfirmation }
-auth.signIn({ email, password })
-auth.signInWithMagicLink(email)
-auth.sendPasswordReset(email)
-auth.updatePassword(password)
-auth.signOut()
-auth.refreshAccess() → level
-auth.checkout(plan)                     // redirects to Stripe, or resolves { switched }
-auth.openBillingPortal()                // redirects to the Stripe customer portal
-auth.on('change', fn) / auth.off('change', fn)
+import * as access from './core/access.js';
+await access.ready;          // first session / access-level check done
+access.getAccess()           // { level, session, mode, user: null | { id, email }, enforcing, premiumSource }
+access.onChange(fn)          // fn(snapshot) after every refresh / auth change → unsubscribe
+access.signUp({ email, password, displayName }) → { ok, error?, needsConfirmation? }
+access.signIn({ email, password }) → { ok, error? }
+access.signOut()
+access.checkout(plan)        // redirects to Stripe, or resolves { ok, switched } / { ok: false, error }
+access.openBillingPortal()   // redirects to the Stripe customer portal, or { ok: false, error }
+access.can(plan) · access.canOpen(entry, route) · access.requiredPlan(entryOrMode) · access.hasPaidAccess()
 ```
 
 - PKCE flow (`flowType: 'pkce'`), so email links come back as `?code=…` and never
-  collide with the hash router; the `code` param is stripped with `history.replaceState`
-  after the exchange. Password recovery lands on `#reset.update`.
-- Checkout returns to `?checkout=success#account`; the account page polls
-  `refreshAccess()` for up to ~30 s while the webhook lands.
-- Mock mode (only on localhost/127.0.0.1): `localStorage['tts-auth-mock']` holds a fake
-  user and level so Playwright can exercise every flow without network access.
+  collide with the hash router; supabase-js strips the `code` param with
+  `history.replaceState` after the exchange.
+- Checkout returns to `?checkout=success#account`; access.js re-checks the level every 2 s
+  for up to ~30 s while the webhook lands, then drops `?checkout=` from the URL. A plan
+  switch (`{ switched }`) polls the same way before `checkout()` resolves.
+- Edge Function errors: the server's `{ error }` text is shown (a 503 "not open yet" reads
+  "Subscriptions not open yet").
 
 ### 9.3 Enforcement
 
@@ -810,11 +805,11 @@ auth.on('change', fn) / auth.off('change', fn)
   mounts `paywall.js` instead when blocked. `ctx.access` is passed to every module
   (`{ level, can(plan) }`); GameShell modes may declare `requires: 'advanced'` and render
   locked with an upgrade link.
-- Client-side checks are UX. Real enforcement is `PREMIUM_SOURCE = 'storage'`: paid module
-  files are uploaded to the private `premium` Storage bucket (`beginner/…`, `advanced/…`)
-  by `scripts/publish-premium.mjs`, removed from the public site build, and loaded by the
-  router through Storage (RLS checks `access_level()`), with relative imports rewritten to
-  absolute URLs. This only protects content if the source repository is private.
+- Client-side checks are UX. The planned real enforcement is `PREMIUM_SOURCE = 'storage'`:
+  paid module files uploaded to the private `premium` Storage bucket (`beginner/…`,
+  `advanced/…`), removed from the public site build, and loaded by the router through
+  Storage (RLS checks `access_level()`). **Not implemented in the current client**: the
+  router never reads `PREMIUM_SOURCE` and `scripts/publish-premium.mjs` does not exist.
 
 ## 10. Devices
 
@@ -1218,9 +1213,12 @@ configureMarket({ fetch, url, key, mock, fixturesBase, mockStepMs, pollMs, timeo
   Vantage budget is used up and nothing is cached yet (it resets at 00:00 UTC, so retrying
   sooner is pointless); 502 provider failure with nothing cached. With a cache, failures
   answer 200 `{ stale: true, source: 'cache' }` with `Cache-Control: no-store`.
-- Alpha Vantage series are refreshed at most once per candle close (daily: US stocks/ETFs after
-  21:30 UTC, FX after 22:30 UTC, crypto after 00:30 UTC; weekly: after Friday's close, crypto
-  after Monday 00:30 UTC), whatever the request asks for; everything is served from the cache.
+- Alpha Vantage series are refreshed at most once per candle close (daily: US stocks/ETFs 90
+  min after the New York close — 21:30 UTC in summer, 22:30 UTC in winter — FX 22:30 / 23:30
+  UTC, crypto after 00:30 UTC; weekly: Saturday 00:30 UTC, crypto Monday 00:30 UTC), whatever
+  the request asks for; everything is served from the cache. A window the cache doesn't reach
+  the end of (refreshes held back) answers `stale: true`; answers are never browser-cached while
+  a market has not been fetched yet.
   On the free key, daily history starts ~100 trading days back and grows as the cache keeps
   every day; older daily windows return what the cache has (possibly `[]`) without a provider
   call. Weekly history is complete (20+ years; split-adjusted for stocks). Daily candles are

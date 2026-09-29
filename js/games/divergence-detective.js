@@ -22,14 +22,17 @@ export default {
         'Divergence can persist — grade the read, then manage risk.',
       ],
       async onRound(g, { rng, stage, difficulty }) {
-        const pool = difficulty < 0.5 ? KINDS.slice(0, 2) : KINDS;
-        const q = { kinds: pool, before: Math.round(90 - 15 * difficulty), after: 16 };
+        const q = { kinds: KINDS, before: Math.round(90 - 15 * difficulty), after: 16 };
         const real = await g.realRound(q);
-        // simRound is stochastic (random markets × limited tries) and can return null — retry
-        // with fresh rng draws before surfacing a broken round.
+        // simRound is stochastic (random markets × limited tries) and can return null —
+        // retry with fresh rng draws, then show a skip card instead of a broken round.
         let r = real || simRound(rng, q);
         for (let i = 0; !r && i < 6; i++) r = simRound(rng, q);
-        if (!r) throw new Error('simRound found no setup after retries');
+        if (!r) {
+          stage.append(h('p', { class: 'muted' }, 'Could not build a chart for this round.'));
+          g.nextButton();
+          return undefined;
+        }
         const k = r.setup?.kind || '';
         let answer = 'confirm';
         if (k === 'bearish-divergence') answer = 'bear-div';

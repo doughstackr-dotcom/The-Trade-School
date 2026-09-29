@@ -20,8 +20,8 @@ export const FREE_IDS = ['daily-challenge'];
 // development and tests see every module; 'open' | 'enforce' force one behaviour.
 export const ACCESS_MODE = 'auto';
 
-// 'site' loads lesson/game code from the public site; 'storage' loads paid modules from
-// the private Supabase Storage bucket (see docs/ACCOUNTS.md §10).
+// 'site' loads lesson/game code from the public site; 'storage' (planned: paid modules from
+// the private Supabase Storage bucket) is not implemented yet — see docs/ACCOUNTS.md §10.
 export const PREMIUM_SOURCE = 'site';
 // When set to 'storage', paid modules load from the private Supabase Storage bucket
 // paths beginner/<file> and advanced/<file> (see docs/ACCOUNTS.md §10 and docs/SECRETS.md).

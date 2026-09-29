@@ -22,9 +22,10 @@
 //     interval-dependent TTL, and history is fetched page by page once and kept.
 //   * Metered snapshot providers (Alpha Vantage, 25 calls/day on the free key): each call
 //     returns the provider's whole series (latest ~100 daily candles, or full weekly history)
-//     and takes a unit of the shared daily budget (public.take_market_quota). The series is
-//     refreshed at most once per new candle boundary (the next close), everything is served
-//     from the cache, and nothing is ever back-filled.
+//     and takes a unit of the shared daily budget (public.take_market_quota) and of the series'
+//     own small allowance. The series is refreshed at most once per new candle boundary (the
+//     next close), everything is served from the cache, and nothing is ever back-filled. Behind
+//     exchange feeds it only fills an empty cache, through a hold of its own (meteredFallback).
 //
 // Deployed with verify_jwt = false: this is public market data and callers use the
 // publishable key (not a JWT). Every input is validated against a fixed allow-list.

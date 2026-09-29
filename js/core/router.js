@@ -86,6 +86,11 @@ export function parseHash(hash) {
   if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
   // #affiliate is an alias of #platforms (renamed partners page).
   if (token === 'affiliate') return { key: 'affiliate', kind: 'page', page: 'platforms' };
+  // Older accounts hashes (Stripe cancel_url #pricing, GameShell upgrade / sign-in links) alias Unlock and Account.
+  if (token === 'pricing' || token.startsWith('pricing.')) return { key: token, kind: 'page', page: 'paywall' };
+  if (token === 'signin' || token === 'signup') return { key: token, kind: 'page', page: 'account', param: token === 'signup' ? 'signup' : null };
+  // Supabase Auth redirect fragments (#error=…, #access_token=…) open Account instead of echoing on the 404 card.
+  if (/(^|&)(access_token|error|error_code|error_description)=/.test(token)) return { key: 'account', kind: 'page', page: 'account' };
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }

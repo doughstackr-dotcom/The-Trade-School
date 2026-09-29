@@ -9,9 +9,11 @@
 //   * FakeCoinbase  – GET /products/{id}/candles (≤ 300 rows, newest first, [t, l, h, o, c, v]).
 //   * FakeKraken    – GET /0/public/OHLC (≤ 720 most recent rows, oldest first, strings).
 //   * FakeAlphaVantage – GET /query for every function alphavantage.ts uses (daily/weekly/
-//                     intraday for equities, FX and crypto), with sessions, holidays, splits,
+//                     intraday for equities, FX and crypto), with sessions, holidays, splits
+//                     (any weekday), US closes that follow daylight saving (publishLagMin),
 //                     compact/full output, premium-only endpoints, the key's own daily limit
-//                     and the 1-call-per-second burst limit (HTTP 200 + "Note"/"Information").
+//                     and the 1-call-per-second burst limit on the fake or the real clock
+//                     (HTTP 200 + "Note"/"Information").
 // Every fake records its calls so tests can count upstream traffic exactly.
 
 // deno-lint-ignore-file no-explicit-any
