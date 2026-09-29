@@ -8,8 +8,7 @@ import { trendSeries } from '../core/data.js';
 function fibStory(rng) {
   const ts = trendSeries({ seed: rng.int(1, 1e9), count: 90, direction: 'up', swings: 3 });
   const c = ts.candles;
-  const loIdx = 15, hiIdx = 55;
-  const lo = c[loIdx].l, hi = c[hiIdx].h;
+  const { loIdx, hiIdx, loPrice: lo, hiPrice: hi } = impulseSwing(ts);
   const r618 = hi - (hi - lo) * 0.618;
   const r382 = hi - (hi - lo) * 0.382;
   return {
@@ -147,7 +146,7 @@ const steps = [
       tag: 'Valid anchor',
       example: () => {
         const ts = trendSeries({ seed: 8, count: 70, direction: 'up', swings: 3 });
-        const loIdx = 10, hiIdx = 40;
+        const { loIdx, hiIdx } = impulseSwing(ts);
         return {
           candles: ts.candles,
           overlays: [
@@ -157,7 +156,7 @@ const steps = [
           ],
         };
       },
-      points: ['Obvious swing low → swing high', 'Levels land near structure', 'Safe to plan a pullback'],
+      points: ['Obvious swing low → swing high', 'Levels land near structure', 'A sound map to plan a pullback (still needs a trigger and a stop)'],
     },
     right: {
       title: 'Noise swing',

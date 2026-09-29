@@ -2,24 +2,32 @@
 import { LessonShell, storyStep, compareStep, figure, takeaway } from '../core/lesson-kit.js';
 import { h } from '../core/ui.js';
 import { miniChart } from '../core/chart.js';
-import { trendSeries } from '../core/data.js';
+import { trendSeries, fromPath } from '../core/data.js';
 import { sma, closes as closesOf } from '../core/indicators.js';
 
+
+/** Entry: the first candle after the zone touch at idx that closes above the prior candle's high. */
+function triggerAfter(c, idx) {
+  for (let i = idx + 1; i < Math.min(c.length, idx + 6); i++) if (c[i].c > c[i - 1].h) return i;
+  return Math.min(c.length - 1, idx + 1);
+}
 
 function confStory(rng) {
   const ts = trendSeries({ seed: rng.int(1, 1e9), count: 90, direction: 'up', swings: 3 });
   const c = ts.candles;
-  const lvl = c[50].l;
+  // Swings H, L, HH, HL…: the zone is the pullback low (HL) after the first higher high.
+  const [, , hh, pb] = ts.swings;
+  const lvl = pb.price;
+  const trig = triggerAfter(c, pb.idx);
   return {
     candles: c,
     frames: [
-      { to: 45, caption: 'HTF uptrend already established — bias long.' },
-      { to: 60, title: 'Confluence zone.', caption: 'Pullback into prior support + rising MA area + Fib cluster. Multiple stories, one price.',
+      { to: hh.idx + 3, caption: 'HTF uptrend already established — bias long.' },
+      { to: pb.idx + 1, title: 'Confluence zone.', caption: 'Pullback into prior support + rising MA area + Fib cluster. Multiple stories, one price.',
         overlays: [{ type: 'hline', price: lvl, color: 'bull', label: 'Zone' }] },
-      { to: 70, title: 'Trigger.', caption: 'A candle pattern or break of a micro-level times the entry. Stop goes beyond the zone.',
+      { to: trig + 2, title: 'Trigger.', caption: 'A candle pattern or break of a micro-level times the entry. Stop goes beyond the zone.',
         overlays: [
-          { type: 'hline', price: lvl, color: 'bull', label: 'Zone' },
-          { type: 'marker', idx: 68, position: 'below', text: 'Trigger', color: 'accent' },
+          { type: 'marker', idx: trig, position: 'below', text: 'Trigger', color: 'accent' },
         ] },
       { to: c.length, caption: 'Position size = (account risk $) ÷ (entry − stop). Confluence raises quality, not certainty.' },
     ],
@@ -30,8 +38,11 @@ function confluenceFigure(seed = 11) {
   const ts = trendSeries({ seed, count: 80, direction: 'up', swings: 3 });
   const c = ts.candles;
   const closes = closesOf(c);
-  const loIdx = 12, hiIdx = 45;
-  const zone = c[52].l;
+  // Swings H, L, HH, HL: the prior high (old resistance → support), the impulse L → HH for the
+  // Fib, and the pullback low that lands in that area.
+  const [h0, lo, hi, pb] = ts.swings;
+  const loIdx = lo.idx, hiIdx = hi.idx;
+  const zone = h0.price;
   return miniChart(c, {
     width: 640, height: 200, yPad: 0.12,
     ariaLabel: 'Confluence of support, MA and fib',
@@ -39,7 +50,7 @@ function confluenceFigure(seed = 11) {
       { type: 'hline', price: zone, color: 'bull', label: 'Support' },
       { type: 'series', values: sma(closes, 20), color: 'ma2' },
       { type: 'fib', a: { idx: loIdx, price: c[loIdx].l }, b: { idx: hiIdx, price: c[hiIdx].h }, ratios: [0.5, 0.618], labels: false, zone: [0.5, 0.618] },
-      { type: 'marker', idx: 55, position: 'below', text: 'Zone', color: 'accent' },
+      { type: 'marker', idx: pb.idx, position: 'below', text: 'Zone', color: 'accent' },
     ],
   });
 }
@@ -121,13 +132,18 @@ const steps = [
       tag: 'Process win',
       example: () => {
         const ts = trendSeries({ seed: 7, count: 70, direction: 'up', swings: 3 });
-        const lvl = ts.candles[40].l;
+        const c = ts.candles;
+        const pb = ts.swings[3]; // H, L, HH, HL: the pullback low is the zone
+        const lvl = pb.price;
+        const entry = triggerAfter(c, pb.idx);
+        const target = c[entry].c + 2 * (c[entry].c - lvl * 0.998); // stop just beyond the zone
+        const hit = c.findIndex((k, i) => i > entry && k.h >= target);
         return {
-          candles: ts.candles,
+          candles: c,
           overlays: [
             { type: 'hline', price: lvl, color: 'bull', label: 'Zone' },
-            { type: 'marker', idx: 45, position: 'below', text: 'Entry', color: 'accent' },
-            { type: 'marker', idx: 65, position: 'above', text: '+2R', color: 'bull' },
+            { type: 'marker', idx: entry, position: 'below', text: 'Entry', color: 'accent' },
+            { type: 'marker', idx: hit, position: 'above', text: '+2R', color: 'bull' },
           ],
         };
       },
@@ -138,14 +154,18 @@ const steps = [
       verdict: 'bad',
       tag: 'Planned loss',
       example: () => {
-        const ts = trendSeries({ seed: 18, count: 70, direction: 'up', swings: 3 });
-        const lvl = ts.candles[42].l;
+        // Uptrend, pullback into the zone, a trigger, then a break below the zone (an uptrend
+        // trendSeries never breaks its pullback lows, so this path is drawn explicitly).
+        const { candles: c, anchors } = fromPath([[0, 100], [0.38, 105], [0.55, 102.6], [0.63, 103.7], [0.85, 101.2], [1, 101.7]], { seed: 18, count: 70 });
+        const lvl = anchors[2].price;
+        const entry = triggerAfter(c, anchors[2].idx);
+        const stopped = c.findIndex((k, i) => i > entry && k.l <= lvl * 0.998);
         return {
-          candles: ts.candles,
+          candles: c,
           overlays: [
             { type: 'hline', price: lvl, color: 'bull', label: 'Zone' },
-            { type: 'marker', idx: 48, position: 'below', text: 'Entry', color: 'accent' },
-            { type: 'marker', idx: 58, position: 'below', text: 'Stopped −1R', color: 'bear' },
+            { type: 'marker', idx: entry, position: 'below', text: 'Entry', color: 'accent' },
+            { type: 'marker', idx: stopped, position: 'below', text: 'Stopped −1R', color: 'bear' },
           ],
         };
       },

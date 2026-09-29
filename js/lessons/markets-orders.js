@@ -75,7 +75,7 @@ export default {
                 'Stock exchanges, futures pits, and crypto venues all do the same job: match someone who wants to buy with someone who wants to sell.'),
               h('p', null,
                 'Your ', h('strong', null, 'broker'), ' is the doorway (the app or desk that routes your order). The ',
-                h('strong', null, 'exchange'), ' (or liquidity venue) is where resting orders live in the book. You almost never trade “against the broker” — you trade against another participant.'),
+                h('strong', null, 'exchange'), ' (or liquidity venue) is where resting orders live in the book. On an exchange you trade against another participant, not the broker (retail stock orders are often filled by a wholesale market maker). With CFDs, spread bets, most retail FX and binary options, the broker itself is usually on the other side of your trade.'),
             );
             addVis();
             el.append(
@@ -191,7 +191,7 @@ export default {
               { label: 'Sell limit at 98.50', value: 3 },
             ],
             answer: 2,
-            explain: '<strong>Buy limit at 98.50.</strong> A limit waits for your price or better. A buy stop at 98.50 would only fire if price rose up to it.',
+            explain: '<strong>Buy limit at 98.50.</strong> A limit waits for your price or better. A buy stop belongs above the market: at 98.50, with price above it, it would trigger at once (or be rejected) and buy now at the market.',
           },
         },
         {
@@ -205,7 +205,7 @@ export default {
               { label: 'Buy limit at 97', value: 3 },
             ],
             answer: 0,
-            explain: '<strong>Sell stop at 97.</strong> It triggers only if price drops to your level, then sells at the market. A sell limit at 97 would sit below and might never fill on the way down.',
+            explain: '<strong>Sell stop at 97.</strong> It triggers only if price drops to your level, then sells at the market. A sell limit at 97 is below the current price, so it would fill at once at about 100: you would exit now, not only if price fell.',
           },
         },
         {

@@ -4,14 +4,41 @@ import { h } from '../core/ui.js';
 import { miniChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
 import { sma, rsi as rsiOf, closes as closesOf } from '../core/indicators.js';
+import { simRound } from '../core/scanner.js';
 
+/**
+ * A scanner-confirmed bearish RSI divergence in a calm simulated market: meta.a / meta.b are real
+ * swing highs (B higher in price, RSI ≥ 4 points lower). ok(round, lowBetween) filters further.
+ */
+function bearishDivergence(rng, ok = () => true) {
+  let first = null;
+  for (let t = 0; t < 40; t++) {
+    const r = simRound(rng, { kinds: ['bearish-divergence'], before: 90, after: 20 });
+    if (!r) continue;
+    const { a, b } = r.setup.meta;
+    let low = Infinity;
+    for (let i = a.idx + 1; i < b.idx; i++) low = Math.min(low, r.candles[i].l);
+    const calm = r.outcome.atr / r.candles[r.decisionIdx].c < 0.025;
+    if (b.idx - a.idx >= 10 && calm && ok(r, low)) return { ...r, low };
+    first = first || { ...r, low };
+  }
+  return first;
+}
+
+/** First close below the low between A and B after B (the structure break), or -1. */
+function breakIdx(r) {
+  for (let i = r.setup.meta.b.idx + 1; i < r.candles.length; i++) if (r.candles[i].c < r.low) return i;
+  return -1;
+}
 
 function divStory(rng) {
-  const ts = trendSeries({ seed: rng.int(1, 1e9), count: 100, direction: 'up', swings: 4 });
-  const c = ts.candles;
-  const p1 = 40, p2 = 75;
+  const r = bearishDivergence(rng);
+  if (!r) return null;
+  const c = r.candles;
+  const p1 = r.setup.meta.a.idx, p2 = r.setup.meta.b.idx;
   return {
     candles: c,
+    indicators: { rsi: true },
     frames: [
       { to: p1 + 1, caption: 'Price makes a swing high. Momentum (e.g. RSI) is strong.',
         overlays: [{ type: 'marker', idx: p1, position: 'above', text: 'High A', color: 'accent' }] },
@@ -51,7 +78,7 @@ function oversoldDowntrendChart() {
     ariaLabel: 'Downtrend with oversold RSI condition',
     overlays: [
       { type: 'series', values: sma(closes, 20), color: 'ma2' },
-      { type: 'marker', idx: mark, position: 'below', text: 'RSI ~25', color: 'bear' },
+      { type: 'marker', idx: mark, position: 'below', text: 'RSI < 30', color: 'bear' },
       { type: 'marker', idx: ts.candles.length - 1, position: 'above', text: 'Still falling', color: 'accent' },
     ],
   });
@@ -75,7 +102,7 @@ const steps = [
   storyStep({ title: 'Divergence idea', story: divStory }),
   realExampleStep({
     title: 'Momentum contexts',
-    kinds: ['rsi-divergence-bear', 'rsi-divergence-bull', 'macd-cross-up', 'macd-cross-down'],
+    kinds: ['bearish-divergence', 'bullish-divergence'],
     intervals: ['1d'],
     caption: 'Scanner labels are a starting point. Confirm with your own eyes.',
   }),
@@ -109,14 +136,14 @@ const steps = [
       title: 'Warned, then reversed',
       verdict: 'good',
       tag: 'Useful warn',
-      example: () => {
-        const ts = trendSeries({ seed: 22, count: 90, direction: 'up', swings: 4 });
+      example: (rng) => {
+        const r = bearishDivergence(rng, (x, low) => x.outcome.result === 'followed' && breakIdx({ ...x, low }) > 0);
         return {
-          candles: ts.candles,
+          candles: r.candles,
           overlays: [
-            { type: 'marker', idx: 42, position: 'above', text: 'A', color: 'accent' },
-            { type: 'marker', idx: 68, position: 'above', text: 'B weaker', color: 'bear' },
-            { type: 'marker', idx: 78, position: 'below', text: 'Break', color: 'bear' },
+            { type: 'marker', idx: r.setup.meta.a.idx, position: 'above', text: 'A', color: 'accent' },
+            { type: 'marker', idx: r.setup.meta.b.idx, position: 'above', text: 'B weaker', color: 'bear' },
+            { type: 'marker', idx: breakIdx(r), position: 'below', text: 'Break', color: 'bear' },
           ],
         };
       },
@@ -126,14 +153,16 @@ const steps = [
       title: 'Warned, trend ran on',
       verdict: 'bad',
       tag: 'Failed fade',
-      example: () => {
-        const ts = trendSeries({ seed: 9, count: 90, direction: 'up', swings: 3 });
+      example: (rng) => {
+        // First candle clearly (1 ATR) above B, away from the right edge so its label fits.
+        const top = (x) => x.candles.findIndex((k, i) => i > x.setup.meta.b.idx && k.h > x.setup.meta.b.price + x.outcome.atr);
+        const r = bearishDivergence(rng, (x, low) => breakIdx({ ...x, low }) < 0 && top(x) > 0 && top(x) < x.candles.length - 6);
         return {
-          candles: ts.candles,
+          candles: r.candles,
           overlays: [
-            { type: 'marker', idx: 35, position: 'above', text: 'A', color: 'accent' },
-            { type: 'marker', idx: 55, position: 'above', text: 'B weaker', color: 'bear' },
-            { type: 'marker', idx: 85, position: 'above', text: 'New highs', color: 'bull' },
+            { type: 'marker', idx: r.setup.meta.a.idx, position: 'above', text: 'A', color: 'accent' },
+            { type: 'marker', idx: r.setup.meta.b.idx, position: 'above', text: 'B weaker', color: 'bear' },
+            { type: 'marker', idx: top(r), position: 'above', text: 'New highs', color: 'bull' },
           ],
         };
       },

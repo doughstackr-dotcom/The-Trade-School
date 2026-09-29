@@ -8,7 +8,10 @@ import { trendSeries } from '../core/data.js';
 function structureStory(rng) {
   const ts = trendSeries({ seed: rng.int(1, 1e9), count: 80, direction: 'up', swings: 4 });
   const c = ts.candles;
-  const a = 18, b = 38, d = 58;
+  // Labels sit on the series' real swings: the first higher low, the next higher high and higher low.
+  const a = ts.swings.find((s) => s.label === 'HL').idx;
+  const b = ts.swings.find((s) => s.label === 'HH' && s.idx > a).idx;
+  const d = ts.swings.find((s) => s.label === 'HL' && s.idx > b).idx;
   return {
     candles: c,
     frames: [

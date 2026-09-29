@@ -7,16 +7,18 @@ import { chartScenario } from '../core/patterns.js';
 function levelStory(rng) {
   const sc = chartScenario('double-bottom', { seed: rng.int(1, 1e9), count: 90, after: 14, outcome: 'success' });
   const c = sc.candles;
-  const lvl = sc.level;
+  // Support is the two bottoms; sc.level is the neckline (the peak between them) above.
+  const [b1, b2] = sc.keyPoints.filter((k) => /^Bottom/.test(k.label));
+  const lvl = Math.min(b1.price, b2.price);
   return {
     candles: c,
     frames: [
-      { to: 35, caption: 'Price falls into a level where buyers previously appeared.' },
-      { to: 55, title: 'Support holds.', caption: 'A second test finds buyers again. Two touches define a zone, not a single tick.',
+      { to: b1.idx + 3, caption: 'Price falls into a level where buyers previously appeared.' },
+      { to: b2.idx + 3, title: 'Support holds.', caption: 'A second test finds buyers again. Two touches define a zone, not a single tick.',
         overlays: [{ type: 'hline', price: lvl, color: 'bull', label: 'Support' }] },
       { to: sc.breakoutIdx + 1, title: 'Break of the neckline.', caption: 'Resistance above gives way. Old resistance can flip to support on a retest.',
         overlays: [
-          { type: 'hline', price: lvl, color: 'bull', label: 'Support' },
+          { type: 'hline', price: sc.level, color: 'accent', dashed: true, label: 'Neckline' },
           { type: 'marker', idx: sc.breakoutIdx, position: 'above', text: 'Break', color: 'accent' },
         ] },
       { to: c.length, caption: 'Levels fail. Trade the reaction you planned — never assume a zone is sacred.' },
@@ -39,15 +41,17 @@ const steps = [
     title: 'Is this a usable level?',
     example: (rng) => {
       const sc = chartScenario('double-bottom', { seed: rng.int(1, 1e9), count: 88, after: 10 });
-      return { candles: sc.candles, visible: Math.min(sc.breakoutIdx, sc.candles.length - 1), sc };
+      // The zone is the two bottoms (sc.level is the neckline above them).
+      const sup = Math.min(...sc.keyPoints.filter((k) => /^Bottom/.test(k.label)).map((k) => k.price));
+      return { candles: sc.candles, visible: Math.min(sc.breakoutIdx, sc.candles.length - 1), sc, sup };
     },
     items: [
       { label: 'At least two clear reactions', detail: 'Bounces or rejections at similar prices.',
-        overlay: (chart, ex) => chart.addHLine({ price: ex.sc.level, color: 'accent', dashed: true, label: 'Zone' }) },
+        overlay: (chart, ex) => chart.addHLine({ price: ex.sup, color: 'accent', dashed: true, label: 'Zone' }) },
       { label: 'Visible on your trading timeframe', detail: 'A 1-minute blip is not daily support.',
         overlay: () => {} },
       { label: 'You know what invalidates it', detail: 'A close through the zone ends the idea.',
-        overlay: (chart, ex) => chart.addHLine({ price: ex.sc.level * 0.99, color: 'bear', dashed: true, label: 'Invalid' }) },
+        overlay: (chart, ex) => chart.addHLine({ price: ex.sup * 0.99, color: 'bear', dashed: true, label: 'Invalid' }) },
     ],
   }),
   {

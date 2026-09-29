@@ -32,13 +32,10 @@ const steps = [
       tag: 'Weekly / daily',
       example: () => {
         const ts = trendSeries({ seed: 6, count: 60, direction: 'up', swings: 3 });
+        // Label the series' real swings (H, L, HH, HL, HH, HL): the first HL and the HH / HL after it.
         return {
           candles: ts.candles,
-          overlays: [
-            { type: 'marker', idx: 18, position: 'below', text: 'HL', color: 'bull' },
-            { type: 'marker', idx: 32, position: 'above', text: 'HH', color: 'bull' },
-            { type: 'marker', idx: 48, position: 'below', text: 'HL', color: 'bull' },
-          ],
+          overlays: ts.swings.slice(3).map((s) => ({ type: 'marker', idx: s.idx, position: s.type === 'low' ? 'below' : 'above', text: s.label, color: 'bull' })),
         };
       },
       points: ['Clear higher highs / higher lows', 'Sets the directional bias', 'Do not invent shorts against this without an HTF break'],

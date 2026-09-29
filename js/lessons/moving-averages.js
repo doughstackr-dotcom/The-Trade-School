@@ -10,10 +10,11 @@ function maStory(rng) {
   const mid = 70;
   return {
     candles: c,
+    indicators: { sma20: true, sma50: true },
     frames: [
       { to: 40, caption: 'Price chops. A moving average will look messy here — MAs lag by design.' },
       { to: mid, title: 'Trend ride.', caption: 'In a steady advance, price often stays on one side of a medium MA (e.g. 20/50).',
-        overlays: [{ type: 'marker', idx: mid - 1, position: 'below', text: 'Above MA', color: 'bull' }] },
+        overlays: [{ type: 'marker', idx: mid - 1, position: 'below', text: 'Above SMA 50', color: 'bull' }] },
       { to: c.length, caption: 'Crosses of slow MAs (50/200) are rare and lagging. Use them as context, not a crystal ball.' },
     ],
   };
