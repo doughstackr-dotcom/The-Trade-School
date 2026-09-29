@@ -38,24 +38,29 @@ export default {
       preview: (el) => gameplayPreview(el, { seed: 88, direction: 'up', title: 'Volume Verdict', score: 470, streak: 3, round: '2/6', showVolume: true }),
       async onRound(g, { rng, stage, difficulty }) {
         // Real rounds are graded on the volume the player is asked to read, not on what price did
-        // next (the scanner's breakout / fakeout rules ignore volume). Unclear reads — no volume,
-        // or a break candle between 0.85× and 1.2× its average — are redrawn a few times.
-        let real = null;
-        let vol = null;
-        let best = null;
-        for (let t = 0; t < 4; t++) {
-          real = await g.realRound({
+        // next (the scanner's breakout / fakeout rules ignore volume). A few charts are drawn to
+        // find a clear read (≥ 1.2× or < 0.85× its average) on a Confirm or Trap side picked at
+        // random, so both answers stay equally likely; no-volume markets (spot FX) rank last.
+        const wantTrap = rng.chance(0.5);
+        let pick = null;
+        for (let t = 0; t < 6; t++) {
+          const cand = await g.realRound({
             kinds: ['breakout-up', 'breakout-down', 'fakeout-up', 'fakeout-down'],
             intervals: ['1d', '1w'],
             before: 60,
             after: 14,
           });
-          if (!real) break;
-          vol = breakVolume(real);
-          if (vol.ratio != null && !best) best = { real, vol };
-          if (vol.ratio != null && (vol.ratio >= 1.2 || vol.ratio < 0.85)) break;
+          if (!cand) {
+            pick = null;
+            break;
+          }
+          const v = breakVolume(cand);
+          const clear = v.ratio != null && (v.ratio >= 1.2 || v.ratio < 0.85);
+          const score = !clear ? (v.ratio != null ? 1 : 0) : (v.ratio < 1) === wantTrap ? 3 : 2;
+          if (!pick || score > pick.score) pick = { real: cand, vol: v, score };
+          if (score === 3) break;
         }
-        if (real && vol.ratio == null && best) ({ real, vol } = best);
+        const { real = null, vol = null } = pick || {};
         const kind = real?.setup?.kind || '';
         const r = real
           ? {
@@ -95,7 +100,7 @@ export default {
             // Real chart: say what the volume and the follow-through actually were.
             const next = r.fakeout ? 'price fell back inside the range' : r.followed ? 'price followed through' : 'price did not follow through';
             const agrees = r.trap ? !r.followed || r.fakeout : r.followed && !r.fakeout;
-            explain = `<strong>${r.trap ? 'Trap' : 'Confirmed'}.</strong> The break came on ${r.ratio.toFixed(1)}× its 10-bar average volume (${r.trap ? 'thin' : 'strong'} participation)`
+            explain = `<strong>${r.trap ? 'Trap' : 'Confirmed'}.</strong> The break came on ${r.ratio.toFixed(1)}× its 10-bar average volume (${r.trap ? 'below' : 'above'}-average participation)`
               + (agrees ? ` and ${next}.` : `, yet ${next}: volume tilts the odds, it does not decide them.`);
           } else if (r.fakeout != null) {
             explain = `<strong>${r.trap ? 'Trap' : 'Confirmed'}.</strong> This market reports no volume, so this one is graded on what price did next.`;
