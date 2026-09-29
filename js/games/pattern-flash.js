@@ -30,7 +30,11 @@ export default {
         const pool = difficulty < 0.4 ? EASY : difficulty < 0.7 ? [...EASY, ...HARD.slice(0, 2)] : [...EASY, ...HARD];
         const q = { kinds: pool, before: Math.round(55 - 15 * difficulty), after: 12 };
         const real = await g.realRound(q);
-        const r = real || simRound(rng, q);
+        // simRound is stochastic (random markets × limited tries) and can return null — retry
+        // with fresh rng draws before surfacing a broken round.
+        let r = real || simRound(rng, q);
+        for (let i = 0; !r && i < 6; i++) r = simRound(rng, q);
+        if (!r) throw new Error('simRound found no setup after retries');
         const kind = r.setup?.kind || rng.pick(pool);
         const host = h('div', { class: 'chart-frame' });
         stage.append(h('p', { class: 'quiz__q' }, 'Name the candlestick pattern.'), host);

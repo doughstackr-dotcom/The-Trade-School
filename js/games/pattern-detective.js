@@ -8,7 +8,9 @@ import { annotateSetup } from '../core/lesson-kit.js';
 import { CHART_PATTERNS } from '../core/patterns.js';
 
 const EASY = ['bull-flag', 'bear-flag', 'double-top', 'double-bottom'];
-const HARD = ['head-and-shoulders', 'inv-head-and-shoulders', 'ascending-triangle', 'descending-triangle', 'rising-wedge', 'falling-wedge'];
+// Scanner-detectable chart kinds only (js/core/scanner.js SETUP_KINDS) — the pool is also
+// the distractor source, so every id here must exist in SETUP_KINDS.
+const HARD = ['head-and-shoulders', 'inverse-head-and-shoulders'];
 
 function nameOf(kind) {
   return CHART_PATTERNS[kind]?.name || kind.replace(/-/g, ' ');
@@ -24,13 +26,17 @@ export default {
       howTo: [
         'A classic chart pattern is forming into the freeze.',
         'Name it — then we reveal the break and measured-move idea.',
-        'Harder rounds mix lookalikes (wedges vs flags, H&S vs double top).',
+        'Harder rounds add the H&S family — the lookalike trap is double top vs head & shoulders.',
       ],
       async onRound(g, { rng, stage, difficulty }) {
         const pool = difficulty < 0.35 ? EASY : difficulty < 0.7 ? [...EASY, ...HARD.slice(0, 3)] : [...EASY, ...HARD];
         const q = { kinds: pool, before: Math.round(80 - 20 * difficulty), after: 20 };
         const real = await g.realRound(q);
-        const r = real || simRound(rng, q);
+        // simRound is stochastic (random markets × limited tries) and can return null — retry
+        // with fresh rng draws before surfacing a broken round.
+        let r = real || simRound(rng, q);
+        for (let i = 0; !r && i < 6; i++) r = simRound(rng, q);
+        if (!r) throw new Error('simRound found no setup after retries');
         const kind = r.setup?.kind || rng.pick(pool);
         const host = h('div', { class: 'chart-frame' });
         stage.append(h('p', { class: 'quiz__q' }, 'Which chart pattern is this?'), host);

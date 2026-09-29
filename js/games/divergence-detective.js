@@ -6,7 +6,8 @@ import { CandleChart } from '../core/chart.js';
 import { simRound } from '../core/scanner.js';
 import { annotateSetup } from '../core/lesson-kit.js';
 
-const KINDS = ['rsi-divergence-bear', 'rsi-divergence-bull', 'macd-divergence-bear', 'macd-divergence-bull'];
+// Scanner setup kinds (js/core/scanner.js SETUP_KINDS): the two RSI divergences.
+const KINDS = ['bearish-divergence', 'bullish-divergence'];
 
 export default {
   id: 'divergence-detective',
@@ -24,11 +25,15 @@ export default {
         const pool = difficulty < 0.5 ? KINDS.slice(0, 2) : KINDS;
         const q = { kinds: pool, before: Math.round(90 - 15 * difficulty), after: 16 };
         const real = await g.realRound(q);
-        const r = real || simRound(rng, q);
+        // simRound is stochastic (random markets × limited tries) and can return null — retry
+        // with fresh rng draws before surfacing a broken round.
+        let r = real || simRound(rng, q);
+        for (let i = 0; !r && i < 6; i++) r = simRound(rng, q);
+        if (!r) throw new Error('simRound found no setup after retries');
         const k = r.setup?.kind || '';
         let answer = 'confirm';
-        if (/divergence-bear/.test(k)) answer = 'bear-div';
-        else if (/divergence-bull/.test(k)) answer = 'bull-div';
+        if (k === 'bearish-divergence') answer = 'bear-div';
+        else if (k === 'bullish-divergence') answer = 'bull-div';
         const host = h('div', { class: 'chart-frame' });
         stage.append(h('p', { class: 'quiz__q' }, 'Price vs momentum at the latest swing — what do you see?'), host);
         const chart = new CandleChart(host, {
