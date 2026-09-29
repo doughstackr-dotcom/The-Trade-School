@@ -129,7 +129,7 @@ export default {
           h('p', { class: 'lead' },
             paidHub
               ? 'Browse every skill game. Play the free Daily Challenge; unlock the rest with a membership.'
-              : 'Practice, Arcade and Survival across the curriculum — pick a game and play.')),
+              : 'Practice freely, climb 40 Arcade stages in every game, or test your streak in Survival.')),
         banner,
         h('section', { class: 'section arcade', 'aria-labelledby': 'games-hub-h' },
           h('div', { class: 'section-head' },

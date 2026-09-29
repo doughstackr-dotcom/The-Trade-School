@@ -8,6 +8,7 @@
 // game.realRound() / game.revealSource() for "mystery chart" rounds and a textbook fallback.
 import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast, choiceQuiz } from './ui.js';
 import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
+import { CAMPAIGN_LEVEL_COUNT, campaignProfile, campaignDifficulty } from './game-levels.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
 import {
   findEntry, nextItem, unitOf, findBadge, hashFor, tiersOf,
@@ -329,7 +330,8 @@ export class GameShell {
     this.id = this.entry.id;
     this.baseRounds = opts.rounds === undefined ? 10 : opts.rounds;
     this.rounds = this.baseRounds;
-    this.maxScore = opts.maxScore ?? (this.baseRounds ? this.baseRounds * 100 : 1000);
+    this.baseMaxScore = opts.maxScore ?? (this.baseRounds ? this.baseRounds * 100 : 1000);
+    this.maxScore = this.baseMaxScore;
     this.modes = Array.isArray(opts.modes) && opts.modes.length ? opts.modes : null;
     const lastTier = this.store?.state?.lastTier;
     // Modes the member's plan does not include (§9.3: `requires`, or the access rules for a
@@ -348,6 +350,8 @@ export class GameShell {
     this.style = this.styles.includes(prefStyle) ? prefStyle
       : this.styles.includes(opts.defaultStyle) ? opts.defaultStyle
         : this.styles.includes('arcade') ? 'arcade' : this.styles[0];
+    this._selectedCampaignLevel = this.store?.levelProgress?.(this.id)?.selected || 1;
+    this._campaignProfile = campaignProfile(this._selectedCampaignLevel, this.baseRounds, { daily: this.daily });
     const prefLevel = this._pref('level');
     this.level = LEVEL_VALUE[prefLevel] != null ? prefLevel : 'normal';
     this.maxLives = Math.max(1, Math.round(opts.lives ?? 3));
@@ -420,6 +424,11 @@ export class GameShell {
   /** False in Practice (no clock): the shell never starts a clock and timer.start() is a no-op. */
   get timed() {
     return this.style !== 'practice';
+  }
+
+  /** The selected Arcade stage; Practice and Survival keep their existing unlevelled runs. */
+  get campaignLevel() {
+    return this.style === 'arcade' ? this._selectedCampaignLevel : null;
   }
 
   /** Survival shortens the shell-managed per-round clock from 100% to clockMin (60%) as difficulty rises. */
@@ -756,22 +765,36 @@ export class GameShell {
     let daily = null;
     if (this.daily) {
       try {
-        daily = this.store?.recordDaily?.({ score: this.score, key: this.dailyKey }) || null;
+        daily = this.store?.recordDaily?.({ score: this.score, key: this.dailyKey, level: this.campaignLevel }) || null;
       } catch (err) {
         console.error(err);
       }
     }
-    let rec = { isBest: false, xp, newBadges: [], best: this.score, bestRounds: survived, isBestRounds: false };
+    const previousLevel = this.campaignLevel == null ? null : this.store?.levelProgress?.(this.id);
+    const previousLevelBest = previousLevel?.scores?.[this.campaignLevel - 1] || 0;
+    let rec = { isBest: false, xp: 0, newBadges: [], best: this.score, bestRounds: survived, isBestRounds: false };
     try {
-      if (this.store?.recordGame) {
+      if (this.store?.recordGame && (!this.daily || daily?.first)) {
         rec = this.store.recordGame(this.id, {
           score: this.score, stars, mode: this.mode, maxScore: this.maxScore, xp, perfect, style: this.style, rounds: survived,
           real: !!this.sawReal,
+          campaignLevel: this.campaignLevel,
+          campaignAdvance: !!(this.daily && daily?.first),
         });
       }
     } catch (err) {
       console.error(err);
     }
+    const savedLevel = this.campaignLevel == null ? null : this.store?.levelProgress?.(this.id);
+    const levelResult = this.campaignLevel == null ? null : rec.levelResult || {
+      level: this.campaignLevel,
+      stars: savedLevel?.stars?.[this.campaignLevel - 1] || 0,
+      bestScore: savedLevel?.scores?.[this.campaignLevel - 1] || 0,
+      unlockedNow: false,
+      nextLevel: savedLevel?.unlocked || this.campaignLevel,
+      starGain: 0,
+    };
+    const recordedLevelRun = !!rec.levelResult;
     const summary = {
       score: this.score,
       base: this.base,
@@ -780,8 +803,8 @@ export class GameShell {
       stars,
       perfect,
       xp: rec.xp,
-      isBest: rec.isBest,
-      best: rec.best,
+      isBest: this.campaignLevel == null ? rec.isBest : recordedLevelRun && this.score > previousLevelBest,
+      best: levelResult ? levelResult.bestScore : rec.best,
       overallBest: rec.overallBest ?? rec.best,
       newBadges: [...new Set([...this._runBadges, ...(daily?.newBadges || []), ...(rec.newBadges || [])])],
       corrects: this.corrects,
@@ -791,6 +814,9 @@ export class GameShell {
       mode: this.mode,
       style: this.style,
       level: this.style === 'practice' ? this.level : null,
+      campaignLevel: this.campaignLevel,
+      levelResult,
+      replay: !!(this.daily && !daily?.first),
       source: this.source,
       survived,
       bestRounds: rec.bestRounds ?? null,
@@ -827,6 +853,12 @@ export class GameShell {
     this._roundToken += 1;
     this.mode = modeId;
     if (this.daily) this.dailyKey = this._todayKey();
+    const progress = this.store?.levelProgress?.(this.id);
+    const dayStatus = this.daily ? this.store?.dailyStatus?.() : null;
+    this._selectedCampaignLevel = this.daily
+      ? dayStatus?.done ? dayStatus.level || Math.max(1, (progress?.unlocked || 1) - 1) : progress?.unlocked || 1
+      : progress?.selected || this._selectedCampaignLevel;
+    this._campaignProfile = campaignProfile(this._selectedCampaignLevel, this.baseRounds, { daily: this.daily });
     this.seed = this.daily
       ? hashString(`daily:${this.id}:${this.dailyKey}`)
       : this._plays === 0 && Number.isFinite(this.ctx.seed) ? this.ctx.seed : randomSeed();
@@ -841,10 +873,13 @@ export class GameShell {
     this.corrects = 0;
     this.wrongs = 0;
     this.finished = false;
-    this.rounds = this.style === 'survival' ? null : this.baseRounds;
+    this.rounds = this.style === 'survival' ? null : this.style === 'arcade' ? this._campaignProfile.rounds : this.baseRounds;
+    this.maxScore = this.style === 'arcade' && this.baseRounds
+      ? Math.round(this.baseMaxScore * this.rounds / this.baseRounds) : this.baseMaxScore;
     this.lives = this.style === 'survival' ? this.maxLives : null;
     this.over = false;
-    this.difficulty = this.style === 'practice' ? LEVEL_VALUE[this.level] ?? 0.5 : 0;
+    this.difficulty = this.style === 'practice' ? LEVEL_VALUE[this.level] ?? 0.5
+      : this.style === 'arcade' && !this.daily ? campaignDifficulty(this.campaignLevel, 1, this.rounds) : 0;
     this.roundCap = 1;
     this.hintsUsed = 0;
     this.retries = 0;
@@ -882,7 +917,8 @@ export class GameShell {
       if (t && t.perRound === false && t.seconds) this.timer.start(t.seconds, () => this._onTimeout());
       let r;
       try {
-        r = this.opts.onStart?.(this, { mode: this.mode, seed: this.seed, rng: this.rng, style: this.style, source: this.source, difficulty: this.difficulty });
+        r = this.opts.onStart?.(this, { mode: this.mode, seed: this.seed, rng: this.rng, style: this.style, source: this.source,
+          difficulty: this.difficulty, campaignLevel: this.campaignLevel });
       } catch (err) {
         console.error(`[${this.id}] onStart failed:`, err);
       }
@@ -1020,6 +1056,9 @@ export class GameShell {
 
   _difficultyFor(round) {
     if (this.style === 'practice') return LEVEL_VALUE[this.level] ?? 0.5;
+    // Daily questions must be identical for everyone on a date regardless of personal stage.
+    if (this.daily) return this.rounds > 1 ? Math.min(1, (round - 1) / (this.rounds - 1)) : 0;
+    if (this.style === 'arcade') return campaignDifficulty(this.campaignLevel, round, this.rounds);
     if (this.style === 'survival') {
       const ramp = Math.max(2, this.survivalOpts.ramp || 15);
       return Math.min(1, (round - 1) / (ramp - 1));
@@ -1065,7 +1104,10 @@ export class GameShell {
     this._renderRound();
     this._renderMeta();
     const t = this.opts.timer;
-    if (t && t.perRound !== false && t.seconds) this.timer.start(t.seconds * this.clockScale, () => this._onTimeout());
+    if (t && t.perRound !== false && t.seconds) {
+      const scale = this.style === 'arcade' ? this._campaignProfile.timerScale : this.clockScale;
+      this.timer.start(t.seconds * scale, () => this._onTimeout());
+    }
     const fail = (err) => {
       console.error(`[${this.id}] onRound failed:`, err);
       this._setLoading(false);
@@ -1077,6 +1119,7 @@ export class GameShell {
       const r = hook?.(this, {
         round: this.round, rng: this.roundRng, stage: this.stage, mode: this.mode,
         style: this.style, difficulty: this.difficulty, source: this.source, retry: this.isRetry,
+        campaignLevel: this.campaignLevel,
       });
       if (typeof r === 'function') this._roundCleanups.push(r);
       else if (r && typeof r.then === 'function') {
@@ -1204,7 +1247,9 @@ export class GameShell {
     this._wrap.dataset.style = this.style;
     this._barTitle.hidden = which === 'intro';
     if (which === 'intro') {
+      if (this.daily) this.dailyKey = this._todayKey();
       if (this._previewStale) this._mountPreview();
+      this._renderCampaign();
       this._renderIntroStats();
       this._renderFacts();
       if (typeof this._meterCleanup === 'function') {
@@ -1286,6 +1331,7 @@ export class GameShell {
     // intro
     this._startBtn = h('button', { type: 'button', class: 'btn btn--primary btn--lg', 'data-action': 'start', on: { click: () => this.start(this.mode) } },
       icon('play', { size: 18 }), 'Start game');
+    this._campaignEl = h('section', { class: 'game-campaign', 'aria-labelledby': `${this.id}-campaign-title` });
 
     let modePicker = null;
     if (this.modes) {
@@ -1334,6 +1380,7 @@ export class GameShell {
           this.difficulty = id === 'practice' ? LEVEL_VALUE[this.level] ?? 0.5 : 0;
           this._wrap.dataset.style = id;
           if (this._levelPickerEl) this._levelPickerEl.hidden = id !== 'practice';
+          this._renderCampaign();
           this._renderFacts();
           this._renderIntroStats();
         },
@@ -1424,11 +1471,12 @@ export class GameShell {
           ...(e.skills || []).map((s) => h('span', { class: 'chip chip--outline' }, s))),
         e.blurb ? h('p', { class: 'lead' }, e.blurb) : null,
         this._dailyEl,
+        h('div', { class: 'game-intro__cta' }, this._startBtn, kbdHint('Enter', 'to start')),
+        this._campaignEl,
         howTo.length ? h('div', { class: 'game-intro__howto' },
           h('h2', { class: 'game-intro__h' }, 'How to play'),
           h('ol', { class: 'howto' }, howTo)) : null,
         setup.length ? h('div', { class: 'game-intro__setup' }, setup) : null,
-        h('div', { class: 'game-intro__cta' }, this._startBtn, kbdHint('Enter', 'to start')),
         this._introStats),
       art);
 
@@ -1492,10 +1540,69 @@ export class GameShell {
     this._startBtn.focus({ preventScroll: true });
   }
 
+  _renderCampaign() {
+    if (!this._campaignEl) return;
+    this._campaignEl.hidden = this.style !== 'arcade';
+    if (this.style !== 'arcade') return;
+    const progress = this.store?.levelProgress?.(this.id) || { unlocked: 1, selected: 1, stars: [], scores: [] };
+    const dayStatus = this.daily ? this.store?.dailyStatus?.() : null;
+    const selected = this.daily && dayStatus?.done
+      ? dayStatus.level || Math.max(1, progress.unlocked - 1) : this.daily ? progress.unlocked : progress.selected;
+    this._selectedCampaignLevel = selected;
+    this._campaignProfile = campaignProfile(selected, this.baseRounds, { daily: this.daily });
+    const chapter = this._campaignProfile;
+    const buttons = [];
+    for (let level = 1; level <= CAMPAIGN_LEVEL_COUNT; level++) {
+      const stars = progress.stars[level - 1] || 0;
+      const locked = level > progress.unlocked;
+      const unavailable = locked || (this.daily && level !== selected);
+      const button = h('button', {
+        type: 'button', class: ['game-campaign__level', level === selected && 'is-selected', stars > 0 && 'is-cleared', locked && 'is-locked', level % 5 === 0 && 'is-checkpoint'],
+        'data-stage-level': level, disabled: unavailable, tabindex: unavailable ? '-1' : '0',
+        title: level % 5 === 0 ? 'Chapter checkpoint' : null,
+        'aria-current': level === selected ? 'step' : null,
+        'aria-label': `Level ${level}, ${locked ? 'locked' : stars ? `${stars} of 3 stars` : 'unplayed'}${level === selected ? ', selected' : ''}`,
+        on: {
+          click: () => {
+            if (this.daily || !this.store?.selectLevel?.(this.id, level)) return;
+            this._renderCampaign();
+            this._renderFacts();
+            this._renderIntroStats();
+            this._campaignEl.querySelector(`[data-stage-level="${level}"]`)?.focus({ preventScroll: true });
+          },
+          keydown: (ev) => {
+            if (this.daily) return;
+            const delta = ev.key === 'ArrowRight' ? 1 : ev.key === 'ArrowLeft' ? -1
+              : ev.key === 'ArrowDown' ? 5 : ev.key === 'ArrowUp' ? -5 : 0;
+            if (!delta && ev.key !== 'Home' && ev.key !== 'End') return;
+            ev.preventDefault();
+            const target = ev.key === 'Home' ? 1 : ev.key === 'End' ? progress.unlocked
+              : Math.max(1, Math.min(progress.unlocked, level + delta));
+            buttons[target - 1]?.focus();
+          },
+        },
+      }, h('span', { class: 'game-campaign__number mono' }, String(level)),
+      h('span', { class: 'game-campaign__stars', 'aria-hidden': 'true' }, locked ? '·' : stars ? '★'.repeat(stars) : '○'));
+      buttons.push(button);
+    }
+    this._campaignEl.replaceChildren(
+      h('div', { class: 'game-campaign__header' },
+        h('div', null,
+          h('p', { class: 'eyebrow', id: `${this.id}-campaign-title` }, '40 levels · Arcade campaign'),
+          h('h2', { class: 'game-campaign__title' }, `Level ${selected} · ${chapter.name}`)),
+        h('span', { class: 'chip chip--sm chip--accent' }, `${progress.unlocked}/${CAMPAIGN_LEVEL_COUNT} unlocked`)),
+      h('p', { class: 'game-campaign__goal muted' }, this.daily
+        ? dayStatus?.done ? 'Replay today for practice. Your score and rewards stay locked.'
+          : 'One stage each day. Come back tomorrow for the next level.'
+        : `Clear ${chapter.rounds} rounds and earn one star to unlock the next level.`),
+      h('div', { class: 'game-campaign__map', role: 'group', 'aria-label': this.daily ? 'Daily level path' : 'Choose an unlocked level. Use Tab or arrow keys.' }, buttons));
+  }
+
   _renderFacts() {
     if (!this._facts) return;
     const t = this.opts.timer;
-    const clockText = t?.seconds ? `${t.seconds}s${t.perRound === false ? ' total' : ' / round'}` : 'None';
+    const stageSeconds = this.style === 'arcade' && !this.daily ? Math.round(t?.seconds * this._campaignProfile.timerScale) : t?.seconds;
+    const clockText = t?.seconds ? `${stageSeconds}s${t.perRound === false ? ' total' : ' / round'}` : 'None';
     let cells;
     if (this.style === 'survival') {
       cells = [
@@ -1505,7 +1612,7 @@ export class GameShell {
       ];
     } else {
       cells = [
-        ['Rounds', this.baseRounds == null ? 'Open' : String(this.baseRounds)],
+        ['Rounds', this.style === 'arcade' ? String(this._campaignProfile.rounds) : this.baseRounds == null ? 'Open' : String(this.baseRounds)],
         ['Clock', this.style === 'practice' ? 'None' : clockText],
         ['3 stars', '90%+'],
       ];
@@ -1514,17 +1621,38 @@ export class GameShell {
   }
 
   _renderIntroStats() {
+    const dailyStatus = this.daily ? this.store?.dailyStatus?.() : null;
+    if (this._startBtn) {
+      const startText = dailyStatus?.done ? 'Replay today' : this.style === 'arcade'
+        ? `Play level ${this._selectedCampaignLevel}` : 'Start game';
+      this._startBtn.replaceChildren(icon(dailyStatus?.done ? 'restart' : 'play', { size: 18 }), startText);
+    }
     if (this._dailyEl) {
-      const d = this.store?.dailyStatus?.();
+      const d = dailyStatus;
       const dateText = this._dailyDateText();
       this._dailyEl.replaceChildren(
         h('span', { class: 'game-intro__daily-icon', 'aria-hidden': 'true' }, icon('flame', { size: 20 })),
         h('span', { class: 'game-intro__daily-text' },
           h('strong', null, `Today · ${dateText}`),
           h('span', { class: 'faint' }, d?.done
-            ? `Done today (score ${fmt(d.score || 0)}). Replays don't change your streak.`
+            ? `Done today (score ${fmt(d.score || 0)}). Replays are for practice; the next stage opens tomorrow.`
             : d?.streak ? `Keep your ${d.streak}-day streak alive.` : 'Everyone gets the same questions today.')),
         h('span', { class: 'game-intro__streak mono', title: 'Current daily streak' }, String(d?.streak || 0), h('small', null, d?.streak === 1 ? 'day' : 'days')));
+    }
+    if (this.style === 'arcade') {
+      const progress = this.store?.levelProgress?.(this.id);
+      const level = this._selectedCampaignLevel;
+      const best = progress?.scores?.[level - 1] || 0;
+      const stars = progress?.stars?.[level - 1] || 0;
+      if (!best && !stars) {
+        this._introStats.replaceChildren(h('span', { class: 'faint' }, `First run on level ${level}? Your score and stars will show up here.`));
+      } else {
+        this._introStats.replaceChildren(
+          h('span', { class: 'faint' }, `Level ${level} best`),
+          h('strong', { class: 'mono' }, fmt(best)),
+          starRow(stars, { size: 16 }));
+      }
+      return;
     }
     const styleLabel = findStyle(this.style)?.label || 'Arcade';
     let s = null;
@@ -1574,6 +1702,7 @@ export class GameShell {
     if (!this._metaChips) return;
     const st = findStyle(this.style);
     const chips = [];
+    if (this.campaignLevel != null) chips.push(h('span', { class: 'chip chip--sm chip--accent' }, `Level ${this.campaignLevel}/${CAMPAIGN_LEVEL_COUNT}`));
     if (this.daily) chips.push(h('span', { class: 'chip chip--sm chip--accent' }, icon('flame', { size: 13 }), 'Daily Challenge'));
     else chips.push(h('span', { class: `chip chip--sm game-chip game-chip--${this.style}` }, styleIcon(this.style, { size: 13 }), st?.label || this.style));
     if (this.style === 'practice') {
@@ -1692,7 +1821,7 @@ export class GameShell {
       const value = !s?.plays ? '—' : id === 'survival' && s.rounds != null ? `${s.rounds} ${s.rounds === 1 ? 'round' : 'rounds'}` : fmt(s.best);
       return h('li', { class: ['style-bests__item', id === this.style && 'is-current'] },
         h('span', { class: 'style-bests__icon', 'aria-hidden': 'true' }, styleIcon(id, { size: 15 })),
-        h('span', { class: 'style-bests__label' }, st?.label || id),
+        h('span', { class: 'style-bests__label' }, id === 'arcade' ? 'Arcade all-time score' : st?.label || id),
         h('strong', { class: 'style-bests__value mono' }, value),
         s?.plays ? starRow(s.stars || 0, { size: 12 }) : null);
     });
@@ -1713,6 +1842,14 @@ export class GameShell {
       sub = `You survived ${s.survived} ${s.survived === 1 ? 'round' : 'rounds'}. ${nextT != null ? `Reach ${nextT} for ${s.stars + 1} ${s.stars + 1 === 1 ? 'star' : 'stars'}.` : 'Maximum stars.'}`;
     } else if (s.style === 'practice') {
       sub = `${sub0} Practice runs earn half XP.`;
+    }
+    if (s.campaignLevel != null) {
+      const progressText = this.daily ? s.replay ? 'Replay complete. Your saved score and rewards are unchanged.' : 'The next level opens tomorrow.'
+        : s.levelResult?.unlockedNow ? `Level ${s.levelResult.nextLevel} unlocked.`
+          : s.campaignLevel === CAMPAIGN_LEVEL_COUNT && s.levelResult?.stars === 3 ? 'You cleared the final level.'
+            : s.campaignLevel === CAMPAIGN_LEVEL_COUNT && s.levelResult?.stars > 0 ? 'Final level cleared. Replay for more stars.'
+          : s.stars === 0 ? 'Earn one star to unlock the next level.' : 'Replay for more stars.';
+      sub = `${sub} ${progressText}`;
     }
     const styleLabel = findStyle(s.style)?.label;
 
@@ -1735,7 +1872,7 @@ export class GameShell {
       ]
       : [
         h('div', { class: 'stat' }, h('span', { class: 'stat__label' }, 'Score'), scoreVal),
-        stat(this.styles.length > 1 ? `Best · ${styleLabel}` : 'Best', fmt(s.best ?? s.score), newChip(s.isBest)),
+        stat(s.campaignLevel != null ? 'Level best' : this.styles.length > 1 ? `Best · ${styleLabel}` : 'Best', fmt(s.best ?? s.score), newChip(s.isBest)),
         stat('XP earned', h('span', { class: 'results__xp' }, `+${s.xp}`)),
         s.corrects + s.wrongs > 0 ? stat('Accuracy', `${s.corrects}/${s.corrects + s.wrongs}`) : null,
         stat('Best streak', String(s.bestStreak)),
@@ -1758,13 +1895,26 @@ export class GameShell {
     const extra = h('div', { class: 'results__extra' });
     s.el = extra;
 
+    const campaignResult = s.campaignLevel != null ? h('div', { class: 'results__campaign' },
+      h('span', { class: 'results__campaign-level mono' }, `Level ${s.campaignLevel}/${CAMPAIGN_LEVEL_COUNT}`),
+      h('span', { class: 'results__campaign-chapter' }, campaignProfile(s.campaignLevel, this.baseRounds).name),
+      s.replay ? h('span', { class: 'results__campaign-chapter' }, 'Saved stars') : null,
+      h('span', { class: 'results__campaign-stars', role: 'img', 'aria-label': `${s.levelResult?.stars ?? s.stars} of 3 level stars` },
+        starRow(s.levelResult?.stars ?? s.stars, { size: 16 }))) : null;
+
     const next = nextItem(this.id, tier);
     const nextEntry = next ? findEntry(next.id) : null;
     const unit = unitOf(this.id, tier);
     const lesson = unit?.lesson ? findEntry(unit.lesson) : null;
 
     const actions = h('div', { class: 'results__actions' },
-      h('button', { type: 'button', class: 'btn btn--primary btn--lg', 'data-action': 'again', on: { click: () => this.start(this.mode) } }, icon('restart'), 'Play again'),
+      this.daily ? h('button', { type: 'button', class: 'btn btn--primary btn--lg', 'data-action': 'again', on: { click: () => this.start(this.mode) } },
+        icon('restart'), 'Replay today')
+        : h('button', { type: 'button', class: 'btn btn--primary btn--lg', 'data-action': 'again', on: { click: () => this.start(this.mode) } },
+          icon(s.levelResult?.unlockedNow ? 'play' : 'restart'),
+          s.levelResult?.unlockedNow ? `Play level ${s.levelResult.nextLevel}`
+            : s.campaignLevel != null && s.levelResult?.stars > 0 ? `Replay level ${s.campaignLevel}`
+              : s.campaignLevel != null ? `Retry level ${s.campaignLevel}` : 'Play again'),
       this.styles.length > 1
         ? h('button', { type: 'button', class: 'btn btn--lg', 'data-action': 'change-style', on: { click: () => {
           this._show('intro');
@@ -1785,6 +1935,7 @@ export class GameShell {
       starsEl,
       h('h2', { class: 'results__title' }, headline),
       h('p', { class: 'results__sub muted' }, sub),
+      campaignResult,
       stats,
       badgesEl,
       this._styleBests(),
@@ -1802,7 +1953,7 @@ export class GameShell {
     }
 
     animateNumber(scoreVal, 0, s.score, 900);
-    requestAnimationFrame(() => card.querySelector('[data-action="again"]')?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => card.querySelector('[data-action="again"], a[href="#games"]')?.focus({ preventScroll: true }));
     const live = () => this.state !== 'destroyed' && card.isConnected;
     if (s.xp > 0) setTimeout(() => live() && toast(`+${s.xp} XP · ${e.title}`, { type: 'xp' }), 350);
     if (s.stars >= 2) setTimeout(() => live() && sfx.win(), 250);

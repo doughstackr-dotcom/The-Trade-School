@@ -37,7 +37,7 @@ function lineRound(rng, difficulty) {
       if (p > 0.15) {
         // Broken on a closing basis: freeze on the break or a few candles after it.
         const decisionIdx = Math.min(lastIdx, i + rng.int(0, 4));
-        if (decisionIdx >= 40) out.push({ candles: c, i1, i2, p1, p2, decisionIdx, answer: 'broken', direction, touches });
+        if (decisionIdx >= 40) out.push({ candles: c, i1, i2, p1, p2, decisionIdx, breakIdx: i, answer: 'broken', direction, touches });
         break;
       }
       if (p > -0.05) clear = false;
@@ -50,7 +50,7 @@ function lineRound(rng, difficulty) {
       } else if (away && gap < 0.75) clear = false;
       if (!clear) break;
       if (i < Math.max(40, i2 + 6) || i < touchIdx + 2) continue;
-      out.push({ candles: c, i1, i2, p1, p2, decisionIdx: i, answer: touches >= 3 ? 'intact' : 'candidate', direction, touches });
+      out.push({ candles: c, i1, i2, p1, p2, decisionIdx: i, touchIdx, answer: touches >= 3 ? 'intact' : 'candidate', direction, touches });
     }
   }
   return out;
@@ -72,7 +72,7 @@ export default {
   id: 'trendline-challenge',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
-      preview: (el) => gameplayPreview(el, { seed: 63, direction: 'up', title: 'trendline-challenge', score: 460, streak: 3, round: '2/8' }),
+      preview: (el) => gameplayPreview(el, { seed: 63, direction: 'up', title: 'Trendline Challenge', score: 180, streak: 2, round: '2/3' }),
       rounds: 7,
       timer: { seconds: 26, perRound: true },
       howTo: [
@@ -86,7 +86,7 @@ export default {
         stage.append(h('p', { class: 'quiz__q' }, 'Status of the drawn trend line at the freeze?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 340, yPad: 0.14, ariaLabel: 'Chart with trend line',
+          height: 250, yPad: 0.14, ariaLabel: 'Chart with trend line',
         });
         chart.addSegment({
           a: { idx: r.i1, price: r.p1 },
@@ -95,7 +95,7 @@ export default {
           label: 'Line',
         });
         g.setHint('Two points = candidate. Close beyond = break warning.');
-        g.ask({
+        const quiz = g.ask({
           options: [
             { label: 'Intact / respected', value: 'intact' },
             { label: 'Broken (close beyond)', value: 'broken' },
@@ -105,9 +105,16 @@ export default {
           explain: `<strong>${r.answer}</strong> on this ${r.direction}trend line (${r.touches} touches). Re-validate after new swings.`,
           onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
-            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+            for (const idx of [r.i1, r.i2]) chart.addMarker({ idx, position: r.direction === 'up' ? 'below' : 'above', shape: 'dot', color: 'accent' });
+            const proof = r.answer === 'broken' ? r.breakIdx : r.answer === 'intact' ? r.touchIdx : null;
+            if (Number.isFinite(proof)) chart.addMarker({ idx: proof, position: r.direction === 'up' ? 'below' : 'above', shape: 'arrow', color: 'accent' });
+            const detail = r.answer === 'broken' ? 'The marked close crossed beyond the projected line.'
+              : r.answer === 'intact' ? 'A third reaction confirmed the line before this freeze.'
+                : 'Two anchors draw a candidate; wait for a third reaction.';
+            verdictFlourish(stage, { ok, title: ok ? 'Line read' : 'Check the anchors', detail, scoreDelta: ok ? 100 : 0 });
           },
         });
+        stage.insertBefore(quiz, host);
         return () => chart.destroy();
       },
     });

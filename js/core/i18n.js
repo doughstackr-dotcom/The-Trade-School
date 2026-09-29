@@ -8,7 +8,11 @@ const listeners = new Set();
 const numeric = new Map();
 
 for (const [english, spanish] of Object.entries(es)) {
-  if (/\d/.test(english)) numeric.set(english.replace(/\d+(?:[.,]\d+)*/g, '\u0001'), spanish.replace(/\d+(?:[.,]\d+)*/g, '\u0001'));
+  const sourceNumbers = english.match(/\d+(?:[.,]\d+)*/g) || [];
+  const targetNumbers = spanish.match(/\d+(?:[.,]\d+)*/g) || [];
+  if (sourceNumbers.length && sourceNumbers.length === targetNumbers.length) {
+    numeric.set(english.replace(/\d+(?:[.,]\d+)*/g, '\u0001'), spanish.replace(/\d+(?:[.,]\d+)*/g, '\u0001'));
+  }
 }
 
 function savedLanguage() {
@@ -25,13 +29,15 @@ export function translate(value) {
   if (language !== 'es' || !value) return value;
   const exact = es[value];
   if (exact) return exact;
+  const padded = es[`${value} `] || es[` ${value}`];
+  if (padded) return padded.trim();
+  const directionalPlan = value.match(/^Lean (up|down|sideways) from (.+)\. Not a guarantee\.$/);
+  if (directionalPlan) {
+    const direction = { up: 'alcista', down: 'bajista', sideways: 'lateral' }[directionalPlan[1]];
+    return `Sesgo ${direction} según ${translate(directionalPlan[2])}. No es una garantía.`;
+  }
   const detail = value.match(/^(.*?) — interactive (lesson|game) in The Trade School: learn to read the market by playing\. Educational only, not financial advice\.$/);
   if (detail) return `${translate(detail[1])} — ${detail[2] === 'lesson' ? 'lección' : 'juego'} interactivo de The Trade School para aprender a leer el mercado jugando. Solo contenido educativo; no constituye asesoramiento financiero.`;
-  if (value.includes(' · ')) {
-    const parts = value.split(' · ');
-    const translated = parts.map((part) => es[part] || part);
-    if (translated.some((part, index) => part !== parts[index])) return translated.join(' · ');
-  }
   const numbers = value.match(/\d+(?:[.,]\d+)*/g);
   if (numbers?.length) {
     const match = numeric.get(value.replace(/\d+(?:[.,]\d+)*/g, '\u0001'));
@@ -40,8 +46,25 @@ export function translate(value) {
       return match.replace(/\u0001/g, () => numbers[index++] ?? '');
     }
   }
+  if (value.includes(' · ')) {
+    const parts = value.split(' · ');
+    const translated = parts.map((part) => translate(part));
+    if (translated.some((part, index) => part !== parts[index])) return translated.join(' · ');
+  }
+  if (value.startsWith('· ')) {
+    const tail = translate(value.slice(2));
+    if (tail !== value.slice(2)) return `· ${tail}`;
+  }
+  if (value.includes('. ')) {
+    const parts = value.split('. ');
+    const translated = parts.map((part, index) => translate(index < parts.length - 1 ? `${part}.` : part));
+    if (translated.some((part, index) => part !== (index < parts.length - 1 ? `${parts[index]}.` : parts[index]))) {
+      return translated.join(' ');
+    }
+  }
   const labeledNumber = value.match(/^([A-Za-z][A-Za-z ]{1,24}) (\d[\d.,%+-]*)$/);
   if (labeledNumber && es[labeledNumber[1]]) return `${es[labeledNumber[1]]} ${labeledNumber[2]}`;
+  if (value.endsWith('.') && es[value.slice(0, -1)]) return `${es[value.slice(0, -1)]}.`;
   return value;
 }
 

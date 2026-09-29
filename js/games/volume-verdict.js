@@ -9,7 +9,8 @@ function textbookRound(rng, difficulty) {
   const trap = rng.chance(0.5);
   const id = rng.pick(difficulty < 0.5 ? TEXTBOOK_PATTERNS.slice(0, 4) : TEXTBOOK_PATTERNS);
   const sc = chartScenario(id, { seed: rng.int(1, 2 ** 31 - 1), count: 96, after: 16, outcome: trap ? 'fail' : 'success' });
-  return { candles: sc.candles, decisionIdx: sc.breakoutIdx, level: sc.level, trap, direction: sc.direction, name: sc.name };
+  const vol = breakVolume({ candles: sc.candles, decisionIdx: sc.breakoutIdx });
+  return { candles: sc.candles, decisionIdx: sc.breakoutIdx, level: sc.level, trap, ratio: vol.ratio, fakeout: trap, followed: !trap, direction: sc.direction, name: sc.name };
 }
 
 // Real round → { breakIdx, ratio }: the break candle and its volume ÷ the average of the 10
@@ -32,15 +33,15 @@ export default {
       timer: { seconds: 25, perRound: true },
       howTo: [
         'Price has just broken a level. Check the volume under the breakout candle.',
-        'Confirms: strong volume behind the move. Trap: thin volume, likely to fail.',
-        'Swipe Confirm or Trap, then watch the reveal.',
+        'Strong volume supports a break; thin volume warns it may fail. Near-average or missing volume is inconclusive.',
+        'Make the volume call, then watch the reveal. Volume shifts odds; it cannot guarantee an outcome.',
       ],
-      preview: (el) => gameplayPreview(el, { seed: 88, direction: 'up', title: 'Volume Verdict', score: 470, streak: 3, round: '2/6', showVolume: true }),
+      preview: (el) => gameplayPreview(el, { seed: 88, direction: 'up', title: 'Volume Verdict', score: 180, streak: 2, round: '2/3', showVolume: true }),
       async onRound(g, { rng, stage, difficulty }) {
         // Real rounds are graded on the volume the player is asked to read, not on what price did
         // next (the scanner's breakout / fakeout rules ignore volume). A few charts are drawn to
         // find a clear read (≥ 1.2× or < 0.85× its average) on a Confirm or Trap side picked at
-        // random, so both answers stay equally likely; no-volume markets (spot FX) rank last.
+        // random; mixed and no-volume rounds remain valid but require an explicit third verdict.
         const wantTrap = rng.chance(0.5);
         let pick = null;
         for (let t = 0; t < 6; t++) {
@@ -56,18 +57,20 @@ export default {
           }
           const v = breakVolume(cand);
           const clear = v.ratio != null && (v.ratio >= 1.2 || v.ratio < 0.85);
-          const score = !clear ? (v.ratio != null ? 1 : 0) : (v.ratio < 1) === wantTrap ? 3 : 2;
+          const score = !clear ? (v.ratio != null ? 1 : 0) : (v.ratio < 0.85) === wantTrap ? 3 : 2;
           if (!pick || score > pick.score) pick = { real: cand, vol: v, score };
           if (score === 3) break;
         }
         const { real = null, vol = null } = pick || {};
+        // The search may inspect later candidates; keep the shell's source tied to the chart shown.
+        if (real) g.real = real;
         const kind = real?.setup?.kind || '';
         const r = real
           ? {
             candles: real.candles,
             decisionIdx: vol.breakIdx,
             level: real.setup?.meta?.level,
-            trap: vol.ratio != null ? vol.ratio < 1 : /^fakeout/.test(kind),
+            trap: vol.ratio != null ? vol.ratio < 0.85 : /^fakeout/.test(kind),
             ratio: vol.ratio,
             fakeout: /^fakeout/.test(kind),
             followed: real.outcome?.result === 'followed',
@@ -80,7 +83,7 @@ export default {
           candles: r.candles,
           visible: r.decisionIdx + 1,
           slots: r.candles.length,
-          height: 340,
+          height: 240,
           showVolume: true,
           decimals: r.decimals ?? 2,
           question: q,
@@ -88,6 +91,9 @@ export default {
         });
         if (Number.isFinite(r.level)) dc.chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Level' });
         dc.chart.addMarker({ idx: r.decisionIdx, position: r.direction < 0 ? 'below' : 'above', shape: 'dot', color: 'accent' });
+        const mixed = r.ratio != null && r.ratio >= 0.85 && r.ratio < 1.2;
+        const unavailable = r.ratio == null;
+        const verdict = unavailable ? 'missing' : mixed ? 'mixed' : r.trap ? 'trap' : 'confirm';
         let answered = false;
         const finish = (sayTrap) => {
           if (answered) return;
@@ -102,8 +108,6 @@ export default {
             const agrees = r.trap ? !r.followed || r.fakeout : r.followed && !r.fakeout;
             explain = `<strong>${r.trap ? 'Trap' : 'Confirmed'}.</strong> The break came on ${r.ratio.toFixed(1)}× its 10-bar average volume (${r.trap ? 'below' : 'above'}-average participation)`
               + (agrees ? ` and ${next}.` : `, yet ${next}: volume tilts the odds, it does not decide them.`);
-          } else if (r.fakeout != null) {
-            explain = `<strong>${r.trap ? 'Trap' : 'Confirmed'}.</strong> This market reports no volume, so this one is graded on what price did next.`;
           }
           if (ok) g.correct(explain);
           else g.wrong(explain);
@@ -111,17 +115,38 @@ export default {
           verdictFlourish(stage, { ok, title: ok ? 'Volume read' : 'Missed the tape', detail: explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
           g.nextButton();
         };
-        stage.append(swipeCard({
-          title: 'Volume call',
-          body: 'Strong participation = Confirm. Thin poke = Trap.',
-          takeLabel: 'Confirm',
-          skipLabel: 'Trap',
-          takeClass: 'btn--bull',
-          skipClass: 'btn--bear',
-          onTake: () => finish(false),
-          onSkip: () => finish(true),
-        }));
-        g.setHint('Compare the breakout candle’s volume bar with the ten bars before it.');
+        if (mixed || unavailable) {
+          const quiz = g.ask({
+            options: [
+              { label: 'Confirm: volume expanded', value: 'confirm' },
+              { label: 'Trap warning: volume dried up', value: 'trap' },
+              { label: 'Inconclusive / no usable volume', value: verdict },
+            ],
+            answer: verdict,
+            reveal: false,
+            explain: unavailable
+              ? '<strong>No usable volume.</strong> This chart cannot support a volume verdict; judge the break with price structure instead.'
+              : `<strong>Inconclusive.</strong> Breakout volume was ${r.ratio.toFixed(1)}× the ten-bar average, too close to normal to call strong or weak.`,
+            onAnswer: (ok) => {
+              dc.reveal();
+              verdictFlourish(stage, { ok, title: ok ? 'Measured call' : 'Avoid forcing a verdict', scoreDelta: ok ? 100 : 0 });
+            },
+          });
+          dc.wrap.insertBefore(quiz, dc.host);
+        } else {
+          const card = swipeCard({
+            title: 'Volume call',
+            body: 'Strong participation = Confirm. Thin poke = Trap.',
+            takeLabel: 'Confirm',
+            skipLabel: 'Trap',
+            takeClass: 'btn--bull',
+            skipClass: 'btn--bear',
+            onTake: () => finish(false),
+            onSkip: () => finish(true),
+          });
+          dc.wrap.insertBefore(card, dc.host);
+        }
+        g.setHint('Compare the breakout candle’s volume with the ten bars before it. Near-average or missing data calls for restraint.');
         return () => dc.destroy();
       },
     });

@@ -393,8 +393,8 @@ export const BADGES = [
 export const STYLES = [
   { id: 'practice', label: 'Practice', short: 'No clock, hints and retries', icon: 'book',
     blurb: 'No clock. Hints and retries. Learn at your own pace (half XP).' },
-  { id: 'arcade', label: 'Arcade', short: 'Rounds, a clock and streaks', icon: 'bolt',
-    blurb: 'Fixed rounds, a clock and streak multipliers. Chase three stars.' },
+  { id: 'arcade', label: 'Arcade', short: '40 levels, stars and streaks', icon: 'bolt',
+    blurb: 'Play 40 short levels. Earn stars to unlock harder challenges, with a clock and streak multipliers.' },
   { id: 'survival', label: 'Survival', short: 'Three lives, rising difficulty', icon: 'heart',
     blurb: 'Three lives. Rounds keep coming and get harder until you run out.' },
 ];

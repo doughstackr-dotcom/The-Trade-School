@@ -3,6 +3,7 @@
 // try/catch; when storage is unavailable the app keeps working from memory.
 import { LESSONS, GAMES, findBadge, learningPath } from '../registry.js';
 import { toast, modal, h, icon } from './ui.js';
+import { CAMPAIGN_LEVEL_COUNT, clampCampaignLevel } from './game-levels.js';
 
 const KEY = 'tts-progress-v1';
 const THEME_KEY = 'tts-theme';
@@ -23,8 +24,8 @@ function defaults(settings) {
     v: 1,
     xp: 0,
     lessons: {},          // id -> { done, at }
-    games: {},            // id -> { best, stars, plays, at, modes: { modeId: best }, lastStyle,
-                          //        styles: { styleId: { best, stars, plays, at, rounds?, lastRounds? } } }
+    games: {},            // id -> { best, stars, plays, at, modes, styles,
+                          //        campaign: { unlocked, selected, stars[40], scores[40] } }
     badges: [],           // badge ids, in the order earned
     badgeDates: {},       // id -> timestamp
     lessonSteps: {},      // id -> { step, max }  (resume position)
@@ -32,7 +33,7 @@ function defaults(settings) {
     lastTier: null,       // 'beginner' | 'advanced' — last track page visited
     bestStreak: 0,
     gamePrefs: {},        // id -> { style, source, level, mode }  (remembered intro choices)
-    daily: { last: null, streak: 0, best: 0, history: {} },   // Daily Challenge (local dates)
+    daily: { last: null, streak: 0, best: 0, history: {}, levels: {} }, // Daily Challenge (local dates)
     settings: { sound: true, theme: 'system', ...(settings || {}) },
   };
 }
@@ -65,6 +66,21 @@ function stylesOf(g) {
   return g.styles;
 }
 
+function boundedInt(value, min, max, fallback = min) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.floor(n))) : fallback;
+}
+
+function normalizeCampaign(saved) {
+  const c = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  const stars = Array.isArray(c.stars) ? c.stars.slice(0, CAMPAIGN_LEVEL_COUNT).map((n) => boundedInt(n, 0, 3, 0)) : [];
+  const scores = Array.isArray(c.scores) ? c.scores.slice(0, CAMPAIGN_LEVEL_COUNT).map((n) => boundedInt(n, 0, 1e9, 0)) : [];
+  const furthestClear = stars.reduce((furthest, n, index) => n > 0 ? index + 1 : furthest, 0);
+  const unlocked = Math.max(clampCampaignLevel(c.unlocked), Math.min(CAMPAIGN_LEVEL_COUNT, furthestClear + 1));
+  const selected = Math.min(unlocked, clampCampaignLevel(c.selected ?? unlocked));
+  return { unlocked, selected, stars, scores };
+}
+
 function readTheme() {
   try {
     const t = globalThis.localStorage?.getItem(THEME_KEY);
@@ -83,9 +99,17 @@ function normalize(saved) {
     for (const k of ['lessons', 'games', 'badgeDates', 'lessonSteps', 'gamePrefs']) {
       if (!base[k] || typeof base[k] !== 'object') base[k] = {};
     }
+    for (const g of Object.values(base.games)) {
+      if (g && typeof g === 'object' && g.campaign != null) g.campaign = normalizeCampaign(g.campaign);
+    }
     const dd = defaults().daily;
     base.daily = base.daily && typeof base.daily === 'object' ? { ...dd, ...base.daily } : dd;
     if (!base.daily.history || typeof base.daily.history !== 'object') base.daily.history = {};
+    if (!base.daily.levels || typeof base.daily.levels !== 'object') base.daily.levels = {};
+    const recentDailyKeys = Object.keys(base.daily.history).sort().slice(-90);
+    base.daily.history = Object.fromEntries(recentDailyKeys.map((key) => [key, base.daily.history[key]]));
+    base.daily.levels = Object.fromEntries(recentDailyKeys.filter((key) => base.daily.levels[key] != null)
+      .map((key) => [key, clampCampaignLevel(base.daily.levels[key])]));
     if (!Array.isArray(base.badges)) base.badges = [];
     base.xp = Number.isFinite(base.xp) ? base.xp : 0;
   }
@@ -247,6 +271,27 @@ export const store = {
     return stylesOf(g)[style] || null;
   },
 
+  /** Campaign stages are separate short Arcade runs. `unlocked` is the highest playable stage. */
+  levelProgress(id) {
+    const c = normalizeCampaign(state.games[id]?.campaign);
+    return { ...c, stars: [...c.stars], scores: [...c.scores] };
+  },
+
+  /** Select an unlocked stage for replay or the next challenge. Returns false for locked stages. */
+  selectLevel(id, level) {
+    const n = Number(level);
+    if (!id || !Number.isInteger(n) || n < 1 || n > CAMPAIGN_LEVEL_COUNT) return false;
+    const g = state.games[id] || (state.games[id] = { best: 0, stars: 0, plays: 0 });
+    const c = normalizeCampaign(g.campaign);
+    if (n > c.unlocked) return false;
+    if (c.selected !== n || !g.campaign) {
+      c.selected = n;
+      g.campaign = c;
+      changed();
+    }
+    return true;
+  },
+
   /**
    * Records a finished game. XP = opts.xp if given, else round(min(1, score/maxScore)*60) + 10*stars.
    * Awards first-game, <id>-ace (3 stars), perfect-score (opts.perfect), explorer, survivor,
@@ -257,7 +302,8 @@ export const store = {
    *     rounds, bestRounds, isBestRounds }
    * When opts.style is given, isBest/best refer to that style; without it they are overall (legacy).
    */
-  recordGame(id, { score = 0, stars = 0, mode = null, maxScore = null, xp = null, perfect = false, style = null, rounds = null, real = false } = {}) {
+  recordGame(id, { score = 0, stars = 0, mode = null, maxScore = null, xp = null, perfect = false, style = null, rounds = null, real = false,
+    campaignLevel = null, campaignEligible = true, campaignAdvance = false } = {}) {
     const g = state.games[id] || (state.games[id] = { best: 0, stars: 0, plays: 0 });
     const styles = stylesOf(g);
     const st = style || 'arcade';
@@ -283,9 +329,31 @@ export const store = {
       g.modes = g.modes || {};
       g.modes[mode] = Math.max(g.modes[mode] || 0, score);
     }
-    const gained = xp != null
+    let gained = xp != null
       ? Math.round(xp)
       : Math.round((maxScore ? Math.min(1, score / maxScore) : 0) * 60) + 10 * stars;
+    let levelResult = null;
+    if (st === 'arcade' && campaignLevel != null) {
+      const level = Number(campaignLevel);
+      const c = normalizeCampaign(g.campaign);
+      const playable = Number.isInteger(level) && level >= 1 && level <= c.unlocked && level <= CAMPAIGN_LEVEL_COUNT;
+      gained = 0;
+      if (campaignEligible && playable) {
+        const index = level - 1;
+        const oldStars = c.stars[index] || 0;
+        c.stars[index] = Math.max(oldStars, boundedInt(stars, 0, 3, 0));
+        c.scores[index] = Math.max(c.scores[index] || 0, boundedInt(score, 0, 1e9, 0));
+        const starGain = c.stars[index] - oldStars;
+        gained = 30 * starGain; // each of the three stage stars pays XP only once
+        const unlockedNow = level === c.unlocked && level < CAMPAIGN_LEVEL_COUNT && (c.stars[index] > 0 || campaignAdvance);
+        if (unlockedNow) {
+          c.unlocked = level + 1;
+          if (c.selected === level) c.selected = c.unlocked;
+        }
+        g.campaign = c;
+        levelResult = { level, stars: c.stars[index], bestScore: c.scores[index], unlockedNow, nextLevel: c.unlocked, starGain };
+      }
+    }
 
     collecting = [];
     let newBadges = [];
@@ -315,6 +383,7 @@ export const store = {
       rounds: rounds ?? null,
       bestRounds: s.rounds ?? null,
       isBestRounds,
+      levelResult,
     };
   },
 
@@ -354,6 +423,7 @@ export const store = {
       streak: alive ? d.streak || 0 : 0,
       best: d.best || 0,
       last: d.last || null,
+      level: d.levels?.[key] ?? null,
       alive,
     };
   },
@@ -363,26 +433,29 @@ export const store = {
    * Awards 'daily-streak-7' (silently when called inside recordGame's collection, else toasts).
    * → { first, streak, best, key, newBadges }
    */
-  recordDaily({ score = 0, key = null } = {}) {
+  recordDaily({ score = 0, key = null, level = null } = {}) {
     const k = key || dailyKey();
     if (!state.daily || typeof state.daily !== 'object') state.daily = defaults().daily;
     const d = state.daily;
     if (!d.history || typeof d.history !== 'object') d.history = {};
+    if (!d.levels || typeof d.levels !== 'object') d.levels = {};
     if (d.history[k] != null || d.last === k) {
-      d.history[k] = Math.max(d.history[k] ?? 0, score);
-      save();
-      return { first: false, streak: d.streak || 0, best: d.best || 0, key: k, newBadges: [] };
+      return { first: false, streak: d.streak || 0, best: d.best || 0, key: k, level: d.levels[k] ?? null, newBadges: [] };
     }
     d.streak = d.last === shiftKey(k, -1) ? (d.streak || 0) + 1 : 1;
     d.best = Math.max(d.best || 0, d.streak);
     d.last = k;
     d.history[k] = score;
+    if (level != null) d.levels[k] = clampCampaignLevel(level);
     const keys = Object.keys(d.history).sort();
-    for (const old of keys.slice(0, Math.max(0, keys.length - 90))) delete d.history[old];
+    for (const old of keys.slice(0, Math.max(0, keys.length - 90))) {
+      delete d.history[old];
+      delete d.levels[old];
+    }
     const newBadges = [];
     if (d.streak >= 7 && this.award('daily-streak-7', { silent: true })) newBadges.push('daily-streak-7');
     changed();
-    return { first: true, streak: d.streak, best: d.best, key: k, newBadges };
+    return { first: true, streak: d.streak, best: d.best, key: k, level: d.levels[k] ?? null, newBadges };
   },
 
   /** Awards a badge. Returns true if newly earned (toasts unless opts.silent). */

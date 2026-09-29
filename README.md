@@ -57,16 +57,22 @@ Two tracks. Each unit pairs a lesson with a game that drills the same skill.
 ### Play your way
 
 Every game offers up to three styles, chosen on its start screen and remembered per game:
-**Practice** (no clock, hints, retries, pick Easy / Normal / Hard, half XP), **Arcade** (fixed
-rounds, a clock and streak multipliers) and **Survival** (three lives, rounds get harder until
-they run out; stars at 5, 10 and 15 rounds survived). Games that support it also let you switch
-between **Textbook** charts (clean generated examples) and **Real market** charts (historical
+**Practice** (no clock, hints, retries, pick Easy / Normal / Hard, half XP), **Arcade** (a
+40-level campaign of short timed stages, stars and streak multipliers) and **Survival** (three
+lives, rounds get harder until they run out; stars at 5, 10 and 15 rounds survived).
+Arcade stages grow from three to five rounds and add a checkpoint every five levels. They get
+harder as you progress and save your best stars and score for each game and level. One star
+unlocks the next stage. Replaying a stage only awards XP for newly earned stars. The Daily
+Challenge keeps five date-seeded questions; its
+campaign advances once per completed day, and a same-day replay does not award extra progress.
+Games that support it also let you switch between **Textbook** charts (clean generated examples)
+and **Real market** charts (historical
 windows from real markets, with the symbol and date revealed after you answer).
 
 Also included: a searchable **glossary** (85+ terms), a **pattern library**, the **Setup
 Playbook** (`#playbook`: rule-based setups with a checklist, entry, stop and target), the **Live
 Market Lab** (`#live`), and a **progress** page with levels (Paper Trader → Market Wizard),
-badges, best scores per play style and your Daily Challenge streak.
+badges, best scores per play style, campaign stages and your Daily Challenge streak.
 
 ## Run it locally
 

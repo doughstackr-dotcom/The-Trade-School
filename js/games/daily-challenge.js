@@ -2,7 +2,7 @@
 import { GameShell } from '../core/game-kit.js';
 import { h } from '../core/ui.js';
 import { miniChart, candleSVG } from '../core/chart.js';
-import { trendSeries } from '../core/data.js';
+import { trendSeries, synthesize } from '../core/data.js';
 import { sma, rsi } from '../core/indicators.js';
 import { chartScenario } from '../core/patterns.js';
 import { gameplayPreview, verdictFlourish, sampleCandle } from '../core/game-ui.js';
@@ -20,6 +20,25 @@ const BANK = [
   [2, "You risk 1% of a $10,000 account with a stop $2 away. How many shares?", ["50", "100", "500", "20"], "<strong>50 shares.</strong> $100 risk ÷ $2 per share.", "1% of $10,000 is your dollar risk."],
   [2, "Price makes a higher high while RSI makes a lower high. This is…", ["Bearish divergence", "Bullish divergence", "Hidden bullish divergence", "Confirmation"], "<strong>Bearish divergence:</strong> momentum is fading as price rises.", "Price and momentum disagree at the top."],
   [2, "A head and shoulders target is found by…", ["Projecting the head-to-neckline height from the breakout", "Doubling the left shoulder", "Using the 200 MA", "Taking the highest high"], "<strong>The measured move:</strong> the height from head to neckline, projected from the break.", "Measure the pattern, then project it."],
+  [0, "A candle closes above its open. Which side controlled that session?", ["Buyers, on net", "Sellers, on net", "Neither side traded", "The exchange set the close"], "<strong>Buyers, on net.</strong> A close above the open is a bullish candle.", "Compare the open and close, not the wick.", 0],
+  [0, "On the candle shown, the upper wick spans which prices?", ["Close 103 to high 106", "Low 98.5 to open 100", "Open 100 to close 103", "Low 98.5 to high 106"], "<strong>103 to 106.</strong> The upper wick runs from the body top to the high.", "Find the top of the body first.", 0],
+  [0, "When swing lows step upward, what does that suggest?", ["Buyers are defending progressively higher prices", "Each low must break support", "Volume must be zero", "The next candle cannot fall"], "<strong>Higher lows</strong> show buyers stepping in at higher prices; no trend is guaranteed forever.", "Look at where buyers enter each dip.", 1],
+  [0, "What is the safest way to use a support line?", ["Treat it as an area to watch for a reaction", "Assume price cannot cross it", "Buy every touch without a stop", "Place every target exactly on it"], "<strong>Watch the reaction.</strong> Support is a zone inferred from prior behavior, not a guaranteed floor.", "Does a past bounce guarantee the next one?", 2],
+  [0, "Price breaks an old ceiling and then holds above it on a retest. What changed?", ["The ceiling may now act as support", "Volume must disappear", "The trend must reverse down", "The bid and ask became equal"], "<strong>Role reversal.</strong> Old resistance can become support after a confirmed break and retest.", "A former ceiling can become a floor.", 5],
+  [0, "A chart makes higher highs but lower lows at the same time. Is that a clean uptrend?", ["No, the structure is mixed", "Yes, highs alone define it", "Yes, lows do not matter", "It must be a golden cross"], "<strong>Mixed structure.</strong> A clean uptrend needs higher highs and higher lows.", "Check both sides of the swing structure.", 11],
+  [1, "Which average usually reacts faster to fresh price changes?", ["The shorter-period average", "The longer-period average", "They always react equally", "Neither uses recent closes"], "<strong>The shorter average</strong> uses fewer past values and usually responds sooner.", "Fewer observations mean less lag.", 3],
+  [1, "If the ask rises while the bid stays fixed, what happens to the spread?", ["It widens", "It narrows", "It becomes negative", "It stays unchanged"], "<strong>It widens.</strong> Spread equals ask minus bid.", "Subtract bid from ask.", 4],
+  [1, "What does RSI above 70 prove by itself?", ["Only that recent gains are strong by that measure", "That price must fall next candle", "That a short trade is risk-free", "That the 200 MA crossed"], "<strong>Strong recent gains.</strong> Overbought can persist and is not an automatic short signal.", "An indicator reading is context, not certainty.", 6],
+  [1, "Entry 50 and stop 48: how much is risked per share?", ["$2", "$48", "$50", "$98"], "<strong>$2 per share.</strong> Entry minus stop is the planned risk distance.", "Subtract the stop from the entry.", 7],
+  [1, "On a $10,000 account, what is a 1% risk budget?", ["$100", "$10", "$1,000", "$500"], "<strong>$100.</strong> Multiply account size by 0.01.", "One percent means one hundredth.", 8],
+  [1, "Which clue would weaken an upside breakout at resistance?", ["A quick close back below the old ceiling", "A decisive close above it", "A successful retest from above", "Volume expansion with follow-through"], "<strong>Close back inside.</strong> A failed break can trap late buyers.", "Did price hold beyond the level?", 12],
+  [2, "Entry 50, stop 48, exit 54. What was the trade result before costs?", ["+2R", "+1R", "+3R", "−2R"], "<strong>+2R.</strong> The $4 gain is twice the $2 planned risk.", "Gain divided by initial risk per share.", 13],
+  [2, "Entry 50, stop 48, and 50 shares. What is the planned dollar loss if stopped?", ["$100", "$50", "$200", "$2"], "<strong>$100.</strong> $2 per share × 50 shares.", "Risk per share multiplied by shares.", 8],
+  [2, "A strategy wins 40% at +2R and loses 60% at −1R. Expectancy?", ["+0.2R", "−0.2R", "+0.8R", "0R"], "<strong>+0.2R.</strong> 0.4 × 2 − 0.6 × 1.", "Weighted average of win and loss outcomes.", 14],
+  [2, "What does bearish RSI divergence guarantee?", ["Nothing; it warns momentum may be fading", "An immediate reversal", "A profitable short trade", "A specific measured target"], "<strong>No guarantee.</strong> Divergence can persist before any reversal, if one comes at all.", "A warning is not a forecast with certainty.", 9],
+  [2, "Why measure from a head and shoulders neckline rather than from the left shoulder?", ["The head-to-neckline height defines the pattern's measured move", "The left shoulder is always the highest point", "The neckline cannot slope", "Targets are fixed by the 200 MA"], "<strong>Head to neckline</strong> is the usual measured-move height; it remains an estimate.", "Find the maximum pattern height.", 10],
+  [2, "Two open trades each risk 1.5R. If the desk caps combined open risk at 3R, can it add another 1R trade?", ["No; that would raise heat to 4R", "Yes; each trade is separate", "Yes if both are in profit", "Only if the new trade has no stop"], "<strong>No.</strong> 1.5R + 1.5R + 1R = 4R, above the 3R cap.", "Add all open risk before adding a trade.", 16],
+  [2, "A strong rally leaves RSI above 70 for several bars. Which response follows a written plan?", ["Wait for a defined setup and risk level", "Short immediately on the first 70 print", "Remove stops on long trades", "Double size because RSI is high"], "<strong>Use the plan.</strong> An extreme reading is context; it does not replace an entry and stop.", "What independent trigger is present?", 6],
 ];
 const CORRECT = BANK.map(() => 0);
 
@@ -37,7 +56,10 @@ function pickQuestion(deck, used, difficulty) {
 }
 
 function wrapChart(node) {
-  return h('div', { class: 'daily-chart', role: 'img' }, node);
+  // Keep timed questions and their evidence on one desktop viewport. A labelled candle SVG has
+  // a tall viewBox and needs its own width cap so it does not stretch into a giant poster.
+  if (node.classList?.contains('tc-candle-svg')) node.style.maxWidth = '360px';
+  return h('div', { class: 'daily-chart', style: { maxWidth: '840px', marginInline: 'auto' } }, node);
 }
 
 /** Build one large illustrative chart keyed to the BANK question index. */
@@ -47,7 +69,7 @@ function questionChart(idx, seed) {
     case 0: {
       const svg = candleSVG(
         { o: 100, h: 106, l: 98.5, c: 103 },
-        { width: 72, height: 200, labels: true, prices: true, decimals: 1, ariaLabel: 'Bullish candle open 100 close 103' },
+        { width: 72, height: 200, labels: true, prices: true, decimals: 1, ariaLabel: 'Candle with open 100, high 106, low 98.5 and close 103' },
       );
       return wrapChart(svg);
     }
@@ -56,9 +78,9 @@ function questionChart(idx, seed) {
       return wrapChart(miniChart(ts.candles, {
         width: CHART_W, height: CHART_H, yPad: 0.1, showAxis: true,
         overlays: [
-          { type: 'segment', a: { idx: 4, price: ts.candles[4].l }, b: { idx: 32, price: ts.candles[32].l }, color: 'bull', width: 1.5, dashed: true, label: 'Higher lows' },
+          { type: 'segment', a: { idx: 4, price: ts.candles[4].l }, b: { idx: 32, price: ts.candles[32].l }, color: 'bull', width: 1.5, dashed: true },
         ],
-        ariaLabel: 'Uptrend with higher highs and higher lows',
+        ariaLabel: 'Price chart with marked swing lows',
       }));
     }
     case 2: {
@@ -72,39 +94,39 @@ function questionChart(idx, seed) {
       });
       return wrapChart(miniChart(candles, {
         width: CHART_W, height: CHART_H, yPad: 0.12, showAxis: true,
-        overlays: [{ type: 'hline', price: 100, color: 'support', dashed: true, label: 'Support', width: 1.75 }],
-        ariaLabel: 'Price bouncing at a support level',
+        overlays: [{ type: 'hline', price: 100, color: 'support', dashed: true, label: 'Level', width: 1.75 }],
+        ariaLabel: 'Price chart repeatedly approaching a marked level',
       }));
     }
     case 3: {
-      const ts = trendSeries({ seed: s + 3, count: 80, direction: 'up', swings: 2, start: 90, strength: 1.2 });
-      const closes = ts.candles.map((k) => k.c);
-      const ma50 = sma(closes, 20);
-      const ma200 = sma(closes, 45);
-      return wrapChart(miniChart(ts.candles, {
+      // Construct an actual 50/200 crossing rather than labelling a 20/45 illustration as one.
+      const closes = Array.from({ length: 260 }, (_, i) => i < 170 ? 112 - 0.12 * i : 91.6 + 0.3 * (i - 170));
+      const candles = synthesize(closes, { seed: s + 3, scale: 0.6 });
+      const ma50 = sma(closes, 50);
+      const ma200 = sma(closes, 200);
+      return wrapChart(miniChart(candles, {
         width: CHART_W, height: CHART_H, yPad: 0.12, showAxis: true,
         overlays: [
           { type: 'series', values: ma200, color: 'ma2', width: 2 },
           { type: 'series', values: ma50, color: 'ma1', width: 2 },
-          { type: 'marker', idx: 62, position: 'below', shape: 'arrow', color: 'bull', text: 'Golden cross' },
         ],
-        ariaLabel: 'Golden cross: faster MA rising above slower MA',
+        ariaLabel: 'Price chart with 50-period and 200-period moving averages',
       }));
     }
     case 4: {
       const mid = 1.0849;
-      const candles = trendSeries({ seed: s, count: 28, direction: 'up', swings: 2, start: mid }).candles.map((k) => ({
-        ...k,
-        o: +k.o.toFixed(4), h: +k.h.toFixed(4), l: +k.l.toFixed(4), c: +k.c.toFixed(4),
+      const closes = Array.from({ length: 28 }, (_, i) => mid + Math.sin(i / 3) * 0.00024);
+      const candles = synthesize(closes, { seed: s, scale: 0.00012 }).map((k) => ({
+        ...k, o: +k.o.toFixed(4), h: +k.h.toFixed(4), l: +k.l.toFixed(4), c: +k.c.toFixed(4),
       }));
       return wrapChart(miniChart(candles, {
         width: CHART_W, height: CHART_H, yPad: 0.2, showAxis: true, decimals: 4,
         overlays: [
           { type: 'hline', price: 1.0850, color: 'bear', label: 'Ask 1.0850', width: 1.5 },
           { type: 'hline', price: 1.0848, color: 'bull', label: 'Bid 1.0848', width: 1.5 },
-          { type: 'zone', from: 1.0848, to: 1.0850, color: 'accent', label: 'Spread 2 pips' },
+          { type: 'zone', from: 1.0848, to: 1.0850, color: 'accent', label: 'Bid–ask gap' },
         ],
-        ariaLabel: 'Bid and ask levels showing a 2-pip spread',
+        ariaLabel: 'Bid and ask levels on a forex chart',
       }));
     }
     case 5: {
@@ -113,24 +135,24 @@ function questionChart(idx, seed) {
       return wrapChart(miniChart(ts.candles, {
         width: CHART_W, height: CHART_H, yPad: 0.12, showAxis: true,
         overlays: [
-          { type: 'hline', price: level, color: 'support', dashed: true, label: 'Old R → Support', width: 1.75 },
+          { type: 'hline', price: level, color: 'support', dashed: true, label: 'Retest level', width: 1.75 },
           { type: 'marker', idx: 28, price: level, position: 'above', shape: 'dot', color: 'accent', text: 'Break' },
           { type: 'marker', idx: 36, price: level, position: 'below', shape: 'dot', color: 'bull', text: 'Retest' },
         ],
-        ariaLabel: 'Resistance broken then retested as support',
+        ariaLabel: 'Price chart with a break and retest at a marked level',
       }));
     }
     case 6: {
-      const ts = trendSeries({ seed: s + 6, count: 40, direction: 'up', swings: 2, start: 100, strength: 1.4 });
-      const r = rsi(ts.candles.map((k) => k.c), 14);
+      const closes = Array.from({ length: 40 }, (_, i) => 100 + 0.35 * i + 0.05 * Math.sin(i));
+      const candles = synthesize(closes, { seed: s + 6, scale: 0.45 });
+      const r = rsi(candles.map((k) => k.c), 14);
       const lastR = [...r].reverse().find((v) => Number.isFinite(v)) ?? 72;
-      return wrapChart(miniChart(ts.candles, {
+      return wrapChart(miniChart(candles, {
         width: CHART_W, height: CHART_H, yPad: 0.1, showAxis: true,
         overlays: [
-          { type: 'marker', idx: ts.candles.length - 1, position: 'above', shape: 'dot', color: 'warn', text: `RSI ~${Math.round(lastR)}` },
-          { type: 'text', idx: Math.floor(ts.candles.length * 0.55), price: ts.candles[Math.floor(ts.candles.length * 0.55)].h * 1.01, text: 'Overbought zone', color: 'warn' },
+          { type: 'marker', idx: candles.length - 1, position: 'above', shape: 'dot', color: 'warn', text: `RSI ${Math.round(lastR)}` },
         ],
-        ariaLabel: 'Strong rally with RSI in overbought territory',
+        ariaLabel: `Rising price chart with RSI reading ${Math.round(lastR)}`,
       }));
     }
     case 7: {
@@ -141,10 +163,10 @@ function questionChart(idx, seed) {
           { type: 'hline', price: 56, color: 'bull', label: 'Target 56', width: 1.5 },
           { type: 'hline', price: 50, color: 'accent', label: 'Entry 50', width: 1.75 },
           { type: 'hline', price: 48, color: 'bear', label: 'Stop 48', width: 1.5 },
-          { type: 'zone', from: 48, to: 50, color: 'bear', label: 'Risk 2' },
-          { type: 'zone', from: 50, to: 56, color: 'bull', label: 'Reward 6' },
+          { type: 'zone', from: 48, to: 50, color: 'bear', label: 'Risk zone' },
+          { type: 'zone', from: 50, to: 56, color: 'bull', label: 'Reward zone' },
         ],
-        ariaLabel: 'Trade levels showing 3 to 1 reward to risk',
+        ariaLabel: 'Trade chart with entry, stop and target levels',
       }));
     }
     case 8: {
@@ -155,7 +177,6 @@ function questionChart(idx, seed) {
           { type: 'hline', price: 50, color: 'accent', label: 'Entry $50', width: 1.75 },
           { type: 'hline', price: 48, color: 'bear', label: 'Stop $48', width: 1.5 },
           { type: 'zone', from: 48, to: 50, color: 'bear', label: '$2 / share' },
-          { type: 'text', idx: 8, price: 51.5, text: '1% of $10k = $100 → 50 shares', color: 'text' },
         ],
         ariaLabel: 'Entry and stop two dollars apart for position sizing',
       }));
@@ -168,10 +189,8 @@ function questionChart(idx, seed) {
         width: CHART_W, height: CHART_H, yPad: 0.12, showAxis: true,
         overlays: [
           { type: 'segment', a: { idx: i1, price: ts.candles[i1].h }, b: { idx: i2, price: ts.candles[i2].h }, color: 'bear', width: 1.75, label: 'Price HH' },
-          { type: 'segment', a: { idx: i1, price: ts.candles[i1].l + (ts.candles[i1].h - ts.candles[i1].l) * 0.35 }, b: { idx: i2, price: ts.candles[i2].l + (ts.candles[i2].h - ts.candles[i2].l) * 0.15 }, color: 'warn', width: 1.5, dashed: true, label: 'RSI LH' },
-          { type: 'marker', idx: i2, position: 'above', shape: 'dot', color: 'bear', text: 'Bearish div' },
         ],
-        ariaLabel: 'Price higher high with fading RSI — bearish divergence',
+        ariaLabel: 'Price chart with two marked swing highs; momentum details are in the question',
       }));
     }
     case 10: {
@@ -208,6 +227,55 @@ function questionChart(idx, seed) {
         }));
       }
     }
+    case 11: {
+      const pivots = [100, 104, 96, 106, 94, 108, 92, 110, 90, 112];
+      const closes = pivots.flatMap((price, i) => i === pivots.length - 1 ? [price]
+        : Array.from({ length: 4 }, (_, j) => price + (pivots[i + 1] - price) * j / 4));
+      const candles = synthesize(closes, { seed: s + 11, scale: 0.1 });
+      return wrapChart(miniChart(candles, {
+        width: CHART_W, height: CHART_H, yPad: 0.12, showAxis: true,
+        overlays: [
+          { type: 'segment', a: { idx: 4, price: candles[4].h }, b: { idx: 28, price: candles[28].h }, color: 'bull', width: 1.5, dashed: true },
+          { type: 'segment', a: { idx: 8, price: candles[8].l }, b: { idx: 32, price: candles[32].l }, color: 'bear', width: 1.5, dashed: true },
+        ],
+        ariaLabel: 'Price chart with marked swing highs and lows',
+      }));
+    }
+    case 12: {
+      const closes = [97, 97.5, 98.1, 98.7, 99.2, 99.6, 100.2, 101, 101.4, 100.8, 99.7, 99.2, 98.8, 98.4];
+      const candles = synthesize(closes, { seed: s + 12, scale: 0.12 });
+      return wrapChart(miniChart(candles, {
+        width: CHART_W, height: CHART_H, yPad: 0.16, showAxis: true,
+        overlays: [{ type: 'hline', price: 100, color: 'resistance', dashed: true, label: 'Old ceiling', width: 1.75 }],
+        ariaLabel: 'Price chart with candles on both sides of a marked old ceiling',
+      }));
+    }
+    case 13: {
+      const closes = Array.from({ length: 28 }, (_, i) => 50 + 4 * i / 27 + 0.12 * Math.sin(i / 2));
+      const candles = synthesize(closes, { seed: s + 13, scale: 0.1 });
+      return wrapChart(miniChart(candles, {
+        width: CHART_W, height: CHART_H, yPad: 0.2, showAxis: true,
+        overlays: [
+          { type: 'hline', price: 54, color: 'bull', label: 'Exit 54', width: 1.5 },
+          { type: 'hline', price: 50, color: 'accent', label: 'Entry 50', width: 1.75 },
+          { type: 'hline', price: 48, color: 'bear', label: 'Stop 48', width: 1.5 },
+        ],
+        ariaLabel: 'Trade chart with entry, stop and exit levels',
+      }));
+    }
+    case 14:
+      return wrapChart(h('div', { class: 'card', style: { padding: '1rem', width: '100%' } },
+        h('p', { class: 'eyebrow' }, 'Strategy outcomes'),
+        h('div', { class: 'row row--sm' },
+          h('span', { class: 'chip chip--accent' }, '40% wins · +2R'),
+          h('span', { class: 'chip' }, '60% losses · −1R'))));
+    case 16:
+      return wrapChart(h('div', { class: 'card', style: { padding: '1rem', width: '100%' } },
+        h('p', { class: 'eyebrow' }, 'Desk risk limit · 3R'),
+        h('div', { class: 'row row--sm' },
+          h('span', { class: 'chip' }, 'Open trade A · 1.5R'),
+          h('span', { class: 'chip' }, 'Open trade B · 1.5R'),
+          h('span', { class: 'chip chip--accent' }, 'Proposed trade · 1R'))));
     default:
       return wrapChart(sampleCandle('bull', { width: 64, height: 160 }));
   }
@@ -220,7 +288,7 @@ export default {
     const used = new Set();
     let current = 0;
     const game = new GameShell(root, ctx, {
-      preview: (el) => gameplayPreview(el, { seed: 99, direction: 'up', title: 'Daily Challenge', score: 880, streak: 7, round: '1/1', width: 520, height: 200 }),
+      preview: (el) => gameplayPreview(el, { seed: 99, direction: 'up', title: 'Daily Challenge', score: 200, streak: 2, round: '2/5', width: 520, height: 200 }),
       rounds: 5,
       timer: { seconds: 25, perRound: true },
       howTo: ["Five questions, the same for everyone today.", "Answer fast: streaks multiply your score.", "Come back tomorrow to keep your streak alive."],
@@ -231,8 +299,9 @@ export default {
       onRound(g, { rng, difficulty, retry, stage }) {
         if (!retry) current = pickQuestion(deck, used, difficulty);
         const q = BANK[current];
-        stage.append(questionChart(current, rng.int(1, 5000)));
-        g.ask({
+        const chart = questionChart(q[5] ?? current, rng.int(1, 5000));
+        stage.append(chart);
+        const quiz = g.ask({
           question: q[1],
           options: rng.shuffle(q[2].map((label, i) => ({ label, value: i }))),
           answer: CORRECT[current],
@@ -240,6 +309,7 @@ export default {
           hint: q[4],
           onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Daily locked' : 'Review & retry', detail: (q[3] || '').replace(/<[^>]+>/g, ' ').slice(0, 140), scoreDelta: ok ? 100 : 0 }),
         });
+        stage.insertBefore(quiz, chart);
       },
     });
     return () => game.destroy();

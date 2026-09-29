@@ -13,21 +13,26 @@ function roundFromDifficulty(rng, difficulty) {
   const body = Math.abs(c.c - c.o);
   const upper = c.h - Math.max(c.o, c.c);
   const lower = Math.min(c.o, c.c) - c.l;
+  const range = c.h - c.l;
   const bull = c.c >= c.o;
-  const types = [
-    {
-      q: 'How long is the upper wick (in price points, rounded)?',
-      answer: Math.round(upper * 100) / 100,
-      options: () => {
-        const correct = +(upper).toFixed(2);
-        const opts = new Set([correct]);
-        // A wick can't be negative: keep distractors above zero.
-        while (opts.size < 4) opts.add(+Math.max(0.01, correct + rng.float(-1.5, 1.5)).toFixed(2));
-        return [...opts].map((v) => ({ label: String(v), value: v }));
-      },
-      explain: `Upper wick = high − max(open, close) = <strong>${upper.toFixed(2)}</strong>.`,
-      hint: 'Top of body is the higher of open and close.',
+  const measure = (q, value, formula, hint) => ({
+    q,
+    answer: +value.toFixed(2),
+    options: () => {
+      const correct = +value.toFixed(2);
+      const opts = new Set([correct]);
+      for (const candidate of [body, upper, lower, range, value + 0.25, value + 0.50, value - 0.25, value + 1]) {
+        if (opts.size >= 4) break;
+        const rounded = +Math.max(0, candidate).toFixed(2);
+        if (rounded !== correct) opts.add(rounded);
+      }
+      return [...opts].map((v) => ({ label: v.toFixed(2), value: v }));
     },
+    explain: `${formula} = <strong>${value.toFixed(2)}</strong>.`,
+    hint,
+  });
+  const types = [
+    measure('How long is the upper wick?', upper, 'High − higher of open/close', 'Top of body is the higher of open and close.'),
     {
       q: 'Is this candle bullish or bearish?',
       answer: bull ? 'bull' : 'bear',
@@ -47,6 +52,11 @@ function roundFromDifficulty(rng, difficulty) {
       hint: 'Wicks are rejected extremes beyond the body.',
     },
   ];
+  if (difficulty > 0.25) {
+    types.push(measure('How long is the lower wick?', lower, 'Lower of open/close − low', 'Bottom of body is the lower of open and close.'));
+    types.push(measure('How tall is the real body?', body, '|close − open|', 'Ignore both wicks; compare only the open and close.'));
+  }
+  if (difficulty > 0.6) types.push(measure('What is the full high-to-low range?', range, 'High − low', 'Measure from the very tip of the upper wick to the bottom of the lower wick.'));
   const t = rng.pick(types);
   return { sc, c, t, bull };
 }
@@ -62,7 +72,7 @@ export default {
         'Answer the geometry question (wick length, direction, etc.).',
         'Build the habit of reading numbers, not just colours.',
       ],
-      preview: (el) => gameplayPreview(el, { seed: 12, direction: 'up', title: 'Candle Builder', score: 720, streak: 6, round: '5/8' }),
+      preview: (el) => gameplayPreview(el, { seed: 12, direction: 'up', title: 'Candle Builder', score: 180, streak: 2, round: '2/3' }),
       onRound(g, { rng, stage, difficulty }) {
         const { sc, c, t, bull } = roundFromDifficulty(rng, difficulty);
         const pill = h('div', { class: 'row row--sm', style: { gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap' } },
@@ -74,12 +84,12 @@ export default {
           t.answer === 'bull' || t.answer === 'bear' ? null
             : h('span', { class: ['game-preview__chip', bull ? 'game-preview__chip--bull' : 'game-preview__chip--bear'] }, bull ? 'Bull' : 'Bear'),
         );
-        const hero = candleSVG(c, { width: 64, height: 130, labels: true, prices: true, ariaLabel: 'Focus candle' });
+        const hero = candleSVG(c, { width: 52, height: 96, labels: true, prices: true, ariaLabel: 'Focus candle' });
         const dc = decisionChart(stage, {
           candles: sc.candles,
           visible: sc.end + 1,
           slots: sc.candles.length,
-          height: 320,
+          height: 220,
           yPad: 0.16,
           question: t.q,
           before: h('div', { class: 'row', style: { alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' } }, hero, pill),
@@ -87,7 +97,7 @@ export default {
         });
         dc.chart.addBox({ from: sc.start, to: sc.end, color: 'accent', label: 'Focus' });
         g.setHint(t.hint);
-        g.ask({
+        const quiz = g.ask({
           options: rng.shuffle(t.options()),
           answer: t.answer,
           explain: t.explain,
@@ -96,6 +106,7 @@ export default {
             verdictFlourish(stage, { ok, title: ok ? 'Geometry locked' : 'Recheck OHLC', detail: t.explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
           },
         });
+        dc.wrap.insertBefore(quiz, dc.host);
         return () => dc.destroy();
       },
     });

@@ -1004,17 +1004,25 @@ there is no Style picker. The facts box and "Your best" line follow the selected
 
 | | Practice | Arcade (default) | Survival |
 |---|---|---|---|
-| rounds | `opts.rounds` | `opts.rounds` | open: `game.rounds === null` until the lives run out |
-| clock | none: the shell starts no clock, `game.timer.start()` is a no-op returning `false`, `game.timed === false` | `opts.timer` | `opts.timer`; the shell-managed per-round clock is scaled by `game.clockScale` (1 → 0.6 as difficulty rises) |
-| `game.difficulty` | fixed: Easy / Normal / Hard → 0.2 / 0.5 / 0.85 | `(round − 1) / (rounds − 1)` (open-ended: over 15 rounds) | `min(1, (round − 1) / 14)` (`survival.ramp`) |
+| rounds | `opts.rounds` | a short 40-stage campaign: 3 rounds on levels 1–10, 4 on 11–25, 5 on 26–40; every fifth stage adds one round where below the five-round cap (also capped by `opts.rounds`); Daily stays at 5 | open: `game.rounds === null` until the lives run out |
+| clock | none: the shell starts no clock, `game.timer.start()` is a no-op returning `false`, `game.timed === false` | `opts.timer`, gradually scaled from 1.12 to 0.87 of its base time, with 0.06 less at chapter checkpoints; Daily keeps its base time | `opts.timer`; the shell-managed per-round clock is scaled by `game.clockScale` (1 → 0.6 as difficulty rises) |
+| `game.difficulty` | fixed: Easy / Normal / Hard → 0.2 / 0.5 / 0.85 | stage baseline plus a small within-stage ramp, 0.08–1; Daily questions stay date-seeded while difficulty can rise across levels and rounds | `min(1, (round − 1) / 14)` (`survival.ramp`) |
 | hints | Hint button whenever the round called `setHint()`; a hinted round scores at most 50% | — (unless `hints: 'always'`) | — |
 | a miss (`wrong()`) | "Try again" appears next to Next: the round replays (same round rng), the miss is forgiven (`wrongs − 1`) and the round scores at most 50% | streak resets | costs a life; at 0 `game.over = true`, Next reads "See results" and `nextRound()` calls `finish()` |
 | stars | base points vs `maxScore` (90 / 65 / 35%) | same | rounds survived ≥ 5 / 10 / 15 (`survival.stars`) |
-| XP | §6.8 formula × 0.5 | §6.8 formula | `round(min(1, survived / 15) × 60) + 10 × stars` |
+| XP | §6.8 formula × 0.5 | 30 XP for each newly earned stage star; replays earn XP only for improved stars | `round(min(1, survived / 15) × 60) + 10 × stars` |
 | perfect | no misses, hints or retries | as §6.8 | never |
 
 "Rounds survived" = rounds played, minus the round that cost the last life (a game that calls
 `finish()` itself counts the current round). Stored as the style's `rounds` (best) — see §12.8.
+
+Arcade shows a 40-level map on each game's intro. The player can replay an unlocked level;
+one star unlocks the next. Every fifth stage is a chapter checkpoint with an extra round where
+possible and a tighter clock.
+`js/core/game-levels.js` owns the level count, chapter names,
+stage length and difficulty curve. Each game's unlocked level, selected level, best stars and
+best score are saved locally. The Daily Challenge advances at most once per distinct local
+date and uses the same date-seeded questions regardless of a player's campaign level.
 
 Game API (additions):
 
@@ -1022,6 +1030,7 @@ Game API (additions):
 game.style                 // 'practice' | 'arcade' | 'survival' (readable in every hook)
 game.styles                // styles offered on the intro
 game.level                 // Practice difficulty: 'easy' | 'normal' | 'hard'
+game.campaignLevel         // selected 1–40 Arcade stage, or null outside Arcade
 game.difficulty            // 0–1, set before onStart and before each onRound (see table)
 game.timed                 // false in Practice
 game.clockScale            // Survival: 1 → survival.clockMin as difficulty rises (else 1); apply it
@@ -1046,9 +1055,9 @@ game.ask({ question, options, answer, explain, hint, points = 100, columns, next
    // lives and caps all work through it.
 ```
 
-- `onRound(game, { round, rng, stage, mode, style, difficulty, source, retry })`; it may be
+- `onRound(game, { round, rng, stage, mode, style, difficulty, source, retry, campaignLevel })`; it may be
   `async` / return a Promise (a resolved function is the round cleanup; a rejection shows the
-  "round failed to load — skip" card). `onStart(game, { mode, seed, rng, style, source, difficulty })`.
+  "round failed to load — skip" card). `onStart(game, { mode, seed, rng, style, source, difficulty, campaignLevel })`.
 - In Survival `game.rounds` is `null`: build rounds on demand from `round` and `difficulty`; never
   index a fixed list by `round` without wrapping (the legacy stubs wrap: `order[(round − 1) %
   order.length]`). Call `wrong()` once per failed round (each call costs a life).
@@ -1575,24 +1584,29 @@ Registry (`js/registry.js`, still pure data):
 Store (`js/core/store.js`, additive):
 
 ```js
-store.recordGame(id, { score, stars, mode, maxScore, xp, perfect, style, rounds })
+store.recordGame(id, { score, stars, mode, maxScore, xp, perfect, style, rounds,
+                       campaignLevel, campaignEligible, campaignAdvance })
   → { isBest, xp, newBadges, best, style, styleBest, isStyleBest, overallBest, isOverallBest,
-      rounds, bestRounds, isBestRounds }
+      rounds, bestRounds, isBestRounds, levelResult? }
   // Keeps g.best / g.stars / g.plays overall (unchanged) and g.styles[style] = { best, stars, plays,
   // at, rounds?, lastRounds? }. With `style`, isBest / best are that style's; without it they stay
   // overall (legacy) and the run is recorded as 'arcade'. Legacy records count as Arcade.
 store.styleStats(id, style = 'arcade') → { best, stars, plays, at, rounds? } | null
+store.levelProgress(id) → { unlocked, selected, stars[40], scores[40] }
+store.selectLevel(id, level) → boolean // only an already unlocked Arcade stage is selectable
 store.getGamePref(id, key, fallback = null) / store.setGamePref(id, key, value)
   // remembered intro choices: 'style', 'source', 'level'
 store.dailyKey(date?) → 'YYYY-MM-DD'        // LOCAL calendar date (also exported as dailyKey())
-store.dailyStatus(date?) → { key, done, score, streak, best, last, alive }
+store.dailyStatus(date?) → { key, done, score, streak, best, last, level, alive }
   // streak counts only while the last completion was today or yesterday (else 0)
-store.recordDaily({ score, key }) → { first, streak, best, key, newBadges }
-  // first completion of a date extends the streak (+1 after yesterday, else 1); replays keep the
-  // best score but never change the streak; awards daily-streak-7
+store.recordDaily({ score, key, level }) → { first, streak, best, key, level, newBadges }
+  // first completion of a date extends the streak (+1 after yesterday, else 1); replays do not
+  // change score, rewards, stars, stage or streak; awards daily-streak-7
 ```
 
-`state` gains `gamePrefs` and `daily: { last, streak, best, history: { key: score } }` (90 days).
+`state` gains `gamePrefs` and `daily: { last, streak, best, history: { key: score },
+levels: { key: stage } }` (90 days). A same-day Daily replay uses its saved stage and the same
+date-seeded questions; the next stage becomes playable the following day.
 
 Pages:
 

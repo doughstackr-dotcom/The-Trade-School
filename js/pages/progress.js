@@ -7,6 +7,7 @@ import {
   LESSONS, GAMES, BADGES, STYLES, UNITS, stylesOf, hashFor, findEntry,
 } from '../registry.js';
 import { styleIcon } from '../core/game-kit.js';
+import { CAMPAIGN_LEVEL_COUNT } from '../core/game-levels.js';
 import { trackPanels } from '../core/track-panel.js';
 import * as access from '../core/access.js';
 import { PLANS, FREE_IDS } from '../config.js';
@@ -194,15 +195,17 @@ function styleCell(store, g, style) {
     return h('td', { class: 'num mono style-col', title: `Best score ${fmt(st.best)}` },
       h('span', { class: 'style-best' }, `${st.rounds ?? 0}`, h('small', null, ' rnds')));
   }
-  return h('td', { class: 'num mono style-col' }, fmt(st.best));
+  return h('td', { class: 'num mono style-col', title: style === 'arcade' ? 'Arcade all-time raw score across stages' : null }, fmt(st.best));
 }
 
 function gamesTable(store) {
   const rows = GAMES.map((g) => {
     const s = store.state.games[g.id];
+    const campaign = store.levelProgress?.(g.id);
     return h('tr', null,
       h('th', { scope: 'row' }, h('a', { href: `#g.${g.id}`, class: 'table-link' }, g.title)),
       h('td', { class: 'hide-sm' }, tierChip(g.tier, { small: true })),
+      h('td', { class: 'num mono' }, campaign ? `${campaign.unlocked}/${CAMPAIGN_LEVEL_COUNT}` : `1/${CAMPAIGN_LEVEL_COUNT}`),
       ...STYLES.map((st) => styleCell(store, g, st.id)),
       h('td', null, starRow(s?.stars || 0, { size: 14 })),
       h('td', { class: 'num mono hide-sm' }, s?.plays ? String(s.plays) : '0'),
@@ -213,8 +216,10 @@ function gamesTable(store) {
       h('thead', null, h('tr', null,
         h('th', { scope: 'col' }, 'Game'),
         h('th', { scope: 'col', class: 'hide-sm' }, 'Track'),
+        h('th', { scope: 'col', class: 'num' }, 'Stage'),
         ...STYLES.map((st) => h('th', { scope: 'col', class: 'num style-col' },
-          h('span', { class: 'style-head', title: st.id === 'survival' ? `${st.label}: best rounds survived` : `${st.label}: best score` },
+          h('span', { class: 'style-head', title: st.id === 'survival' ? `${st.label}: best rounds survived`
+            : st.id === 'arcade' ? 'Arcade: all-time raw score across stages' : `${st.label}: best score` },
             styleIcon(st.id, { size: 13 }), h('span', { class: 'style-head__label' }, st.label)))),
         h('th', { scope: 'col' }, 'Stars'),
         h('th', { scope: 'col', class: 'num hide-sm' }, 'Plays'),

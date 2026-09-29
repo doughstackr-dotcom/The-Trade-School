@@ -26,6 +26,7 @@ function confirmation(r) {
   const a = sw.filter((x) => b && b.idx - x.idx >= 5 && b.idx - x.idx <= 40).reduce((m, x) => (!m || (up ? x.price > m.price : x.price < m.price) ? x : m), null);
   if (!a || !Number.isFinite(A[b.idx])) return null;
   const osc = (i) => (up ? Math.max : Math.min)(...R.slice(Math.max(0, i - 2), i + 3).filter(Number.isFinite));
+  if (!Number.isFinite(osc(a.idx)) || !Number.isFinite(osc(b.idx))) return null;
   const priceOk = up ? b.price >= a.price + 0.25 * A[b.idx] : b.price <= a.price - 0.25 * A[b.idx];
   const oscOk = up ? osc(b.idx) >= osc(a.idx) + 4 : osc(b.idx) <= osc(a.idx) - 4;
   if (!priceOk || !oscOk) return null;
@@ -38,7 +39,7 @@ export default {
   id: 'divergence-detective',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
-      preview: (el) => gameplayPreview(el, { seed: 28, direction: 'down', title: 'divergence-detective', score: 410, streak: 2, round: '2/8' }),
+      preview: (el) => gameplayPreview(el, { seed: 28, direction: 'down', title: 'divergence-detective', score: 200, streak: 2, round: '2/3' }),
       rounds: 6,
       timer: { seconds: 30, perRound: true },
       howTo: [
@@ -49,12 +50,12 @@ export default {
       async onRound(g, { rng, stage, difficulty }) {
         const q = { kinds: KINDS, before: Math.round(90 - 15 * difficulty), after: 16 };
         let r = null;
-        if (rng.chance(1 / 3)) {
+        if (rng.chance(difficulty < 0.4 ? 0.25 : 0.4)) {
           // Confirmation round: price makes a new swing extreme and RSI confirms it.
           const cq = { ...q, kinds: ['trend-up', 'trend-down'] };
           const realTrend = await g.realRound(cq);
           r = confirmation(realTrend);
-          for (let t = 0; !r && !realTrend && t < 4; t++) r = confirmation(simRound(rng, cq));
+          for (let t = 0; !r && !realTrend && t < 7; t++) r = confirmation(simRound(rng, cq));
         }
         if (!r) r = await g.realRound(q);
         // simRound is stochastic (random markets × limited tries) and can return null —
@@ -70,25 +71,30 @@ export default {
         if (r.confirm) answer = 'confirm';
         else if (k === 'bearish-divergence') answer = 'bear-div';
         else if (k === 'bullish-divergence') answer = 'bull-div';
+        const swingA = r.confirm?.a || r.setup?.meta?.a;
+        const swingB = r.confirm?.b || r.setup?.meta?.b;
+        const swingRead = swingA && swingB && Number.isFinite(swingA.price) && Number.isFinite(swingB.price) && Number.isFinite(swingA.rsi) && Number.isFinite(swingB.rsi)
+          ? `Price ${swingA.price.toFixed(r.decimals ?? 2)} → ${swingB.price.toFixed(r.decimals ?? 2)}; RSI ${swingA.rsi.toFixed(1)} → ${swingB.rsi.toFixed(1)}.`
+          : '';
         const host = h('div', { class: 'chart-frame' });
         stage.append(h('p', { class: 'quiz__q' }, 'Price vs momentum at the latest swing — what do you see?'), host);
         const chart = new CandleChart(host, {
           candles: r.candles, visible: r.decisionIdx + 1, slots: r.candles.length,
-          height: 340, decimals: r.decimals ?? 2, yPad: 0.14,
+          height: 195, decimals: r.decimals ?? 2, yPad: 0.14,
           ariaLabel: 'Chart for divergence reading',
         });
         // Momentum pane (RSI 14, warmed up on the lead candles); annotateSetup reuses the 'rsi' id.
         const lead = r.lead || [];
-        chart.addPane({ id: 'rsi', title: 'RSI 14', height: 80, range: [0, 100], levels: [{ value: 70, color: 'bear' }, { value: 30, color: 'bull' }], series: [{ values: rsi([...lead, ...r.candles].map((c) => c.c), 14).slice(lead.length), color: 'ma3' }] });
+        chart.addPane({ id: 'rsi', title: 'RSI 14', height: 60, range: [0, 100], levels: [{ value: 70, color: 'bear' }, { value: 30, color: 'bull' }], series: [{ values: rsi([...lead, ...r.candles].map((c) => c.c), 14).slice(lead.length), color: 'ma3' }] });
         g.setHint('Bearish div: higher high in price, lower high in momentum. Bullish: lower low in price, higher low in momentum.');
-        g.ask({
+        const quiz = g.ask({
           options: [
             { label: 'Bearish divergence', value: 'bear-div' },
             { label: 'Bullish divergence', value: 'bull-div' },
             { label: 'Confirmation / no clear divergence', value: 'confirm' },
           ],
           answer,
-          explain: `<strong>${LABELS[answer]}</strong> (${r.confirm ? `RSI confirms the ${r.confirm.up ? 'higher high' : 'lower low'}` : r.setup?.meta?.name || k || 'setup'}). Sample follow-through: ${r.outcome?.result || 'n/a'}.`,
+          explain: `<strong>${LABELS[answer]}</strong>. ${swingRead} ${r.confirm ? 'Momentum confirms the new price extreme.' : 'Price and momentum move in opposite directions at the swing.'} Sample follow-through: ${r.outcome?.result || 'n/a'}.`,
           onAnswer: (ok) => {
             chart.reveal({ to: r.candles.length, interval: 40 });
             if (r.confirm) {
@@ -99,9 +105,10 @@ export default {
             } else {
               try { annotateSetup(r.setup, chart, r); } catch { /* */ }
             }
-            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+            verdictFlourish(stage, { ok, title: ok ? 'Momentum read' : 'Compare the swings', detail: swingRead, scoreDelta: ok ? 100 : 0 });
           },
         });
+        stage.insertBefore(quiz, host);
         return () => chart.destroy();
       },
     });

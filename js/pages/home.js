@@ -8,6 +8,7 @@ import { makeRng } from '../core/rng.js';
 import { fromPath, randomWalk, trendSeries, aggregate } from '../core/data.js';
 import { sma } from '../core/indicators.js';
 import { styleIcon } from '../core/game-kit.js';
+import { CAMPAIGN_LEVEL_COUNT } from '../core/game-levels.js';
 import { trackCard as sharedTrackCard } from '../core/curriculum.js';
 import * as access from '../core/access.js';
 
@@ -593,6 +594,7 @@ export function arcadeTile(store, g, featureOrOpts = false) {
   const free = !!opts.free;
   const href = opts.href || `#g.${g.id}`;
   const st = store.gameStats(g.id);
+  const campaign = store.levelProgress?.(g.id);
   const kind = findKind(g.kind);
   const real = sourcesOf(g).includes('real');
   const art = h('div', { class: 'game-tile__art', 'aria-hidden': 'true', 'data-art': g.id });
@@ -619,6 +621,10 @@ export function arcadeTile(store, g, featureOrOpts = false) {
       h('div', { class: 'game-tile__meta' },
         free
           ? h('span', { class: 'chip chip--sm chip--accent' }, icon('spark', { size: 12 }), 'Free')
+          : null,
+        campaign
+          ? h('span', { class: 'chip chip--sm chip--accent', title: 'Highest playable stage' },
+            'Stage ', h('strong', { class: 'mono' }, `${campaign.unlocked}/${CAMPAIGN_LEVEL_COUNT}`))
           : null,
         locked
           ? h('span', { class: 'chip chip--sm chip--outline' }, icon('lock', { size: 12 }), 'Locked')
@@ -700,7 +706,7 @@ function todaySection(store, cleanups) {
 
 const STYLE_RULES = {
   practice: ['No clock', 'Hints: a hinted round scores up to 50%', 'Try again after a miss', 'Pick Easy, Normal or Hard', 'Half XP'],
-  arcade: ['Fixed rounds and a clock', 'Streaks multiply your score (×1.5, ×2)', 'Three stars to chase', 'Full XP'],
+  arcade: ['40 short stages per game', 'Clear stages to unlock the next one', 'Streaks multiply your score (×1.5, ×2)', 'Earn up to three stars on each stage'],
   survival: ['Three lives', 'Rounds keep coming and get harder', 'The clock speeds up as you go', 'Stars at 5, 10 and 15 rounds'],
 };
 
