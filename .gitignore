@@ -5,3 +5,8 @@ tests/screenshots/
 .env
 .env.*
 !.env.example
+
+# local dev-server output and one-off DOM-verify scratch scripts
+.serve-*.log
+.serve-*.err.log
+dom-verify-*.mjs
