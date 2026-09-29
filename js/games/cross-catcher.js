@@ -35,20 +35,22 @@ export default {
         'Use MA location as a regime filter — not a crystal ball.',
       ],
       async onRound(g, { rng, stage, difficulty }) {
+        // Scanner kinds (js/core/scanner.js SETUP_KINDS); the answer is read from the drawn MA.
         const real = await g.realRound({
-          kinds: difficulty < 0.5 ? ['price-above-ma', 'price-below-ma'] : ['price-above-ma', 'price-below-ma', 'golden-cross', 'death-cross'],
+          kinds: difficulty < 0.5 ? ['trend-up', 'trend-down'] : ['trend-up', 'trend-down', 'golden-cross', 'death-cross'],
           before: 120,
           after: 15,
-          maFast: 20,
-          maSlow: 50,
         });
         let r;
         if (real) {
-          const k = real.setup?.kind || '';
+          const lead = real.lead || [];
+          const ma = sma([...lead, ...real.candles].map((c) => c.c), difficulty > 0.6 ? 30 : 20).slice(lead.length);
+          const d = real.decisionIdx;
           r = {
             candles: real.candles,
-            decisionIdx: real.decisionIdx,
-            answer: /above|golden|cross-up/i.test(k) || real.setup?.direction === 'bullish' ? 'above' : 'below',
+            decisionIdx: d,
+            ma,
+            answer: real.candles[d].c > ma[d] ? 'above' : 'below',
             decimals: real.decimals,
             setup: real.setup,
           };

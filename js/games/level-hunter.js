@@ -9,7 +9,8 @@ function textbook(rng, difficulty) {
   const ids = ['double-bottom', 'double-top', 'ascending-triangle', 'descending-triangle'];
   const id = rng.pick(ids);
   const sc = chartScenario(id, { seed: rng.int(1, 1e9), count: Math.round(90 - 10 * difficulty), after: 12, outcome: rng.chance(0.55) ? 'success' : 'fail' });
-  const kind = /bottom|ascending/.test(id) ? 'support' : 'resistance';
+  // The drawn level is the one about to break: above price (capping it) for the bullish patterns.
+  const kind = /bottom|ascending/.test(id) ? 'resistance' : 'support';
   return { candles: sc.candles, decisionIdx: Math.max(10, sc.breakoutIdx - 1), level: sc.level, kind, name: sc.name };
 }
 
@@ -31,13 +32,15 @@ export default {
           before: Math.round(60 - 15 * difficulty),
           after: 12,
         });
+        // Breakouts freeze one candle before the break, while the level still holds price.
+        const breakout = /^breakout/.test(real?.setup?.kind || '');
         const r = real
           ? {
             candles: real.candles,
-            decisionIdx: real.decisionIdx,
+            decisionIdx: breakout ? real.decisionIdx - 1 : real.decisionIdx,
             level: real.setup?.meta?.level,
-            kind: /support|bounce|breakout-up|double-bottom/i.test(real.setup?.kind || '') ? 'support'
-              : /resist|reject|breakout-down|double-top/i.test(real.setup?.kind || '') ? 'resistance' : 'unclear',
+            kind: /support|bounce|breakout-down/i.test(real.setup?.kind || '') ? 'support'
+              : /resist|reject|breakout-up/i.test(real.setup?.kind || '') ? 'resistance' : 'unclear',
             decimals: real.decimals,
             name: real.setup?.meta?.name || real.setup?.kind,
           }

@@ -10,15 +10,17 @@ function book() {
 }
 
 function scenario(rng, difficulty, bookState) {
+  const direction = rng.pick(['up', 'down']);
   const ts = trendSeries({
     seed: rng.int(1, 1e9),
     count: 80,
-    direction: rng.pick(['up', 'down']),
+    direction,
     swings: 3,
   });
   const decisionIdx = 50 + rng.int(0, 8);
   const entry = ts.candles[decisionIdx].c;
-  const dir = ts.direction === 'down' || rng.chance(0.15) ? -1 : 1;
+  // The plan trades with the chart's trend (trendSeries returns only { candles, swings }).
+  const dir = direction === 'down' ? -1 : 1;
   const atr = Math.max(0.2, Math.abs(ts.candles[decisionIdx].h - ts.candles[decisionIdx].l) * 2);
   const stop = +(entry - dir * atr).toFixed(2);
   const target = +(entry + dir * atr * (difficulty > 0.6 ? 2 : 2.5)).toFixed(2);
@@ -65,11 +67,13 @@ export default {
           ({ candles, decisionIdx, dir, entry, stop, target } = s);
         }
 
+        const planR = Math.round((Math.abs(target - entry) / Math.abs(entry - stop)) * 10) / 10;
+        const planQ = h('p', { class: 'quiz__q' },
+          `Plan: ${dir > 0 ? 'LONG' : 'SHORT'} @ ${entry.toFixed(2)}, stop ${stop.toFixed(2)}, target ${target.toFixed(2)} (≈${planR}R). Your call?`);
         stage.append(
           h('div', { class: 'callout risk-hud', role: 'status' },
-            h('p', null, `Desk · equity $${state.equity.toLocaleString()} · day P&amp;L ${state.dayR.toFixed(1)}R · trades ${state.trades}`)),
-          h('p', { class: 'quiz__q' },
-            `Plan: ${dir > 0 ? 'LONG' : 'SHORT'} @ ${entry.toFixed(2)}, stop ${stop.toFixed(2)}, target ${target.toFixed(2)} (≈2R). Your call?`),
+            h('p', null, `Desk · equity $${state.equity.toLocaleString()} · day P&L ${state.dayR.toFixed(1)}R · trades ${state.trades}`)),
+          planQ,
         );
         const host = h('div', { class: 'chart-frame' });
         stage.append(host);
@@ -117,6 +121,7 @@ export default {
           },
         ];
         const phase = phases.find((p) => p.when) || phases[1];
+        if (phase.answer === 'trail') planQ.textContent = planQ.textContent.replace('Your call?', 'If you take it and price reaches +1.5R, how do you manage the winner?');
         g.setHint('Process over outcome: size, stop, daily limit.');
         g.ask({
           options: rng.shuffle(phase.options),
