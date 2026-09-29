@@ -21,7 +21,8 @@ function roundFromDifficulty(rng, difficulty) {
       options: () => {
         const correct = +(upper).toFixed(2);
         const opts = new Set([correct]);
-        while (opts.size < 4) opts.add(+((correct + rng.float(-1.5, 1.5) || 0.25)).toFixed(2));
+        // A wick can't be negative: keep distractors above zero.
+        while (opts.size < 4) opts.add(+Math.max(0.01, correct + rng.float(-1.5, 1.5)).toFixed(2));
         return [...opts].map((v) => ({ label: String(v), value: v }));
       },
       explain: `Upper wick = high − max(open, close) = <strong>${upper.toFixed(2)}</strong>.`,
@@ -69,7 +70,9 @@ export default {
           h('span', { class: 'game-preview__pill' }, h('small', null, 'H'), h('strong', { class: 'mono' }, c.h.toFixed(2))),
           h('span', { class: 'game-preview__pill' }, h('small', null, 'L'), h('strong', { class: 'mono' }, c.l.toFixed(2))),
           h('span', { class: 'game-preview__pill' }, h('small', null, 'C'), h('strong', { class: 'mono' }, c.c.toFixed(2))),
-          h('span', { class: ['game-preview__chip', bull ? 'game-preview__chip--bull' : 'game-preview__chip--bear'] }, bull ? 'Bull' : 'Bear'),
+          // The Bull/Bear chip would print the answer on the "bullish or bearish?" question.
+          t.answer === 'bull' || t.answer === 'bear' ? null
+            : h('span', { class: ['game-preview__chip', bull ? 'game-preview__chip--bull' : 'game-preview__chip--bear'] }, bull ? 'Bull' : 'Bear'),
         );
         const hero = candleSVG(c, { width: 64, height: 130, labels: true, prices: true, ariaLabel: 'Focus candle' });
         const dc = decisionChart(stage, {

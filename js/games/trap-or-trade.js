@@ -51,12 +51,11 @@ export default {
         let r;
         if (real) {
           const k = real.setup?.kind || '';
-          const breakIdx = /^fakeout/.test(k) && Number.isFinite(real.setup.meta?.breakoutIdx)
-            ? real.setup.meta.breakoutIdx
-            : real.decisionIdx;
+          // Fakeouts freeze on the close back inside (the scanner's decision candle), so the trap
+          // is on the chart when you answer; on the break candle itself it looks like a breakout.
           r = {
             candles: real.candles,
-            decisionIdx: breakIdx,
+            decisionIdx: real.decisionIdx,
             level: real.setup?.meta?.level,
             answer: /^fakeout/.test(k) ? 'fade' : 'trade',
             name: real.setup?.meta?.name || k,

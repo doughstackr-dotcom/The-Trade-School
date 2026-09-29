@@ -50,7 +50,9 @@ export default {
         if (q[5] === 'ask' || (difficulty > 0.55 && rng.chance(0.45))) {
           const mid = +(90 + rng.float(0, 40)).toFixed(2);
           const tick = 0.25;
-          const want = rng.chance(0.5) ? 'ask' : 'bid';
+          const want = q[5] || (rng.chance(0.5) ? 'ask' : 'bid');
+          // A market order fills at the best price: the lowest ask / highest bid, next to Last.
+          const best = +(mid + (want === 'ask' ? tick : -tick)).toFixed(2);
           stage.append(
             h('p', { class: 'quiz__q' }, want === 'ask'
               ? `Market BUY at mid ${mid.toFixed(2)}. Tap the ask you would lift.`
@@ -63,16 +65,16 @@ export default {
             onPick: (row) => { picked = row; },
           });
           stage.append(ladder);
-          g.setHint(want === 'ask' ? 'Market buys take liquidity from sellers — the ask side.' : 'Market sells hit the bid.');
+          g.setHint(want === 'ask' ? 'Market buys take liquidity from sellers — the best (lowest) ask.' : 'Market sells hit the best (highest) bid.');
           const explain = want === 'ask'
-            ? '<strong>Lift the ask.</strong> Market buys pay the offer.'
-            : '<strong>Hit the bid.</strong> Market sells sell to buyers.';
+            ? `<strong>Lift the ask at ${best.toFixed(2)}.</strong> Market buys pay the best offer — the lowest ask.`
+            : `<strong>Hit the bid at ${best.toFixed(2)}.</strong> Market sells take the best bid — the highest one.`;
           const confirm = h('button', {
             type: 'button', class: 'btn btn--primary btn--lg',
             onclick: () => {
               if (confirm.disabled) return;
               confirm.disabled = true;
-              const sideOk = picked && picked.side === want;
+              const sideOk = picked && picked.side === want && picked.price === best;
               if (sideOk) g.correct(explain);
               else g.wrong(explain);
               verdictFlourish(stage, {

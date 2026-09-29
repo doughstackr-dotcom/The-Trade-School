@@ -3,7 +3,7 @@ import { GameShell } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
 import { h } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
-import { simRound } from '../core/scanner.js';
+import { simRound, findSetups } from '../core/scanner.js';
 import { annotateSetup } from '../core/lesson-kit.js';
 import { CANDLE_PATTERNS } from '../core/patterns.js';
 
@@ -43,7 +43,12 @@ export default {
           height: 340, decimals: r.decimals ?? 2, yPad: 0.14,
           ariaLabel: 'Candlestick chart with a pattern at the end; future hidden.',
         });
-        const distractors = rng.shuffle(pool.filter((k) => k !== kind)).slice(0, 3);
+        // Kinds the scanner also finds on this decision candle (a dragonfly doji is also a doji)
+        // are not wrong answers — keep them out of the distractors.
+        const lead = r.lead || [];
+        const at = lead.length + r.decisionIdx;
+        const also = new Set(findSetups([...lead, ...r.candles], { kinds: pool, from: at, to: at }).map((s) => s.kind));
+        const distractors = rng.shuffle(pool.filter((k) => k !== kind && !also.has(k))).slice(0, 3);
         const opts = rng.shuffle([kind, ...distractors].map((k) => ({ label: labelOf(k), value: k })));
         g.setHint('Check the prior trend and whether the long wick is above or below the body.');
         g.ask({

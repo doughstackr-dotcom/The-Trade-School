@@ -40,14 +40,14 @@ function lineRound(rng, difficulty) {
         if (decisionIdx >= 40) out.push({ candles: c, i1, i2, p1, p2, decisionIdx, answer: 'broken', direction, touches });
         break;
       }
-      if (p > -0.1) clear = false;
+      if (p > -0.05) clear = false;
       const gap = (up ? c[i].l - lineAt(i) : lineAt(i) - c[i].h) / unit(i); // extreme vs line, in ATRs
       if (gap > 1) away = true;
-      if (away && gap <= 0.3) {
+      if (away && gap <= 0.35) {
         touches += 1;
         touchIdx = i;
         away = false;
-      } else if (away && gap < 0.8) clear = false;
+      } else if (away && gap < 0.75) clear = false;
       if (!clear) break;
       if (i < Math.max(40, i2 + 6) || i < touchIdx + 2) continue;
       out.push({ candles: c, i1, i2, p1, p2, decisionIdx: i, answer: touches >= 3 ? 'intact' : 'candidate', direction, touches });
@@ -59,7 +59,7 @@ function lineRound(rng, difficulty) {
 function build(rng, difficulty) {
   const want = rng.pick(difficulty > 0.5 ? ['intact', 'broken', 'candidate'] : ['intact', 'broken']);
   let any = null;
-  for (let t = 0; t < 40; t++) {
+  for (let t = 0; t < 120; t++) {
     const rounds = lineRound(rng, difficulty).filter((x) => difficulty > 0.5 || x.answer !== 'candidate');
     const hits = rounds.filter((x) => x.answer === want);
     if (hits.length) return rng.pick(hits);

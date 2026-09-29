@@ -36,7 +36,7 @@ export default {
         const s = scenario(rng, difficulty);
         const span = Math.max(s.riskPerShare * (s.targetR + 2), s.entry * 0.04);
         const candles = trendSeries({
-          seed: rng.int(1, 1e9), count: 30, direction: 'up', swings: 2, start: s.stop + span * 0.3,
+          seed: rng.int(1, 1e9), count: 30, direction: 'up', swings: 2, start: 100,
         }).candles.map((k) => {
           // Keep action near the trade levels so entry/stop/target read clearly
           const mid = (s.stop + s.target) / 2;

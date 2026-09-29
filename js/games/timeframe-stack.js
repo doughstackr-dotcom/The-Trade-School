@@ -8,16 +8,25 @@ import { trendSeries } from '../core/data.js';
 function build(rng, difficulty) {
   const bias = rng.pick(['up', 'down']);
   const htf = trendSeries({ seed: rng.int(1, 1e9), count: 60, direction: bias, swings: 3 });
-  // LTF is noisier path in same direction, sometimes a counter pullback at the end
+  // LTF is noisier path in same direction, sometimes a counter pullback at the end, sometimes a
+  // sideways chop with no trigger (wait)
   const pullback = rng.chance(0.45 + 0.2 * difficulty);
-  const ltfDir = pullback ? (bias === 'up' ? 'down' : 'up') : bias;
-  const ltf = trendSeries({ seed: rng.int(1, 1e9), count: Math.round(70 - 10 * difficulty), direction: ltfDir, swings: 4 });
+  const chop = !pullback && rng.chance(0.4);
+  const ltfDir = chop ? 'range' : pullback ? (bias === 'up' ? 'down' : 'up') : bias;
+  const raw = trendSeries({ seed: rng.int(1, 1e9), count: Math.round(70 - 10 * difficulty), direction: ltfDir, swings: 4 }).candles;
+  // Same market: the LTF picks up from the HTF's last close, sized to half of the last HTF leg
+  // (so a pullback retraces it without breaking the last HTF swing).
+  const last = htf.candles[htf.candles.length - 1].c;
+  const lastSwing = htf.swings[htf.swings.length - 1].price;
+  const k = (0.5 * Math.abs(last - lastSwing)) / (Math.max(...raw.map((c) => c.h)) - Math.min(...raw.map((c) => c.l)) || 1);
+  const at = (p) => last + (p - raw[0].o) * k;
+  const ltf = raw.map((c) => ({ ...c, o: at(c.o), h: at(c.h), l: at(c.l), c: at(c.c) }));
   const best = pullback
     ? (bias === 'up' ? 'long-pullback' : 'short-pullback')
     : 'wait';
   // If LTF agrees with bias and not a pullback setup, take with trend
-  const answer = pullback ? best : (bias === 'up' ? 'long-cont' : 'short-cont');
-  return { htf: htf.candles, ltf: ltf.candles, bias, answer, pullback };
+  const answer = pullback || chop ? best : (bias === 'up' ? 'long-cont' : 'short-cont');
+  return { htf: htf.candles, ltf, bias, answer, pullback, lastSwing };
 }
 
 export default {
@@ -59,7 +68,9 @@ export default {
           answer: r.answer,
           explain: r.pullback
             ? `<strong>Trade the pullback with HTF bias (${r.bias})</strong>. Counter-trend LTF movement inside an HTF trend is often a location, not a new thesis.`
-            : `<strong>${r.answer}</strong>. LTF already agrees with HTF — continuation or wait for a fresh trigger rather than inventing a fade.`,
+            : r.answer === 'wait'
+              ? '<strong>Wait.</strong> The LTF is chopping sideways — no pullback and no trigger yet, so there is nothing to act on.'
+              : `<strong>With-trend continuation ${r.bias === 'up' ? 'long' : 'short'}</strong>. LTF already agrees with HTF — trade with it rather than inventing a fade.`,
           onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Stacked well' : 'Re-check HTF vs LTF', scoreDelta: ok ? 100 : 0 }),
         });
         return () => { c1.destroy(); c2.destroy(); };

@@ -14,10 +14,14 @@ const RATIOS = [
 function build(rng, difficulty) {
   const ts = trendSeries({ seed: rng.int(1, 1e9), count: Math.round(85 - 10 * difficulty), direction: 'up', swings: 3 });
   const c = ts.candles;
-  const loIdx = 12 + rng.int(0, 8);
-  const hiIdx = Math.min(c.length - 20, loIdx + 30 + rng.int(0, 10));
-  const lo = c[loIdx].l;
-  const hi = c[hiIdx].h;
+  // Mark a real swing: a swing low and the swing high after it, with room left for the pullback.
+  const legs = ts.swings.filter((s, i) => s.type === 'low' && ts.swings[i + 1]?.type === 'high' && ts.swings[i + 1].idx <= c.length - 16);
+  const sLo = rng.pick(legs);
+  const sHi = ts.swings[ts.swings.indexOf(sLo) + 1];
+  const loIdx = sLo.idx;
+  const hiIdx = sHi.idx;
+  const lo = sLo.price;
+  const hi = sHi.price;
   const pick = rng.pick(RATIOS);
   const level = hi - (hi - lo) * pick.r;
   // freeze somewhere after the high so the pullback is visible
