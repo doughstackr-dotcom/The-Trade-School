@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+# The dev chart kitchen sink is not part of the public site.
+Disallow: /#dev-chart
+
+Sitemap: https://www.thetrade.school/sitemap.xml

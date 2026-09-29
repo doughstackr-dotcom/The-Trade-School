@@ -1,0 +1,375 @@
+/* Reset, typography scale, layout primitives. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--chrome-h) + env(safe-area-inset-top, 0px) + 16px);
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+svg,
+canvas,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+svg {
+  overflow: visible;
+}
+
+/* Line icons (ui.icon) keep their size inside flex rows instead of shrinking via max-width. */
+svg.icon {
+  flex-shrink: 0;
+  max-width: none;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+figure,
+blockquote,
+dl,
+dd,
+ul,
+ol {
+  margin: 0;
+}
+
+/* :where() keeps this at zero specificity so component classes can set their own padding. */
+:where(ul[class], ol[class]) {
+  list-style: none;
+  padding: 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 24px 0;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------- type scale
+   12 / 14 / 16 (body) / 18 / 22 / 28 / 36 / 48 */
+
+h1,
+h2,
+h3,
+h4,
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: var(--text);
+  font-optical-sizing: auto;
+}
+
+h1,
+.t-48 {
+  font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+h2,
+.t-36 {
+  font-size: clamp(1.75rem, 1.4rem + 1.3vw, 2.25rem);
+}
+
+h3,
+.t-28 {
+  font-size: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem);
+}
+
+h4,
+.t-22 {
+  font-size: 1.375rem;
+  line-height: 1.25;
+}
+
+.t-18 {
+  font-size: 1.125rem;
+}
+
+.t-14 {
+  font-size: 0.875rem;
+}
+
+.t-12 {
+  font-size: 0.75rem;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--info);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+strong,
+b {
+  font-weight: 700;
+}
+
+small {
+  font-size: 0.875rem;
+}
+
+code,
+kbd,
+samp,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-feature-settings: "zero" 0;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.lead {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+.faint {
+  color: var(--text-3);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.eyebrow--accent {
+  color: var(--accent-strong);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.prose > * + * {
+  margin-top: 0.9em;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.3em;
+}
+
+.prose li + li {
+  margin-top: 0.35em;
+}
+
+.prose h3,
+.prose h4 {
+  margin-top: 1.4em;
+}
+
+/* ---------------------------------------------------------------- focus */
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+main:focus,
+main:focus-visible,
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------- layout primitives */
+
+.container {
+  width: 100%;
+  max-width: calc(1120px + 2 * max(16px, env(safe-area-inset-left, 0px)));
+  margin-inline: auto;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+}
+
+@media (min-width: 720px) {
+  .container {
+    max-width: calc(1120px + 48px);
+    padding-inline: max(24px, env(safe-area-inset-left, 0px)) max(24px, env(safe-area-inset-right, 0px));
+  }
+}
+
+.container--read {
+  max-width: calc(680px + 2 * 24px);
+}
+
+.container--wide {
+  max-width: calc(960px + 2 * 24px);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap, 16px);
+}
+
+.stack--sm {
+  --gap: 8px;
+}
+
+.stack--lg {
+  --gap: 32px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap, 12px);
+}
+
+.row--sm {
+  --gap: 8px;
+}
+
+.row--between {
+  justify-content: space-between;
+}
+
+.row--nowrap {
+  flex-wrap: nowrap;
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.section {
+  padding-block: clamp(40px, 6vw, 72px);
+}
+
+.section--tight {
+  padding-block: clamp(24px, 4vw, 40px);
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-bottom: 24px;
+}
+
+.section-head h2 {
+  margin-top: 6px;
+}
+
+.section-head p {
+  max-width: 52ch;
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

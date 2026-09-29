@@ -1,0 +1,164 @@
+/* Account auth — single-panel Sign in / Create account swap.
+   Theme-aware via design tokens (--accent, --surface, --btn-primary, …).
+   Surface / white base; no hardcoded gold. */
+
+.account--gate {
+  min-height: calc(100dvh - var(--chrome-h) - 56px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  text-align: center;
+  padding-block: clamp(2rem, 6vh, 4.5rem);
+}
+
+@media (max-width: 719px) {
+  .account--gate {
+    justify-content: flex-start;
+    min-height: 0;
+    padding-top: 1.25rem;
+    padding-bottom: 5.5rem;
+  }
+}
+
+.account--gate .account-body,
+.account--gate .account-forms {
+  width: min(100%, 28rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.account--gate .lead,
+.account--gate .account__return,
+.account--gate .account__msg,
+.account--gate .account__gate-note {
+  text-align: center;
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.account--gate h1 {
+  text-wrap: balance;
+}
+
+.account-auth {
+  margin-top: var(--space-4, 1rem);
+  display: grid;
+  justify-items: stretch;
+  width: 100%;
+  max-width: 28rem;
+}
+
+.account--gate .account-auth {
+  margin-inline: auto;
+}
+
+.account-card--auth .account-card__title,
+.account-card--auth .account-card__hint {
+  text-align: center;
+}
+
+.account-card--auth {
+  text-align: start;
+}
+
+.account-card--auth {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  display: grid;
+  gap: 0.15rem;
+}
+
+.account-card--auth .account-card__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.35rem;
+}
+
+.account-card--auth .account-card__hint {
+  margin: 0 0 var(--space-3, 0.75rem);
+  font-size: 0.95rem;
+}
+
+.account-card--auth .field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--space-3, 0.75rem);
+}
+
+.account-card--auth .field > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.account-card--auth .btn--block {
+  margin-top: var(--space-2, 0.5rem);
+}
+
+.account__switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: var(--space-4, 1rem) 0 0;
+  padding-top: var(--space-3, 0.75rem);
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.account__switch-btn {
+  color: var(--accent-strong, var(--accent));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  padding-inline: 0.4rem;
+}
+
+.account__switch-btn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.account__return {
+  margin: var(--space-3, 0.75rem) 0 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  color: var(--text-2);
+  max-width: 36rem;
+}
+
+.account__gate-note {
+  margin-top: var(--space-2, 0.5rem);
+  max-width: 36rem;
+}
+
+.account__msg {
+  margin-top: var(--space-3, 0.75rem);
+  min-height: 1.25em;
+}
+
+.account__footnote {
+  margin-top: var(--space-4, 1rem);
+  max-width: 36rem;
+}
+
+.account__plan {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.account-card .field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--space-3, 0.75rem);
+}
