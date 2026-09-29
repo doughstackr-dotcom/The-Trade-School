@@ -1338,6 +1338,9 @@ figcaption {
 }
 
 .table-scroll {
+  /* Positioned so absolutely positioned descendants (e.g. .visually-hidden header labels) are
+     clipped by this scroller instead of widening the page. */
+  position: relative;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
