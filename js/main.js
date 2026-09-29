@@ -4,6 +4,7 @@ import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
+import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
@@ -159,6 +160,21 @@ function buildShell(app) {
     themeBtn.title = `Theme: ${THEME_LABEL[cur]}`;
   }
 
+  // Keep the language control visible at the right edge of the header on every route.
+  const languageBtn = h('button', {
+    type: 'button',
+    class: 'language-btn',
+    'data-i18n-ignore': '',
+    on: { click: () => setLanguage(getLanguage() === 'en' ? 'es' : 'en') },
+  });
+  function renderLanguage() {
+    const spanish = getLanguage() === 'es';
+    languageBtn.textContent = spanish ? 'EN' : 'ES';
+    languageBtn.setAttribute('aria-label', spanish ? 'Cambiar el sitio a inglés' : 'Switch site to Spanish');
+    languageBtn.setAttribute('aria-pressed', String(spanish));
+    languageBtn.title = spanish ? 'English' : 'Español';
+  }
+
   const main = h('main', { id: 'main', class: 'main', tabindex: '-1' });
 
   const skip = h('button', { type: 'button', class: 'skip-link', on: { click: () => main.focus() } }, 'Skip to content');
@@ -168,7 +184,7 @@ function buildShell(app) {
     class: 'btn btn--ghost btn--sm topbar__auth',
     href: '#account',
     'data-auth': 'out',
-  }, icon('lock', { size: 14 }), 'Sign in');
+  }, icon('lock', { size: 14 }), h('span', { class: 'topbar__auth-label' }, 'Sign in'));
 
   function renderAuth() {
     const a = access.getAccess();
@@ -176,13 +192,13 @@ function buildShell(app) {
       const label = (a.user.email && a.user.email.split('@')[0]) || 'Account';
       authBtn.href = '#account';
       authBtn.dataset.auth = 'in';
-      authBtn.replaceChildren(icon('lock', { size: 14 }), label);
+      authBtn.replaceChildren(icon('lock', { size: 14 }), h('span', { class: 'topbar__auth-label' }, label));
       authBtn.setAttribute('aria-label', `Account (${a.user.email || 'signed in'})`);
       authBtn.title = a.user.email || 'Account';
     } else {
       authBtn.href = '#account';
       authBtn.dataset.auth = 'out';
-      authBtn.replaceChildren(icon('lock', { size: 14 }), 'Sign in');
+      authBtn.replaceChildren(icon('lock', { size: 14 }), h('span', { class: 'topbar__auth-label' }, 'Sign in'));
       authBtn.setAttribute('aria-label', 'Sign in or sign up');
       authBtn.title = 'Sign in / Sign up';
     }
@@ -194,7 +210,7 @@ function buildShell(app) {
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn)));
+      h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn, languageBtn)));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },
@@ -217,7 +233,9 @@ function buildShell(app) {
   renderXP();
   renderSound();
   renderTheme();
+  renderLanguage();
   renderAuth();
+  onLanguageChange(renderLanguage);
   store.on('xp', () => renderXP(true));
   store.on('change', () => {
     renderXP();
@@ -243,6 +261,7 @@ function buildShell(app) {
 function boot() {
   const app = document.getElementById('app');
   if (!app) return;
+  installI18n();
   applyTheme(store.state.settings.theme);
   try {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(store.state.settings.theme));

@@ -82,6 +82,18 @@ python3 -m http.server 5173
 Opening `index.html` straight from the file system will not work, because browsers block
 ES-module imports from `file://` URLs.
 
+## Language
+
+The **ES / EN** button at the right of the header switches all rendered pages, lessons and
+games between English and Spanish without leaving the current activity. The choice is saved
+in `localStorage` as `tts-language` and restored on reload. The translation layer also updates
+new text rendered after route changes and game interactions, along with the document language,
+titles, descriptions and accessible labels. It works offline and does not call a translation API.
+
+Spanish copy lives in `js/i18n/es.js`, keyed by the English text. Add entries there when adding
+new interface copy. The Spanish draft needs a bilingual editorial review of trading terminology
+and educational/risk wording before public release.
+
 ## Deploy (static host)
 
 This is **vanilla JS with native `import()`** — not Vite. There is no `vite.config`, no

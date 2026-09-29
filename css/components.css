@@ -181,6 +181,38 @@
   background: var(--surface-2);
 }
 
+.language-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  height: 36px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.language-btn:hover,
+.language-btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+@media (max-width: 519.98px) {
+  .topbar__tools .xp-pill { display: none; }
+  .language-btn { min-width: 34px; padding-inline: 4px; }
+  .topbar__auth { min-width: 34px; justify-content: center; }
+  .topbar__auth-label { display: none; }
+}
+
+@media (max-width: 359.98px) {
+  .topbar .brand__word { display: none; }
+}
+
 .xp-pill {
   display: inline-flex;
   align-items: center;
@@ -337,9 +369,9 @@
   text-decoration: underline;
 }
 
-/* Phones and narrow tablets (≤ 819px, e.g. 768px portrait): the primary nav moves to a bottom
+/* Phones and narrow tablets (≤ 959px): the primary nav moves to a bottom
    tab bar, because five links plus the wordmark and tools do not fit in one row. */
-@media (max-width: 819.98px) {
+@media (max-width: 959.98px) {
   :root {
     --topbar-h: 56px;
     --tabbar-h: 60px;

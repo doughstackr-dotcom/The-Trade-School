@@ -8,6 +8,7 @@ import {
 import { mountPatternPlayback } from '../core/pattern-playback.js';
 import { toolsTeaser } from '../core/teaser.js';
 import * as access from '../core/access.js';
+import { translate, onLanguageChange } from '../core/i18n.js';
 
 const BIAS_TONE = { bullish: 'bull', bearish: 'bear', neutral: 'outline' };
 
@@ -238,12 +239,13 @@ export default {
     };
 
     const matches = () => {
-      const q = state.q.trim().toLowerCase();
+      const norm = (value) => value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+      const q = norm(state.q.trim());
       const ok = (p, kind) => {
         if (state.kind !== 'all' && state.kind !== kind) return false;
         if (state.bias !== 'all' && p.bias !== state.bias) return false;
         if (!q) return true;
-        const hay = `${p.name} ${p.summary} ${p.kind} ${p.bias}`.toLowerCase();
+        const hay = norm(`${p.name} ${p.summary} ${p.kind} ${p.bias} ${translate(p.name)} ${translate(p.summary)} ${translate(p.kind)} ${translate(p.bias)}`);
         return hay.includes(q);
       };
       return {
@@ -298,6 +300,7 @@ export default {
       if (nowLocked === gate.locked) return;
       try { ctx.navigate(ctx.route?.key || 'library'); } catch { /* ignore */ }
     });
-    return () => { clearDetail(); unsub?.(); };
+    const unsubLanguage = onLanguageChange(() => { if (!wantDetail) renderList(); });
+    return () => { clearDetail(); unsub?.(); unsubLanguage(); };
   },
 };

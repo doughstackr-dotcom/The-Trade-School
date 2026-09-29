@@ -1,5 +1,6 @@
 // Glossary: plain-English definitions with instant search and A–Z jump chips.
 import { h, icon } from '../core/ui.js';
+import { translate, onLanguageChange } from '../core/i18n.js';
 import { findEntry } from '../registry.js';
 import { toolsTeaser } from '../core/teaser.js';
 import * as access from '../core/access.js';
@@ -186,7 +187,8 @@ export default {
       const q = norm(search.value.trim());
       let shown = 0;
       for (const it of items) {
-        const hit = !q || q.split(/\s+/).every((w) => it.hay.includes(w));
+        const localized = norm(`${it.hay} ${translate(it.t.term)} ${translate(it.t.def)} ${translate(CATS[it.t.cat] || '')}`);
+        const hit = !q || q.split(/\s+/).every((w) => localized.includes(w));
         it.el.hidden = !hit;
         if (hit) shown++;
       }
@@ -226,6 +228,7 @@ export default {
       if (nowLocked === gate.locked) return;
       try { ctx.navigate('glossary'); } catch { /* ignore */ }
     });
-    return () => { unsub?.(); };
+    const unsubLanguage = onLanguageChange(apply);
+    return () => { unsub?.(); unsubLanguage(); };
   },
 };

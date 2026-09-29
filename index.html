@@ -47,11 +47,12 @@
   <link rel="stylesheet" href="css/games.css">
 
   <script>
-    // Apply a saved theme before first paint (no flash). 'system' = no attribute.
+    // Apply saved theme and language before first paint. 'system' = no theme attribute.
     (function () {
       try {
         var t = localStorage.getItem('tts-theme');
         if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+        if (localStorage.getItem('tts-language') === 'es') document.documentElement.lang = 'es';
       } catch (e) { /* storage blocked: follow the system theme */ }
     })();
   </script>
