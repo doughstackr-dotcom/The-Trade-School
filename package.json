@@ -10,6 +10,7 @@
   },
   "scripts": {
     "serve": "npx http-server -c-1 -p 5173 .",
+    "build:cloudflare": "node scripts/cloudflare-build.mjs",
     "test": "node --test tests/unit/*.test.mjs",
     "smoke": "node tests/smoke.mjs",
     "test:all": "npm test && npm run smoke",

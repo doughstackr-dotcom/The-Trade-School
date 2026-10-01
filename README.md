@@ -114,6 +114,21 @@ Basic browsing works without env vars. Real-market charts need the Supabase `mar
 edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `docs/SECRETS.md`).
 
 
+### Cloudflare Pages (free static host)
+
+Recommended Cloudflare target: **Pages**, not Workers. The website is a vanilla static ES-module
+app; runtime APIs, Stripe checkout / portal, and Stripe webhooks are already Supabase Edge
+Functions. Keeping Cloudflare as static hosting avoids moving secrets or paid Workers resources.
+
+Use Cloudflare Pages with Framework preset **None / Static HTML**, Build command
+`npm run build:cloudflare`, and Build output directory `dist` (also captured in
+`wrangler.toml`). The build copies only deployable browser assets into `dist/` so docs, tests,
+Supabase function source, and local tooling are not uploaded as public static files.
+
+Do not add Cloudflare environment variables for Stripe or Supabase secrets. Keep `STRIPE_*`,
+`SITE_URL`, market-data provider keys, and SMTP settings in Supabase / Stripe as described in
+`docs/SECRETS.md`.
+
 ## Tests
 
 ```sh

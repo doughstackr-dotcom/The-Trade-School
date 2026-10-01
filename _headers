@@ -1,0 +1,6 @@
+/js/*.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
+
+/css/*.css
+  Cache-Control: public, max-age=0, must-revalidate
