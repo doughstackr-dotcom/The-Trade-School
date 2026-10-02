@@ -173,7 +173,7 @@ self.addEventListener('install', (event) => {
     done.delete(new URL('js/sw-cleanup.js', scopeUrl()).href);
     done.delete(new URL('js/main.js', scopeUrl()).href);
     done.delete(new URL('js/pwa.js', scopeUrl()).href);
-    await precacheModuleGraph(cache, ['js/boot.js'], done);
+    await precacheModuleGraph(cache, ['js/boot.js', 'js/main.js', 'js/pwa.js'], done);
     const extra = [...new Set([...OPTIONAL, ...linkedAssets(html)])]
       .map((p) => new URL(p, scopeUrl()).href)
       .filter((u) => !done.has(u));

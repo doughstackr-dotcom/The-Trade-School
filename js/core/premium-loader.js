@@ -6,6 +6,7 @@ const objectUrls = new Set();
 let cacheEpoch = 0;
 
 const PUBLIC_JS_BASE = new URL('../', import.meta.url).href;
+const RELEASE_QUERY = releaseQueryFrom(new URL(import.meta.url).search);
 
 function cleanPath(path) {
   return String(path || '').replace(/^\.\//, '').replace(/^js\//, '');
@@ -25,9 +26,22 @@ export function shouldLoadFromPremiumStorage(entry, access, source = PREMIUM_SOU
   return Boolean(premiumStoragePath(entry));
 }
 
-function publicUrlFor(specifier, sourcePath) {
+function releaseQueryFrom(search = '') {
+  try {
+    const params = new URLSearchParams(search);
+    const v = params.get('v');
+    return v ? `?v=${encodeURIComponent(v)}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function publicUrlFor(specifier, sourcePath, releaseQuery = RELEASE_QUERY) {
   const sourceDir = sourcePath.replace(/[^/]*$/, '');
-  return new URL(specifier, `${PUBLIC_JS_BASE}${sourceDir}`).href;
+  const url = new URL(specifier, `${PUBLIC_JS_BASE}${sourceDir}`);
+  const cleanRelease = releaseQueryFrom(releaseQuery);
+  if (cleanRelease) url.searchParams.set('v', new URLSearchParams(cleanRelease).get('v'));
+  return url.href;
 }
 
 function sameFolderStoragePath(specifier, sourceStoragePath) {
@@ -98,7 +112,7 @@ function edgeUrlFor(storagePath) {
   return url.href;
 }
 
-async function rewriteImports(source, storagePath, sourcePath, client, scope, epoch, stack, transport = 'storage') {
+async function rewriteImports(source, storagePath, sourcePath, client, scope, epoch, stack, transport = 'storage', releaseQuery = RELEASE_QUERY) {
   const imports = [];
   const re = /\b(from\s*['"]|import\s*['"]|import\s*\(\s*['"])(\.{1,2}\/[^'"]+)(['"]\s*\)?)/g;
   let match;
@@ -121,7 +135,7 @@ async function rewriteImports(source, storagePath, sourcePath, client, scope, ep
     if (privatePath) {
       nextUrl = await loadStorageModule(client, privatePath, cleanPath(privatePath.replace(/^[^/]+\//, '')), scope, epoch, stack, transport);
     } else {
-      nextUrl = publicUrlFor(item.specifier, sourcePath);
+      nextUrl = publicUrlFor(item.specifier, sourcePath, releaseQuery);
     }
     out += source.slice(pos, item.start);
     out += `${item.before}${nextUrl}${item.after}`;
@@ -196,6 +210,7 @@ export const testInternals = {
   cleanPath,
   premiumStoragePath,
   publicUrlFor,
+  releaseQueryFrom,
   sameFolderStoragePath,
   entitlementKey,
   cacheKey,

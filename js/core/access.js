@@ -4,7 +4,18 @@ import {
   SUPABASE_URL, SUPABASE_KEY, PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE,
 } from '../config.js';
 
-const VENDOR_SRC = new URL('../vendor/supabase.js', import.meta.url).href;
+const RELEASE_VERSION = (() => {
+  try {
+    return new URL(import.meta.url).searchParams.get('v') || '';
+  } catch {
+    return '';
+  }
+})();
+const VENDOR_SRC = (() => {
+  const url = new URL('../vendor/supabase.js', import.meta.url);
+  if (RELEASE_VERSION) url.searchParams.set('v', RELEASE_VERSION);
+  return url.href;
+})();
 const LEVELS = ['free', 'beginner', 'advanced'];
 const listeners = new Set();
 

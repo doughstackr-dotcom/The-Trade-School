@@ -176,15 +176,19 @@ async function main() {
       const banner = el.getBoundingClientRect();
       const actions = el.querySelector('.teaser-banner__actions').getBoundingClientRect();
       const copy = el.querySelector('.teaser-banner__copy').getBoundingClientRect();
+      const styles = getComputedStyle(el);
+      const actionStyles = getComputedStyle(el.querySelector('.teaser-banner__actions'));
       const viewportCenter = window.innerWidth / 2;
       const bannerCenter = banner.left + banner.width / 2;
       return {
         centered: Math.abs(viewportCenter - bannerCenter) < 2,
-        separated: copy.right + 24 <= actions.left,
+        text: styles.textAlign,
+        action: actionStyles.justifyContent,
+        separated: copy.bottom + 8 <= actions.top,
         inViewport: banner.left >= 0 && banner.right <= window.innerWidth,
       };
     });
-    if (!wideBanner.centered || !wideBanner.separated || !wideBanner.inViewport) {
+    if (!wideBanner.centered || wideBanner.text !== 'center' || wideBanner.action !== 'center' || !wideBanner.separated || !wideBanner.inViewport) {
       throw new Error(`wide library banner layout failed: ${JSON.stringify(wideBanner)}`);
     }
     await libraryWide.screenshot({ path: 'test-artifacts/library-wide-banner-after.png', fullPage: true });

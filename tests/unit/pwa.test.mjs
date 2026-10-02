@@ -60,8 +60,9 @@ test('boot.js: clears an unwanted existing worker before importing the app', () 
   const boot = read('js/boot.js');
   const cleanup = read('js/sw-cleanup.js');
   assert.match(boot, /clearStaleWorkerForFreshBoot/);
-  assert.match(boot, /await import\('\.\/main\.js'\)/);
-  assert.match(boot, /await import\('\.\/pwa\.js'\)/);
+  assert.match(boot, /new URL\(import\.meta\.url\)\.search/);
+  assert.match(boot, /await import\(`\.\/main\.js\$\{moduleVersion\}`\)/);
+  assert.match(boot, /await import\(`\.\/pwa\.js\$\{moduleVersion\}`\)/);
   assert.match(cleanup, /export const CLEARED_PARAM = 'tts-sw-cleared';/);
   assert.match(cleanup, /navigator\.serviceWorker\.controller/);
   assert.match(cleanup, /w\?\.postMessage\(\{ type: 'DISABLE' \}\)/);
@@ -209,9 +210,8 @@ test('sw.js: version stamp placeholder, required shell files exist, module graph
   assert.match(installSrc, /done\.delete\(new URL\('js\/boot\.js'/, 'boot entry is walked from the module graph');
   assert.match(installSrc, /done\.delete\(new URL\('js\/main\.js'/, 'boot-imported main.js is walked from the module graph');
   assert.match(installSrc, /done\.delete\(new URL\('js\/pwa\.js'/, 'boot-imported pwa.js is walked from the module graph');
+  assert.match(installSrc, /precacheModuleGraph\(cache, \['js\/boot\.js', 'js\/main\.js', 'js\/pwa\.js'\]/, 'template dynamic imports are seeded explicitly');
   const moduleImports = vm.runInNewContext(`${src.match(/function moduleImports[\s\S]*?\n}\n/)[0]}; moduleImports`);
-  const bootFound = moduleImports(read('js/boot.js'));
-  assert.ok(bootFound.includes('./main.js') && bootFound.includes('./pwa.js'), JSON.stringify(bootFound));
   const mainFound = moduleImports(read('js/main.js'));
   assert.ok(mainFound.includes('./core/router.js') && mainFound.includes('./core/store.js'), JSON.stringify(mainFound));
   for (const spec of mainFound) assert.ok(exists(path.join('js', spec)), `main.js imports a missing file: ${spec}`);

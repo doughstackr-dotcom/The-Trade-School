@@ -125,6 +125,59 @@ test('premium import rewriting keeps shared code public and same-folder helpers 
   assert.deepEqual(calls, ['beginner/lessons/markets-orders-visuals.js']);
 });
 
+test('premium public imports inherit only the current release v query', async () => {
+  const ui = testInternals.publicUrlFor('../core/ui.js', 'lessons/candle-anatomy.js', '?v=rel-123&retry=4&token=secret');
+  const access = testInternals.publicUrlFor('../core/access.js', 'games/fib-sniper.js', '?retry=4&v=rel-123');
+  const store = testInternals.publicUrlFor('../core/store.js', 'lessons/candle-anatomy.js', '?auth=1');
+  assert.ok(new URL(ui).pathname.endsWith('/js/core/ui.js'));
+  assert.equal(new URL(ui).search, '?v=rel-123');
+  assert.ok(new URL(access).pathname.endsWith('/js/core/access.js'));
+  assert.equal(new URL(access).search, '?v=rel-123');
+  assert.ok(new URL(store).pathname.endsWith('/js/core/store.js'));
+  assert.equal(new URL(store).search, '');
+  assert.equal(testInternals.releaseQueryFrom('?retry=1&v=rel-123&auth=secret'), '?v=rel-123');
+});
+
+test('premium blob rewrite uses the same release-versioned shared module URLs as the app graph', async () => {
+  const source = [
+    "import { h } from '../core/ui.js';",
+    "import * as access from '../core/access.js';",
+    "import { store } from '../core/store.js';",
+    "export default { h, access, store };",
+  ].join('\n');
+  const rewritten = await testInternals.rewriteImports(
+    source,
+    'beginner/lessons/candle-anatomy.js',
+    'lessons/candle-anatomy.js',
+    {},
+    'user-a:beginner',
+    undefined,
+    [],
+    'edge',
+    '?v=rel-456&retry=9',
+  );
+  for (const mod of ['ui', 'access', 'store']) {
+    assert.match(rewritten, new RegExp(`/js/core/${mod}\\.js\\?v=rel-456`));
+  }
+  assert.doesNotMatch(rewritten, /retry=9/);
+});
+
+test('release-loaded premium loader matches app shared module URL identities', async () => {
+  const rel = 'unit-rel-identity';
+  const mod = await import(`../../js/core/premium-loader.js?v=${rel}`);
+  const { testInternals: internals } = mod;
+  const appBase = new URL(`../../js/main.js?v=${rel}`, import.meta.url);
+  const expected = {
+    ui: new URL(`./core/ui.js?v=${rel}`, appBase).href,
+    access: new URL(`./core/access.js?v=${rel}`, appBase).href,
+    store: new URL(`./core/store.js?v=${rel}`, appBase).href,
+  };
+  assert.equal(internals.publicUrlFor('../core/ui.js', 'lessons/candle-anatomy.js'), expected.ui);
+  assert.equal(internals.publicUrlFor('../core/access.js', 'lessons/candle-anatomy.js'), expected.access);
+  assert.equal(internals.publicUrlFor('../core/store.js', 'lessons/candle-anatomy.js'), expected.store);
+  mod.clearPremiumModuleCache();
+});
+
 test('premium import rewriting handles dynamic same-folder imports and helper chains', async () => {
   const calls = [];
   const sources = {

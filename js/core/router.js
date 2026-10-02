@@ -33,6 +33,7 @@ let cleanup = null;
 let renderToken = 0;
 let fallbackHash = null; // used when writing location.hash is blocked
 let started = false;
+const MODULE_VERSION = new URL(import.meta.url).search;
 
 // Optional access gate (ARCHITECTURE §9.3). Inert until something registers one, so the
 // router has no dependency on the accounts modules.
@@ -316,7 +317,8 @@ async function render(hash, { initial = false, retry = false } = {}) {
     // "Try again" re-fetches the page module itself (a failed or broken import is cached by URL);
     // shared core modules keep their URLs, so they stay single instances.
     const canRetryWithQuery = retry && !String(path).startsWith('blob:');
-    const mod = await import(canRetryWithQuery ? `${path}?retry=${++retries}` : path);
+    const versionedPath = versionModulePath(path);
+    const mod = await import(canRetryWithQuery ? `${versionedPath}${versionedPath.includes('?') ? '&' : '?'}retry=${++retries}` : versionedPath);
     if (my !== renderToken) return;
     const def = mod.default;
     if (!def || typeof def.mount !== 'function') throw new Error(`Module for "${route.key}" has no default export with mount().`);
@@ -359,6 +361,12 @@ async function render(hash, { initial = false, retry = false } = {}) {
     root.setAttribute('data-mounted', route.key);
     root.setAttribute('data-route-error', '1');
   }
+}
+
+function versionModulePath(path) {
+  const s = String(path);
+  if (!MODULE_VERSION || s.startsWith('blob:') || /[?#]/.test(s)) return path;
+  return `${s}${MODULE_VERSION}`;
 }
 
 /** Navigate to a hash token, e.g. navigate('g.fib-sniper'). Works even if location.hash is read-only. */
