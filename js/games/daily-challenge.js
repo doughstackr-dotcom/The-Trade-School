@@ -1,7 +1,7 @@
 // Daily Challenge — interactive GameShell module with question-relevant charts.
 import { GameShell } from '../core/game-kit.js';
 import { h } from '../core/ui.js';
-import { miniChart, candleSVG } from '../core/chart.js';
+import { CandleChart, miniChart, candleSVG } from '../core/chart.js';
 import { trendSeries, synthesize } from '../core/data.js';
 import { sma, rsi } from '../core/indicators.js';
 import { chartScenario } from '../core/patterns.js';
@@ -62,6 +62,63 @@ function wrapChart(node) {
   return h('div', { class: 'daily-chart', style: { maxWidth: '840px', marginInline: 'auto' } }, node);
 }
 
+function dailyCandleChart({
+  candles,
+  overlays = [],
+  panes = [],
+  visible = candles.length,
+  viewport = null,
+  height = 220,
+  yPad = 0.12,
+  decimals = 2,
+  ariaLabel = 'Daily challenge chart',
+} = {}) {
+  const host = h('div', { class: 'daily-chart chart-frame' });
+  const resolvedViewport = () => (typeof viewport === 'function'
+    ? viewport(Math.floor(host.clientWidth || globalThis.innerWidth || 0), candles.length)
+    : viewport);
+  const initialViewport = resolvedViewport();
+  const chart = new CandleChart(host, {
+    candles,
+    visible,
+    slots: candles.length,
+    viewport: Array.isArray(initialViewport) ? initialViewport : null,
+    height,
+    yPad,
+    decimals,
+    interactive: false,
+    ariaLabel,
+  });
+  for (const o of overlays) {
+    if (!o?.type) continue;
+    if (o.type === 'series') chart.addSeries(o);
+    else if (o.type === 'hline') chart.addHLine(o);
+    else if (o.type === 'zone') chart.addZone(o);
+    else if (o.type === 'marker') chart.addMarker(o);
+    else if (o.type === 'segment') chart.addSegment(o);
+    else if (o.type === 'box') chart.addBox(o);
+    else if (o.type === 'path') chart.addPath(o);
+    else if (o.type === 'fib') chart.addFib(o);
+    else if (o.type === 'text') chart.addText(o);
+  }
+  for (const pane of panes) chart.addPane(pane);
+  let ro = null;
+  if (typeof viewport === 'function' && typeof ResizeObserver === 'function') {
+    const applyViewport = () => {
+      const next = resolvedViewport();
+      if (Array.isArray(next) && next.length === 2) chart.setViewport(next[0], next[1]);
+    };
+    ro = new ResizeObserver(applyViewport);
+    ro.observe(host);
+    requestAnimationFrame(applyViewport);
+  }
+  host._destroyChart = () => {
+    ro?.disconnect();
+    chart.destroy();
+  };
+  return host;
+}
+
 /** Build one large illustrative chart keyed to the BANK question index. */
 function questionChart(idx, seed) {
   const s = seed + idx * 17;
@@ -100,18 +157,26 @@ function questionChart(idx, seed) {
     }
     case 3: {
       // Construct an actual 50/200 crossing rather than labelling a 20/45 illustration as one.
-      const closes = Array.from({ length: 260 }, (_, i) => i < 170 ? 112 - 0.12 * i : 91.6 + 0.3 * (i - 170));
+      const closes = Array.from({ length: 260 }, (_, i) => {
+        const base = i < 170 ? 112 - 0.12 * i : 91.6 + 0.3 * (i - 170);
+        return base + Math.sin(i / 5) * 0.35 + Math.sin(i / 13) * 0.22;
+      });
       const candles = synthesize(closes, { seed: s + 3, scale: 0.6 });
       const ma50 = sma(closes, 50);
       const ma200 = sma(closes, 200);
-      return wrapChart(miniChart(candles, {
-        width: CHART_W, height: CHART_H, yPad: 0.12, showAxis: true,
+      return dailyCandleChart({
+        candles,
+        height: 220,
+        viewport: (width, total) => {
+          const bars = width < 520 ? 58 : width < 900 ? 76 : 110;
+          return [Math.max(0, total - bars), total];
+        },
         overlays: [
-          { type: 'series', values: ma200, color: 'ma2', width: 2 },
-          { type: 'series', values: ma50, color: 'ma1', width: 2 },
+          { type: 'series', values: ma50, color: 'ma1', width: 2, label: 'MA 50' },
+          { type: 'series', values: ma200, color: 'ma2', width: 2, label: 'MA 200' },
         ],
         ariaLabel: 'Price chart with 50-period and 200-period moving averages',
-      }));
+      });
     }
     case 4: {
       const mid = 1.0849;
@@ -143,17 +208,22 @@ function questionChart(idx, seed) {
       }));
     }
     case 6: {
-      const closes = Array.from({ length: 40 }, (_, i) => 100 + 0.35 * i + 0.05 * Math.sin(i));
+      const closes = Array.from({ length: 52 }, (_, i) => 100 + 0.33 * i + 0.22 * Math.sin(i / 2.4) + 0.12 * Math.sin(i / 6));
       const candles = synthesize(closes, { seed: s + 6, scale: 0.45 });
       const r = rsi(candles.map((k) => k.c), 14);
       const lastR = [...r].reverse().find((v) => Number.isFinite(v)) ?? 72;
-      return wrapChart(miniChart(candles, {
-        width: CHART_W, height: CHART_H, yPad: 0.1, showAxis: true,
+      return dailyCandleChart({
+        candles,
+        height: 205,
+        yPad: 0.12,
+        panes: [
+          { id: 'rsi', title: 'RSI 14', height: 64, range: [0, 100], levels: [{ value: 70, color: 'bear' }, { value: 30, color: 'bull' }], series: [{ values: r, color: 'ma3' }] },
+        ],
         overlays: [
-          { type: 'marker', idx: candles.length - 1, position: 'above', shape: 'dot', color: 'warn', text: `RSI ${Math.round(lastR)}` },
+          { type: 'hline', pane: 'rsi', price: 70, color: 'bear', dashed: true, label: '70' },
         ],
         ariaLabel: `Rising price chart with RSI reading ${Math.round(lastR)}`,
-      }));
+      });
     }
     case 7: {
       const ts = trendSeries({ seed: s + 7, count: 32, direction: 'up', swings: 2, start: 49 });
@@ -310,6 +380,7 @@ export default {
           onAnswer: (ok) => verdictFlourish(stage, { ok, title: ok ? 'Daily locked' : 'Review & retry', detail: (q[3] || '').replace(/<[^>]+>/g, ' ').slice(0, 140), scoreDelta: ok ? 100 : 0 }),
         });
         stage.insertBefore(quiz, chart);
+        return () => chart._destroyChart?.();
       },
     });
     return () => game.destroy();
