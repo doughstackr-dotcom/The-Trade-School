@@ -12,6 +12,7 @@
 //            phone-small 360×740, phone-landscape 844×390, tablet-768 768×1024,
 //            tablet-landscape 1180×820 (touch), desktop-xl 1680×1050; `--viewport=all` = every one)
 //            --sw (open pages with ?sw=1 so js/pwa.js registers the service worker on localhost)
+//            --site-premium (use public site modules instead of the default mocked edge premium-content path)
 //            --no-storage (every localStorage/sessionStorage call throws, as in some private modes)
 //            --real-market (do NOT use the offline market fixtures: real-data routes then call the
 //            market-data Edge Function, which needs network access to supabase.co)
@@ -50,6 +51,11 @@ const MIME = {
 };
 
 const IGNORE_HOSTS = /fonts\.googleapis\.com|fonts\.gstatic\.com/;
+const INTENTIONALLY_OMITTED_PREMIUM_MODULES = new Set([
+  'beginner/lessons/discipline-basics.js',
+  'beginner/tools/pre-trade-checklist.js',
+  'advanced/tools/journal-review.js',
+]);
 
 // ------------------------------------------------------------------ CLI
 
@@ -65,6 +71,7 @@ const interact = !flag('no-interact');
 const withFonts = flag('fonts');
 const noStorage = flag('no-storage');
 const realMarket = flag('real-market');
+const edgePremium = !flag('site-premium');
 const concurrency = Math.max(1, Number(opt('concurrency', 3)) || 3);
 
 const withSW = flag('sw');
@@ -128,6 +135,22 @@ function startServer() {
         res.writeHead(403).end('Forbidden');
         return;
       }
+      if (edgePremium && rel === '/js/config.js') {
+        fs.readFile(file, 'utf8', (err, source) => {
+          if (err) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' }).end(`Not found: ${rel}`);
+            return;
+          }
+          const patched = source.replace(/export const PREMIUM_SOURCE = ['"]site['"];/, 'export const PREMIUM_SOURCE = "edge";');
+          res.writeHead(200, {
+            'Content-Type': MIME['.js'],
+            'Content-Length': Buffer.byteLength(patched),
+            'Cache-Control': 'no-store',
+          });
+          res.end(patched);
+        });
+        return;
+      }
       fs.stat(file, (err, st) => {
         if (err || !st.isFile()) {
           res.writeHead(404, { 'Content-Type': 'text/plain' }).end(`Not found: ${rel}`);
@@ -147,6 +170,92 @@ function startServer() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port })));
 }
 
+function smokeSession(level = 'beginner') {
+  return {
+    access_token: `smoke-${level}-token`,
+    refresh_token: `smoke-${level}-refresh`,
+    user: { id: `smoke-${level}-user`, email: `smoke-${level}@example.test` },
+  };
+}
+
+function supabaseMockScript() {
+  return ({ session, level }) => {
+    const client = {
+      auth: {
+        getSession: async () => ({ data: { session }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+        initialize: async () => {},
+        signInWithPassword: async () => ({ error: null }),
+        signUp: async () => ({ data: { session }, error: null }),
+        signOut: async () => ({ error: null }),
+      },
+      rpc: async (name) => ({ data: name === 'access_level' ? level : null, error: null }),
+      from: () => ({
+        select() { return this; },
+        eq() { return this; },
+        in() { return this; },
+        order() { return this; },
+        limit: async () => ({ data: [{ plan: level, status: 'active' }], error: null }),
+      }),
+      storage: {
+        from: () => ({ download: async () => ({ data: null, error: { message: 'Smoke uses premium-content edge mocks.' } }) }),
+      },
+    };
+    globalThis.supabase = { createClient: () => client };
+    try { localStorage.setItem('tts-enforce-access', '1'); } catch { /* storage-disabled smoke covers this separately */ }
+  };
+}
+
+function representativePremiumModule(storagePath) {
+  const id = storagePath.split('/').pop().replace(/\.js$/, '');
+  const title = id.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  return `export default {
+  id: ${JSON.stringify(id)},
+  mount(root, ctx) {
+    root.innerHTML = '<div class="container lesson" data-smoke-premium-module=${JSON.stringify(id)}><header class="lesson-hero"><p class="eyebrow">Smoke premium module</p><h1>${title}</h1><p class="lead">Representative private module served by the mocked premium-content edge path.</p></header><button class="btn" data-action="next" type="button">Next</button></div>';
+  }
+};`;
+}
+
+function premiumLocalRel(storagePath) {
+  return `js/${String(storagePath || '').replace(/^[^/]+\//, '')}`;
+}
+
+async function installPremiumEdgeMock(context, { allow = true } = {}) {
+  await context.route('**/functions/v1/premium-content**', async (route) => {
+    const reqUrl = new URL(route.request().url());
+    const storagePath = reqUrl.searchParams.get('path') || '';
+    if (!allow) {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'forbidden' }),
+      });
+      return;
+    }
+    const rel = premiumLocalRel(storagePath);
+    const local = path.join(ROOT, rel);
+    let source = '';
+    if (fs.existsSync(local)) {
+      source = fs.readFileSync(local, 'utf8');
+    } else if (INTENTIONALLY_OMITTED_PREMIUM_MODULES.has(storagePath)) {
+      source = representativePremiumModule(storagePath);
+    } else {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: `missing smoke premium module: ${storagePath}` }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/javascript; charset=utf-8',
+      body: source,
+    });
+  });
+}
+
 async function routes() {
   const reg = await import(pathToFileURL(path.join(ROOT, 'js', 'registry.js')).href);
   const all = [
@@ -155,6 +264,7 @@ async function routes() {
     ...((reg.PAGES || []).some((p) => p.id === 'playbook') ? ['playbook.hammer'] : []),
     ...reg.LESSONS.map((l) => `l.${l.id}`),
     ...reg.GAMES.map((g) => `g.${g.id}`),
+    ...(reg.TOOLS || []).map((t) => `t.${t.id}`),
     ...(reg.DEV_ENTRIES || []).map((e) => `${e.type === 'game' ? 'g' : 'l'}.${e.id}`),
     // accounts (§9): signed out, access open on localhost — these must render without network
     'pricing', 'pricing.advanced', 'account', 'signin', 'signup', 'reset', 'reset.update', 'terms', 'privacy',
@@ -212,6 +322,10 @@ async function main() {
         reducedMotion: 'no-preference',
         ignoreHTTPSErrors: !!proxy,
       });
+      if (edgePremium) {
+        await context.addInitScript(supabaseMockScript(), { session: smokeSession('advanced'), level: 'advanced' });
+        await installPremiumEdgeMock(context);
+      }
       if (!withFonts) await context.route(IGNORE_HOSTS, (r) => r.abort());
       if (noStorage) {
         await context.addInitScript(() => {
@@ -242,6 +356,7 @@ async function main() {
     const { route, vp, theme, context } = task;
     const label = `${route} [${vp.name}/${theme}]`;
     const errors = [];
+    let premiumRequested = false;
     const page = await context.newPage();
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
@@ -257,6 +372,9 @@ async function main() {
     page.on('response', (res) => {
       if (res.status() >= 400 && !IGNORE_HOSTS.test(res.url())) errors.push(`HTTP ${res.status()}: ${res.url().replace(base, '')}`);
     });
+    page.on('request', (req) => {
+      if (req.url().includes('/functions/v1/premium-content')) premiumRequested = true;
+    });
 
     try {
       await page.goto(`${base}/?smoke=${encodeURIComponent(route)}${realMarket ? '' : '&market=mock'}${withSW ? '&sw=1' : ''}#${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
@@ -264,6 +382,14 @@ async function main() {
       if (withFonts) await page.evaluate(() => document.fonts?.ready).catch(() => {});
       await page.waitForTimeout(800);
       if (await page.$('[data-route-error]')) errors.push('router showed its error card');
+      const isPrivateRoute = edgePremium && /^(l|g|t)\./.test(route) && route !== 'g.daily-challenge' && !route.includes('_kit-demo');
+      if (isPrivateRoute) {
+        if (!premiumRequested) errors.push('private route did not request premium-content edge module');
+        const mountedPrivateModule = await page.locator('[data-smoke-premium-module], .lesson, .game, .tool-shell').first().count();
+        if (!mountedPrivateModule) errors.push('private route did not mount lesson/game/tool content');
+        const blockedSurface = await page.locator('.paywall, .teaser-banner, .teaser-lock, .upgrade-modal').first().count();
+        if (blockedSurface) errors.push('authorized private route rendered an upgrade/paywall surface');
+      }
       const shotBase = path.join(SHOTS, `${route}-${vp.name}-${theme}${noStorage ? '-nostorage' : ''}`);
       if (!noShots) await page.screenshot({ path: `${shotBase}.png`, fullPage: true });
       const of = await overflowReport(page);
@@ -310,6 +436,54 @@ async function main() {
     while (queue.length) await run(queue.shift());
   }));
 
+  if (edgePremium) {
+    const deniedContext = await browser.newContext({
+      viewport: ALL_VIEWPORTS[0].viewport,
+      isMobile: false,
+      hasTouch: false,
+      colorScheme: 'light',
+      reducedMotion: 'no-preference',
+      ignoreHTTPSErrors: !!proxy,
+    });
+    await deniedContext.addInitScript(supabaseMockScript(), { session: smokeSession('free'), level: 'free' });
+    await installPremiumEdgeMock(deniedContext, { allow: false });
+    if (!withFonts) await deniedContext.route(IGNORE_HOSTS, (r) => r.abort());
+    const page = await deniedContext.newPage();
+    const deniedErrors = [];
+    let edgeRequested = false;
+    page.on('console', (msg) => {
+      const loc = msg.location()?.url || '';
+      if (msg.type() === 'error' && !IGNORE_HOSTS.test(loc) && !IGNORE_HOSTS.test(msg.text())) {
+        deniedErrors.push(`console.error: ${msg.text()}`);
+      }
+    });
+    page.on('pageerror', (err) => deniedErrors.push(`pageerror: ${err.message}`));
+    page.on('request', (req) => {
+      if (req.url().includes('/functions/v1/premium-content')) edgeRequested = true;
+    });
+    try {
+      const route = 'l.discipline-basics';
+      await page.goto(`${base}/?smoke=${encodeURIComponent(route)}&market=mock#${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.waitForSelector(`[data-mounted="${route}"]`, { timeout: 15000 });
+      if (await page.$('[data-route-error]')) deniedErrors.push('router showed its error card');
+      const hasPaywall = await page.locator('.paywall, .teaser-banner, .teaser-lock, .upgrade-modal').first().count();
+      if (!hasPaywall) deniedErrors.push('denied premium lesson did not render a paywall/upgrade surface');
+      if (edgeRequested) deniedErrors.push('denied premium lesson requested private edge content');
+    } catch (err) {
+      deniedErrors.push(`exception: ${err.message.split('\n')[0]}`);
+    } finally {
+      await page.close().catch(() => {});
+      await deniedContext.close().catch(() => {});
+    }
+    const label = 'l.discipline-basics denied access [desktop/light]';
+    if (deniedErrors.length) {
+      console.log(`FAIL      ${label}`);
+      failures.push({ label, errors: deniedErrors });
+    } else {
+      console.log(`ok        ${label}`);
+    }
+  }
+
   for (const c of combos) await c.context.close();
   await browser.close();
   server.close();
@@ -330,3 +504,4 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
