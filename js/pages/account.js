@@ -6,6 +6,8 @@ import { h, icon, toast } from '../core/ui.js';
 import { PLANS, FREE_IDS } from '../config.js';
 import * as access from '../core/access.js';
 
+const CHECKOUT_PENDING = true;
+
 function levelLabel(level) {
   if (level === 'advanced') return 'Advanced';
   if (level === 'beginner') return 'Beginner';
@@ -33,11 +35,12 @@ export default {
     const msg = h('p', { class: 'muted account__msg', role: 'status' }, '');
     const mode = (ctx.param || ctx.route?.param || '').toLowerCase(); // 'signup' | 'signin' | ''
     const preferSignup = mode === 'signup' || mode === 'sign-up';
+    const preferReset = mode === 'reset' || mode === 'recovery';
     // Local view so toggle can swap without a full remount; URL stays in sync.
-    let view = preferSignup ? 'signup' : 'signin';
+    let view = preferReset ? 'reset' : preferSignup ? 'signup' : 'signin';
 
     function syncHash() {
-      const target = view === 'signup' ? 'account.signup' : 'account';
+      const target = view === 'signup' ? 'account.signup' : view === 'reset' ? 'account.reset' : 'account';
       const want = `#${target}`;
       if (location.hash === want) return;
       try {
@@ -49,7 +52,7 @@ export default {
     }
 
     function setView(next) {
-      if (next !== 'signin' && next !== 'signup') return;
+      if (next !== 'signin' && next !== 'signup' && next !== 'reset') return;
       view = next;
       syncHash();
       paint();
@@ -98,7 +101,12 @@ export default {
             type: 'button',
             class: 'btn btn--ghost btn--sm account__switch-btn',
             on: { click: () => setView('signup') },
-          }, 'Create account')),
+          }, 'Create account'),
+          h('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm account__switch-btn',
+            on: { click: () => setView('reset') },
+          }, 'Forgot password?')),
       );
     }
 
@@ -176,6 +184,87 @@ export default {
       );
     }
 
+    function renderResetForm() {
+      return h('form', {
+        class: 'card account-card account-card--auth',
+        id: 'account-reset',
+        on: {
+          submit: async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            msg.textContent = 'Sending recovery email.';
+            const res = await access.sendPasswordReset(String(fd.get('email') || '').trim());
+            if (!res.ok) {
+              msg.textContent = res.error || 'Could not send recovery email';
+              toast(res.error || 'Could not send recovery email', { type: 'warn', duration: 5000 });
+              return;
+            }
+            msg.textContent = 'Check your email for the password recovery link.';
+            toast('Check your email for the recovery link', { type: 'info', duration: 6000 });
+          },
+        },
+      },
+        h('label', { class: 'field' },
+          h('span', null, 'Email'),
+          h('input', {
+            type: 'email', name: 'email', required: true, class: 'input',
+            autocomplete: 'email', 'aria-label': 'Email',
+          })),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Send recovery link'),
+        h('p', { class: 'account__switch' },
+          h('span', { class: 'muted' }, 'Have your password?'),
+          ' ',
+          h('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm account__switch-btn',
+            on: { click: () => setView('signin') },
+          }, 'Sign in')));
+    }
+
+    function renderRecoveryForm() {
+      return h('form', {
+        class: 'card account-card account-card--auth',
+        id: 'account-update-password',
+        on: {
+          submit: async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const password = String(fd.get('password') || '');
+            const confirm = String(fd.get('confirm') || '');
+            if (password !== confirm) {
+              msg.textContent = 'Passwords do not match';
+              toast('Passwords do not match', { type: 'warn' });
+              return;
+            }
+            msg.textContent = 'Updating password.';
+            const res = await access.updatePassword(password);
+            if (!res.ok) {
+              msg.textContent = res.error || 'Could not update password';
+              toast(res.error || 'Could not update password', { type: 'warn', duration: 5000 });
+              return;
+            }
+            msg.textContent = 'Password updated.';
+            toast('Password updated', { type: 'info' });
+            paint();
+            msg.textContent = 'Password updated.';
+          },
+        },
+      },
+        h('label', { class: 'field' },
+          h('span', null, 'New password'),
+          h('input', {
+            type: 'password', name: 'password', required: true, class: 'input',
+            autocomplete: 'new-password', 'aria-label': 'New password', minlength: '6',
+          })),
+        h('label', { class: 'field' },
+          h('span', null, 'Confirm new password'),
+          h('input', {
+            type: 'password', name: 'confirm', required: true, class: 'input',
+            autocomplete: 'new-password', 'aria-label': 'Confirm new password', minlength: '6',
+          })),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Update password'));
+    }
+
     function renderSignedOut() {
       const pending = access.peekReturn();
       const returnNote = pending
@@ -188,19 +277,33 @@ export default {
       formWrap.replaceChildren(...kids(
         returnNote,
         h('div', { class: 'account-auth' },
-          view === 'signup' ? renderSignUpForm() : renderSignInForm()),
+          view === 'signup' ? renderSignUpForm() : view === 'reset' ? renderResetForm() : renderSignInForm()),
         msg,
       ));
 
       queueMicrotask(() => {
         const sel = view === 'signup'
           ? '#account-signup input[name="email"]'
+          : view === 'reset'
+            ? '#account-reset input[name="email"]'
           : '#account-signin input[name="email"]';
         formWrap.querySelector(sel)?.focus?.();
       });
     }
 
     function renderSignedIn(a) {
+      if (a.recovery) {
+        formWrap.replaceChildren(
+          h('section', { class: 'card account-card' },
+            h('p', { class: 'eyebrow' }, 'Password recovery'),
+            h('h2', null, 'Choose a new password'),
+            h('p', { class: 'muted' }, 'Your recovery link is active in this browser. Set a new password to finish.')),
+          h('div', { class: 'account-auth' }, renderRecoveryForm()),
+          msg,
+        );
+        queueMicrotask(() => formWrap.querySelector('#account-update-password input[name="password"]')?.focus?.());
+        return;
+      }
       const plan = a.level && PLANS[a.level];
       formWrap.replaceChildren(
         h('section', { class: 'card account-card' },
@@ -213,15 +316,22 @@ export default {
             a.level !== 'advanced'
               ? h('button', {
                 type: 'button', class: 'btn btn--primary',
+                disabled: CHECKOUT_PENDING,
+                title: CHECKOUT_PENDING ? 'Checkout setup and live tier testing are pending.' : '',
                 on: {
                   click: async () => {
+                    if (CHECKOUT_PENDING) {
+                      msg.textContent = 'Checkout is intentionally unavailable until Stripe and live tier access are verified.';
+                      toast('Checkout testing is pending', { type: 'info', duration: 5000 });
+                      return;
+                    }
                     const planId = a.level === 'beginner' ? 'advanced' : 'beginner';
                     const res = await access.checkout(planId);
                     if (!res.ok) toast(res.error || 'Subscriptions not open yet', { type: 'warn', duration: 5000 });
                     else if (res.switched) { toast('Plan updated', { type: 'info' }); paint(); }
                   },
                 },
-              }, a.level === 'beginner' ? 'Upgrade to Advanced' : 'Get Beginner')
+              }, CHECKOUT_PENDING ? 'Checkout testing pending' : a.level === 'beginner' ? 'Upgrade to Advanced' : 'Get Beginner')
               : null,
             h('button', {
               type: 'button', class: 'btn btn--ghost',
@@ -265,18 +375,23 @@ export default {
     function paint() {
       const a = access.getAccess();
       // Already signed in with a pending return (e.g. session restored after gate redirect).
-      if (a.user && goAfterAuth(ctx)) return;
+      if (a.user && !a.recovery && goAfterAuth(ctx)) return;
       const signupMode = !a.user && view === 'signup';
+      const resetMode = !a.user && view === 'reset';
       shell.classList.toggle('account--gate', !a.user);
       body.replaceChildren(...kids(
         a.user ? h('p', { class: 'eyebrow' }, 'Account') : null,
-        h('h1', null, signupMode ? 'Create your account' : a.user ? 'Your account' : 'Sign in'),
+        h('h1', null, a.recovery ? 'Update password' : resetMode ? 'Reset password' : signupMode ? 'Create your account' : a.user ? 'Your account' : 'Sign in'),
         h('p', { class: 'lead' },
-          signupMode
-            ? 'Beginner and Advanced lessons need an account and a Beginner or Advanced plan. Home, Dashboard and the other tools stay open without signing in. Educational use only — not financial advice.'
+          a.recovery
+            ? 'Enter a new password to complete account recovery. Educational use only - not financial advice.'
+            : resetMode
+              ? 'Enter your email and we will send a password recovery link if the account exists.'
+              : signupMode
+            ? 'Beginner and Advanced lessons need an account first. Checkout stays unavailable until Stripe and live tier access are verified. Educational use only - not financial advice.'
             : a.user
-              ? 'Plan status and billing live here. Educational use only — not financial advice.'
-              : 'Sign in with email and password to open Beginner and Advanced lessons and games. Educational use only — not financial advice.')),
+              ? 'Plan status and billing live here. Educational use only - not financial advice.'
+              : 'Sign in with email and password to open free account content. Beginner and Advanced lessons stay locked until the right plan is active. Educational use only - not financial advice.')),
       );
       msg.textContent = '';
       if (a.user) renderSignedIn(a);

@@ -27,6 +27,7 @@ function gameTags(e) {
 }
 
 function itemDone(store, item) {
+  if (item.type === 'tool') return true;
   return item.type === 'lesson' ? store.isLessonDone(item.id) : (store.gameStats(item.id)?.stars || 0) >= 1;
 }
 
@@ -116,7 +117,24 @@ function itemButton(store, type, id) {
           ? h('span', { class: 'chip chip--sm' }, icon('lock', { size: 13 }), lockNeed || 'Members')
           : done
             ? h('span', { class: 'chip chip--bull' }, icon('check', { size: 13 }), 'Done')
-            : h('span', { class: 'item-btn__go' }, started ? 'Resume' : 'Start', icon('arrow-right', { size: 16 }))));
+          : h('span', { class: 'item-btn__go' }, started ? 'Resume' : 'Start', icon('arrow-right', { size: 16 }))));
+  }
+  if (type === 'tool') {
+    return h('a', {
+      class: ['item-btn', 'item-btn--tool', !open && 'is-locked'],
+      href: `#${hashFor(id)}`,
+      'aria-label': open ? e.title : `${e.title} (locked - ${lockNeed || 'sign in'})`,
+      title: open ? e.title : `Locked - ${lockNeed || 'sign in or subscribe to open'}`,
+    },
+      h('span', { class: 'item-btn__icon', 'aria-hidden': 'true' }, icon(open ? 'check' : 'lock', { size: 20 })),
+      h('span', { class: 'item-btn__text' },
+        h('span', { class: 'item-btn__kind' }, `Tool · ${e.minutes} min`),
+        h('strong', { class: 'item-btn__title' }, e.title),
+        h('span', { class: 'item-btn__blurb' }, e.blurb)),
+      h('span', { class: 'item-btn__status' },
+        !open
+          ? h('span', { class: 'chip chip--sm' }, icon('lock', { size: 13 }), lockNeed || 'Members')
+          : h('span', { class: 'item-btn__go' }, 'Open', icon('arrow-right', { size: 16 }))));
   }
   const s = store.gameStats(id);
   return h('a', {
@@ -192,6 +210,7 @@ export function trackPanel(store, tier, opts = {}) {
       const items = [];
       if (u.lesson) items.push(itemButton(store, 'lesson', u.lesson));
       for (const g of u.games) items.push(itemButton(store, 'game', g));
+      for (const t of (u.tools || [])) items.push(itemButton(store, 'tool', t));
       return h('li', { class: ['ladder__unit', done && 'is-done', current && 'is-current'] },
         h('div', { class: 'ladder__rail', 'aria-hidden': 'true' },
           h('span', { class: 'ladder__node mono' }, done ? icon('check', { size: 16 }) : String(i + 1).padStart(2, '0')),

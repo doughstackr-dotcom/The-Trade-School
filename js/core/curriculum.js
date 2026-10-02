@@ -11,8 +11,9 @@ function unitStatus(store, unit) {
       ? h('span', { class: 'unit-row__check', title: 'Lesson complete' }, icon('check', { size: 14, label: 'Lesson complete' }))
       : h('span', { class: 'unit-row__check is-empty', title: 'Lesson not done', 'aria-label': 'Lesson not done' }));
   }
-  const best = Math.max(0, ...unit.games.map((g) => store.gameStats(g)?.stars || 0));
-  bits.push(starRow(best, { size: 13 }));
+  const best = Math.max(0, ...(unit.games || []).map((g) => store.gameStats(g)?.stars || 0));
+  if ((unit.games || []).length) bits.push(starRow(best, { size: 13 }));
+  if ((unit.tools || []).length) bits.push(h('span', { class: 'chip chip--sm' }, icon('check', { size: 13 }), 'Tool'));
   return h('span', { class: 'unit-row__status' }, bits);
 }
 
@@ -29,6 +30,10 @@ function unitTarget(unit) {
     if (e) return e;
   }
   for (const id of unit.games || []) {
+    const e = findEntry(id);
+    if (e) return e;
+  }
+  for (const id of unit.tools || []) {
     const e = findEntry(id);
     if (e) return e;
   }

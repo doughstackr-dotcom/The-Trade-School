@@ -1,16 +1,19 @@
 // Boot: render the app shell (top bar, phone tab bar, footer) and start the router.
 import { store } from './core/store.js';
-import { startRouter, navigate, setAccessGate } from './core/router.js';
+import { startRouter, navigate, setAccessGate, currentRoute } from './core/router.js';
 import * as access from './core/access.js';
+import { installAuthGate } from './core/auth-gate.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
 import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
+import { clearPremiumModuleCache } from './core/premium-loader.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
   { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
+  { hash: 'tools', label: 'Tools', icon: 'check' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
@@ -58,10 +61,11 @@ function navKeyFor(route) {
   if (route.kind === 'page') {
     // Legacy #beginner / #advanced land on dashboard with a section.
     if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
-    if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'tools', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if (route.kind === 'game') return 'games';
+  if (route.kind === 'tool') return 'tools';
   // Lessons highlight Dashboard (track nav entries removed).
   if (route.kind === 'lesson') return 'dashboard';
   return null;
@@ -220,6 +224,7 @@ function buildShell(app) {
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#dashboard' }, 'Dashboard'),
         h('a', { href: '#games' }, 'Games'),
+        h('a', { href: '#tools' }, 'Tools'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
@@ -269,17 +274,29 @@ function boot() {
     /* old browsers */
   }
   const shell = buildShell(app);
+  let accessKey = null;
+  let authGate = null;
   // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
   function wireGate() {
     setAccessGate({
       canOpen: (entry, route) => access.canOpen(entry, route),
       access: () => access.accessInfo(),
       paywallPath: '../pages/paywall.js',
-      // No onUnauthenticated redirect: unsigned visitors see the paywall teaser
-      // (plans + sign-in CTA) instead of a hard hide-behind-login wall.
+      onUnauthenticated: (route) => {
+        access.rememberReturn(route?.key || 'home');
+        authGate?.open(route, { mode: 'signup' });
+      },
     });
   }
   wireGate();
+  accessKey = access.routeAccessKey();
+  access.onChange(() => {
+    const next = access.routeAccessKey();
+    if (next === accessKey) return;
+    accessKey = next;
+    clearPremiumModuleCache();
+    wireGate();
+  });
   access.ready.then(() => {
     /* re-render current route once session/level is known */
     wireGate();
@@ -288,8 +305,10 @@ function boot() {
     store,
     onRoute: (route, entry) => {
       shell.setActive(route, entry || (route.id ? findEntry(route.id) : null));
+      authGate?.sync();
     },
   });
+  authGate = installAuthGate({ navigate, currentRoute });
 }
 
 boot();

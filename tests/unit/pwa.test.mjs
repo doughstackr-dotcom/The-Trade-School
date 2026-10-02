@@ -57,8 +57,9 @@ test('index.html: manifest, icons, theme colours for light and dark, home-screen
 });
 
 /** Loads sw.js in a vm with stubbed service-worker globals; returns its listeners. */
-function loadWorker(scope = 'https://example.github.io/The-Trade-School/') {
+function loadWorker(scope = 'https://example.github.io/The-Trade-School/', transform = (src) => src, overrides = {}) {
   const listeners = {};
+  const clients = overrides.clients || { claim: async () => {} };
   const self = {
     location: new URL('sw.js', scope),
     registration: { scope, navigationPreload: null },
@@ -66,15 +67,24 @@ function loadWorker(scope = 'https://example.github.io/The-Trade-School/') {
       listeners[type] = fn;
     },
     skipWaiting: () => {},
-    clients: { claim: async () => {} },
+    clients,
   };
-  const caches = { has: async () => false, match: async () => undefined, keys: async () => [], open: async () => ({ put: async () => {} }), delete: async () => true };
+  const caches = overrides.caches || { has: async () => false, match: async () => undefined, keys: async () => [], open: async () => ({ put: async () => {} }), delete: async () => true };
   const fetch = async () => {
     throw new TypeError('offline (test)');
   };
   const ctx = vm.createContext({ self, caches, fetch, URL, Request: class { constructor(u, o) { this.url = u; Object.assign(this, o); } }, Response: class {}, Promise, setTimeout, clearTimeout, Set, console });
-  vm.runInContext(read('sw.js'), ctx, { filename: 'sw.js' });
+  vm.runInContext(transform(read('sw.js')), ctx, { filename: 'sw.js' });
   return { listeners, ctx };
+}
+
+async function runExtendable(listener, event = {}) {
+  const waits = [];
+  listener({
+    ...event,
+    waitUntil(p) { waits.push(Promise.resolve(p)); },
+  });
+  await Promise.all(waits);
 }
 
 function fetchEvent(url, { mode = 'no-cors', method = 'GET', headers = {} } = {}) {
@@ -121,13 +131,66 @@ test('sw.js: handles same-origin navigations and static assets; never cross-orig
   assert.equal(handled(`${base}sw.js`), false, 'the worker itself');
 });
 
+test('sw.js: storage-cutover paid module paths are explicitly not cacheable', () => {
+  const base = 'https://example.github.io/The-Trade-School/';
+  const { listeners } = loadWorker(base, (src) => src.replace(
+    'const NEVER_CACHE_PATHS = [];',
+    'const NEVER_CACHE_PATHS = ["js/lessons/candle-anatomy.js","js/games/fib-sniper.js"];',
+  ));
+  const handled = (url, opts) => {
+    const ev = fetchEvent(url, opts);
+    listeners.fetch(ev);
+    return ev.handled;
+  };
+  assert.equal(handled(`${base}js/lessons/candle-anatomy.js`), false, 'removed paid lesson');
+  assert.equal(handled(`${base}js/games/fib-sniper.js`), false, 'removed paid game');
+  assert.equal(handled(`${base}js/games/daily-challenge.js`), true, 'free game remains cacheable');
+  assert.equal(handled(`${base}js/core/router.js`), true, 'public core remains cacheable');
+});
+
+test('sw.js: storage cutover activates immediately and reloads existing online clients once', async () => {
+  const base = 'https://example.github.io/The-Trade-School/';
+  const navigated = [];
+  let claimed = false;
+  const clients = [
+    { url: `${base}#l.candle-anatomy`, navigate: async (url) => { navigated.push(url); } },
+    { url: `${base}?checkout=success#account`, navigate: async (url) => { navigated.push(url); } },
+    { url: `${base}?tts-sw-cutover=secure-1#home`, navigate: async (url) => { navigated.push(url); } },
+  ];
+  const deleted = [];
+  const { listeners } = loadWorker(base, (src) => src
+    .replace("const BUILD = 'dev';", "const BUILD = 'secure-1';")
+    .replace('const SECURITY_CUTOVER = false;', 'const SECURITY_CUTOVER = true;'), {
+    caches: {
+      keys: async () => ['tts-v1-old', 'tts-v1-secure-1', 'other'],
+      delete: async (key) => { deleted.push(key); return true; },
+    },
+    clients: {
+      claim: async () => { claimed = true; },
+      matchAll: async () => clients,
+    },
+  });
+  await runExtendable(listeners.activate);
+  assert.equal(claimed, true);
+  assert.deepEqual(deleted, ['tts-v1-old']);
+  assert.equal(navigated.length, 2);
+  assert.ok(navigated.every((url) => url.includes('tts-sw-cutover=secure-1')));
+  assert.ok(navigated.some((url) => url.endsWith('#l.candle-anatomy')));
+  assert.ok(navigated.some((url) => url.endsWith('#account')));
+});
+
 test('sw.js: version stamp placeholder, required shell files exist, module graph parser finds main.js imports', () => {
   const src = read('sw.js').split(String.fromCharCode(13, 10)).join(String.fromCharCode(10));
   assert.match(src, /const BUILD = 'dev';/, 'the deploy workflow replaces this exact text');
   assert.match(src, /const CACHE = `\$\{PREFIX\}\$\{VERSION\}-\$\{BUILD\}`/);
+  assert.match(src, /const NEVER_CACHE_PATHS = \[\];/, 'storage build fills this with removed paid public module paths');
+  assert.match(src, /const SECURITY_CUTOVER = false;/, 'storage build flips this for the one-time private-content cutover');
   const core = vm.runInNewContext(`${src.match(/const CORE = \[[\s\S]*?\];/)[0]}; CORE`);
   for (const p of core) if (p !== './') assert.ok(exists(p), `CORE file missing: ${p} (the worker would not install)`);
-  assert.ok(!/self\.skipWaiting\(\)/.test(src.slice(src.indexOf("addEventListener('install'"), src.indexOf("addEventListener('activate'"))), 'no automatic skipWaiting on install');
+  const installStart = src.indexOf("addEventListener('install'");
+  const activateStart = src.indexOf("addEventListener('activate'");
+  const installSrc = src.slice(installStart, activateStart);
+  assert.match(installSrc, /if \(SECURITY_CUTOVER\) await self\.skipWaiting\(\);/, 'only storage security cutovers skip waiting on install');
   const moduleImports = vm.runInNewContext(`${src.match(/function moduleImports[\s\S]*?\n}\n/)[0]}; moduleImports`);
   const found = moduleImports(read('js/main.js'));
   assert.ok(found.includes('./core/router.js') && found.includes('./core/store.js'), JSON.stringify(found));

@@ -20,7 +20,7 @@ export function toolsTeaser(pageLabel = 'This section') {
 
   const a = access.getAccess();
   const signedIn = !!a.user;
-  const price = PLANS.beginner?.price ?? 19.99;
+  const price = PLANS.beginner?.price ?? 39.98;
 
   const banner = h('section', {
     class: 'teaser-banner card card--raised',

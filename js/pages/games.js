@@ -29,7 +29,7 @@ export default {
     const paid = access.hasPaidAccess();
     const paidHub = enforcing && !paid;
     const snap = access.getAccess();
-    const price = PLANS.beginner?.price ?? 19.99;
+    const price = PLANS.beginner?.price ?? 39.98;
 
     const banner = paidHub
       ? h('section', {

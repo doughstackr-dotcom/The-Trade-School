@@ -4,12 +4,13 @@ import assert from 'node:assert/strict';
 import * as reg from '../../js/registry.js';
 import { store, dailyKey } from '../../js/core/store.js';
 
-test('registry: every unit item exists, every lesson/game sits in a unit, kinds/styles/sources are valid', () => {
+test('registry: every unit item exists, every lesson/game/tool sits in a unit, kinds/styles/sources are valid', () => {
   const kinds = new Set(reg.GAME_KINDS.map((k) => k.id));
   const styles = new Set(reg.STYLES.map((s) => s.id));
   for (const u of reg.UNITS) {
     if (u.lesson) assert.ok(reg.findEntry(u.lesson), `missing lesson ${u.lesson}`);
     for (const g of u.games) assert.ok(reg.findEntry(g), `missing game ${g}`);
+    for (const t of (u.tools || [])) assert.ok(reg.findEntry(t), `missing tool ${t}`);
   }
   for (const l of reg.LESSONS) assert.ok(reg.UNITS.some((u) => u.lesson === l.id), `orphan lesson ${l.id}`);
   for (const g of reg.GAMES) {
@@ -20,20 +21,29 @@ test('registry: every unit item exists, every lesson/game sits in a unit, kinds/
     assert.ok(reg.findBadge(`${g.id}-ace`), `${g.id}: no ace badge`);
     assert.ok(g.blurb && g.blurb.length > 20, `${g.id}: blurb`);
   }
-  const ids = [...reg.LESSONS, ...reg.GAMES].map((e) => e.id);
+  for (const t of reg.TOOLS) {
+    assert.ok(reg.UNITS.some((u) => (u.tools || []).includes(t.id)), `orphan tool ${t.id}`);
+    assert.equal(t.type, 'tool');
+    assert.ok(t.blurb && t.blurb.length > 20, `${t.id}: blurb`);
+    assert.equal(reg.findBadge(`${t.id}-ace`), null, `${t.id}: tools do not award ace badges`);
+  }
+  const ids = [...reg.LESSONS, ...reg.GAMES, ...reg.TOOLS].map((e) => e.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
 });
 
 test('registry: curriculum order and the new entries', () => {
   assert.deepEqual(reg.unitsOf('beginner').map((u) => u.id), [
     'u-candle-anatomy', 'u-chart-basics', 'u-candle-patterns', 'u-trends', 'u-support-resistance',
-    'u-trendlines', 'u-moving-averages', 'u-volume', 'u-markets-orders', 'u-beginner-capstone',
+    'u-trendlines', 'u-moving-averages', 'u-volume', 'u-markets-orders', 'u-discipline-basics', 'u-beginner-capstone',
   ]);
   assert.deepEqual(reg.unitsOf('advanced').map((u) => u.id), [
     'u-chart-patterns', 'u-fibonacci', 'u-indicators', 'u-multi-timeframe', 'u-breakouts', 'u-confluence-risk',
     'u-psychology', 'u-advanced-capstone',
   ]);
   assert.deepEqual(reg.unitOf('daily-challenge').games, ['what-next', 'setup-swipe', 'daily-challenge']);
+  assert.deepEqual(reg.unitOf('discipline-basics').tools, ['pre-trade-checklist']);
+  assert.deepEqual(reg.unitOf('journal-review').games, ['tilt-control']);
+  assert.deepEqual(reg.unitOf('journal-review').tools, ['journal-review']);
   assert.deepEqual(reg.unitOf('live-predict').games, ['what-next', 'trade-simulator', 'live-predict']);
   assert.equal(reg.findEntry('daily-challenge').daily, true);
   assert.deepEqual(reg.stylesOf('daily-challenge'), ['arcade']);
@@ -42,9 +52,13 @@ test('registry: curriculum order and the new entries', () => {
   // A 'both' game that only sits in the Advanced capstone continues within Advanced.
   assert.equal(reg.nextItem('live-predict'), null);
   assert.equal(reg.nextItem('daily-challenge').id, 'chart-patterns');
-  assert.equal(reg.nextItem('order-desk').id, 'what-next');
+  assert.equal(reg.nextItem('order-desk').id, 'discipline-basics');
+  assert.equal(reg.nextItem('pre-trade-checklist').id, 'what-next');
+  assert.equal(reg.hashFor('pre-trade-checklist'), 't.pre-trade-checklist');
+  assert.equal(reg.hashFor('journal-review'), 't.journal-review');
   assert.equal(reg.findPage('playbook').hash, 'playbook');
   assert.equal(reg.findPage('games').hash, 'games');
+  assert.equal(reg.findPage('tools').hash, 'tools');
   assert.equal(reg.findEntry('_kit-demo').dev, true);
   assert.ok(!reg.LESSONS.some((l) => l.id === '_kit-demo'), 'dev entries stay out of the curriculum');
 });

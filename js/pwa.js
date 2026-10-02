@@ -19,6 +19,7 @@ const KEY_DISMISS = 'tts-install-dismissed';
 const DISMISS_MS = 30 * 24 * 3600 * 1000;
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
 const OFFLINE_DEFAULT = false;
+const CUTOVER_PARAM = 'tts-sw-cutover';
 
 let deferredPrompt = null;
 let registration = null;
@@ -195,6 +196,17 @@ function watchRegistration(reg) {
   });
 }
 
+function cleanCutoverMarker() {
+  try {
+    const url = new URL(location.href);
+    if (!url.searchParams.has(CUTOVER_PARAM)) return;
+    url.searchParams.delete(CUTOVER_PARAM);
+    history.replaceState(history.state, '', url.href);
+  } catch {
+    /* ignore */
+  }
+}
+
 function checkForUpdate() {
   if (!registration || Date.now() - lastUpdateCheck < UPDATE_CHECK_MS) return;
   lastUpdateCheck = Date.now();
@@ -203,6 +215,7 @@ function checkForUpdate() {
 
 async function register() {
   try {
+    cleanCutoverMarker();
     const url = new URL('../sw.js', import.meta.url);
     const scope = new URL('../', import.meta.url);
     registration = await navigator.serviceWorker.register(url.href, { scope: scope.pathname, updateViaCache: 'none' });

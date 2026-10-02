@@ -8,8 +8,8 @@ export const SUPABASE_KEY = 'sb_publishable_fdwgGDrO0soyNdS0jOprcw_MJxIL0rC';
 
 // Subscription plans (prices in USD per month). Advanced includes everything in Beginner.
 export const PLANS = {
-  beginner: { id: 'beginner', name: 'Beginner', price: 19.99, currency: 'USD', interval: 'month', unlocks: ['beginner'] },
-  advanced: { id: 'advanced', name: 'Advanced', price: 29.99, currency: 'USD', interval: 'month', unlocks: ['beginner', 'advanced'] },
+  beginner: { id: 'beginner', name: 'Beginner', price: 39.98, currency: 'USD', interval: 'month', unlocks: ['beginner'] },
+  advanced: { id: 'advanced', name: 'Advanced', price: 59.98, currency: 'USD', interval: 'month', unlocks: ['beginner', 'advanced'] },
 };
 
 // Exactly one free game for signed-in members without a paid plan (Games page hook).
@@ -20,8 +20,6 @@ export const FREE_IDS = ['daily-challenge'];
 // development and tests see every module; 'open' | 'enforce' force one behaviour.
 export const ACCESS_MODE = 'auto';
 
-// 'site' loads lesson/game code from the public site; 'storage' (planned: paid modules from
-// the private Supabase Storage bucket) is not implemented yet — see docs/ACCOUNTS.md §10.
+// 'site' loads lesson/game/tool code from the public site; 'storage' loads from the private
+// Supabase Storage bucket; 'edge' loads from the premium-content Edge Function.
 export const PREMIUM_SOURCE = 'site';
-// When set to 'storage', paid modules load from the private Supabase Storage bucket
-// paths beginner/<file> and advanced/<file> (see docs/ACCOUNTS.md §10 and docs/SECRETS.md).

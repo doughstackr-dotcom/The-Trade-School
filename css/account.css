@@ -162,3 +162,67 @@
   gap: 0.35rem;
   margin-bottom: var(--space-3, 0.75rem);
 }
+
+.auth-gate-pending .main {
+  visibility: hidden;
+}
+
+.auth-gate {
+  display: grid;
+  gap: var(--space-4, 1rem);
+  max-width: 30rem;
+}
+
+.auth-gate__lead,
+.upgrade-modal__lead {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.auth-gate__tabs {
+  width: 100%;
+}
+
+.auth-gate__tabs button {
+  flex: 1 1 0;
+}
+
+.auth-gate__form {
+  display: grid;
+  gap: var(--space-3, 0.75rem);
+}
+
+.auth-gate__form .field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.auth-gate__form .field > span {
+  color: var(--text-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.auth-gate__form .btn {
+  justify-content: center;
+}
+
+.auth-gate__status {
+  min-height: 1.25em;
+  margin: 0;
+}
+
+.auth-gate__foot {
+  margin: 0;
+  text-align: center;
+}
+
+.upgrade-modal {
+  display: grid;
+  gap: var(--space-4, 1rem);
+}
+
+.upgrade-modal__plans {
+  margin-top: 0;
+}

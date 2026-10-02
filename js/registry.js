@@ -31,6 +31,7 @@ export const UNITS = [
   { id: 'u-moving-averages', tier: 'beginner', title: 'Moving averages', lesson: 'moving-averages', games: ['cross-catcher'] },
   { id: 'u-volume', tier: 'beginner', title: 'Volume', lesson: 'volume', games: ['volume-verdict'] },
   { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
+  { id: 'u-discipline-basics', tier: 'beginner', title: 'Trading discipline basics', lesson: 'discipline-basics', games: [], tools: ['pre-trade-checklist'] },
   { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
 
   { id: 'u-chart-patterns', tier: 'advanced', title: 'Reversal & continuation chart patterns', lesson: 'chart-patterns', games: ['pattern-detective'] },
@@ -39,7 +40,7 @@ export const UNITS = [
   { id: 'u-multi-timeframe', tier: 'advanced', title: 'Multi-timeframe analysis', lesson: 'multi-timeframe', games: ['timeframe-stack'] },
   { id: 'u-breakouts', tier: 'advanced', title: 'Breakouts, fakeouts & liquidity', lesson: 'breakouts', games: ['trap-or-trade'] },
   { id: 'u-confluence-risk', tier: 'advanced', title: 'Confluence, timing & risk', lesson: 'confluence-risk', games: ['risk-manager'] },
-  { id: 'u-psychology', tier: 'advanced', title: 'Trading psychology & your plan', lesson: 'psychology', games: ['tilt-control'] },
+  { id: 'u-psychology', tier: 'advanced', title: 'Trading psychology & your plan', lesson: 'psychology', games: ['tilt-control'], tools: ['journal-review'] },
   { id: 'u-advanced-capstone', tier: 'advanced', title: 'Capstone', lesson: null, games: ['what-next', 'trade-simulator', 'live-predict'] },
 ];
 
@@ -106,6 +107,13 @@ export const LESSONS = [
     blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
     topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
     path: './lessons/markets-orders.js',
+  },
+  {
+    id: 'discipline-basics', type: 'lesson', tier: 'beginner', minutes: 9,
+    title: 'Trading discipline basics',
+    blurb: 'Short scenarios and a practical pre-trade checklist for avoiding overtrading, revenge trading, FOMO, refusing losses and marrying an invalid setup.',
+    topics: ['Pre-trade checklist', 'Overtrading', 'Revenge trading', 'FOMO', 'Invalidation'],
+    path: './lessons/discipline-basics.js',
   },
   {
     id: 'chart-patterns', type: 'lesson', tier: 'advanced', minutes: 16,
@@ -337,6 +345,23 @@ export const GAMES = [
   },
 ];
 
+export const TOOLS = [
+  {
+    id: 'pre-trade-checklist', type: 'tool', tier: 'beginner', minutes: 6,
+    title: 'Pre-trade Checklist',
+    blurb: 'Work through setup quality, risk, limits and mental state before a trade. No timer, score, XP or stars.',
+    skills: ['Pre-trade checklist', 'Risk limits', 'Discipline'],
+    path: './tools/pre-trade-checklist.js',
+  },
+  {
+    id: 'journal-review', type: 'tool', tier: 'advanced', minutes: 9,
+    title: 'Journal Review',
+    blurb: 'Review journal notes locally for repeated behavior patterns and turn the evidence into one process rule. No score or game framing.',
+    skills: ['Journaling', 'Pattern review', 'Process rules'],
+    path: './tools/journal-review.js',
+  },
+];
+
 const ACE_ICONS = {
   'candle-builder': 'candle',
   'pattern-flash': 'spark',
@@ -442,6 +467,8 @@ export const ARCADE_FILTERS = [
 export const PAGES = [
   { id: 'games', title: 'Games', hash: 'games', param: false, path: './pages/games.js',
     blurb: 'The arcade: practice, arcade and survival modes across every skill game. One free daily hook; the rest unlock with a plan.' },
+  { id: 'tools', title: 'Tools', hash: 'tools', param: false, path: './pages/tools.js',
+    blurb: 'Practical trading-process tools for checklists and journal review. They are paid modules, but not games.' },
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',
@@ -463,9 +490,9 @@ export const DEV_ENTRIES = [
 
 // ---------------------------------------------------------------- helpers (pure)
 
-/** Lesson or game by id (has .type = 'lesson' | 'game'), or null. */
+/** Lesson, game or tool by id (has .type = 'lesson' | 'game' | 'tool'), or null. */
 export function findEntry(id) {
-  return LESSONS.find((l) => l.id === id) || GAMES.find((g) => g.id === id) || DEV_ENTRIES.find((d) => d.id === id) || null;
+  return LESSONS.find((l) => l.id === id) || GAMES.find((g) => g.id === id) || TOOLS.find((t) => t.id === id) || DEV_ENTRIES.find((d) => d.id === id) || null;
 }
 
 export function findStyle(id) {
@@ -492,9 +519,13 @@ export function sourcesOf(id) {
   return e?.sources?.length ? e.sources : ['textbook'];
 }
 
-/** Tiers whose units contain a lesson/game id (a 'both' game may sit in one tier's units only). */
+function unitHas(u, id) {
+  return u.lesson === id || u.games.includes(id) || (u.tools || []).includes(id);
+}
+
+/** Tiers whose units contain a lesson/game/tool id (a 'both' game may sit in one tier's units only). */
 export function tiersOf(id) {
-  return [...new Set(UNITS.filter((u) => u.lesson === id || u.games.includes(id)).map((u) => u.tier))];
+  return [...new Set(UNITS.filter((u) => unitHas(u, id)).map((u) => u.tier))];
 }
 
 export function findTier(id) {
@@ -510,19 +541,20 @@ export function unitsOf(tier) {
   return UNITS.filter((u) => u.tier === tier);
 }
 
-/** The unit containing a lesson/game id. For 'both'-tier games pass the preferred tier. */
+/** The unit containing a lesson/game/tool id. For 'both'-tier games pass the preferred tier. */
 export function unitOf(id, tier = null) {
-  const matches = UNITS.filter((u) => u.lesson === id || u.games.includes(id));
+  const matches = UNITS.filter((u) => unitHas(u, id));
   if (!matches.length) return null;
   return (tier && matches.find((u) => u.tier === tier)) || matches[0];
 }
 
-/** Ordered learning path of a tier: [{ type, id, unit }] (lesson first, then its games). */
+/** Ordered learning path of a tier: [{ type, id, unit }] (lesson first, then games and tools). */
 export function learningPath(tier) {
   const out = [];
   for (const u of unitsOf(tier)) {
     if (u.lesson) out.push({ type: 'lesson', id: u.lesson, unit: u.id });
     for (const g of u.games) out.push({ type: 'game', id: g, unit: u.id });
+    for (const t of (u.tools || [])) out.push({ type: 'tool', id: t, unit: u.id });
   }
   return out;
 }
@@ -548,17 +580,23 @@ export function nextItem(id, tier = null) {
   return null;
 }
 
-/** Route hash (without '#') for a lesson or game id. */
+/** Route hash (without '#') for a lesson, game or tool id. */
 export function hashFor(id) {
   const e = findEntry(id);
   if (!e) return 'home';
-  return (e.type === 'lesson' ? 'l.' : 'g.') + id;
+  if (e.type === 'lesson') return `l.${id}`;
+  if (e.type === 'game') return `g.${id}`;
+  if (e.type === 'tool') return `t.${id}`;
+  return 'home';
 }
 
-/** Lessons / games shown under a tier ('both'-tier games appear under both). */
+/** Lessons / games / tools shown under a tier ('both'-tier games appear under both). */
 export function lessonsOf(tier) {
   return LESSONS.filter((l) => l.tier === tier);
 }
 export function gamesOf(tier) {
   return GAMES.filter((g) => g.tier === tier || g.tier === 'both');
+}
+export function toolsOf(tier) {
+  return TOOLS.filter((t) => t.tier === tier || t.tier === 'both');
 }

@@ -1,9 +1,10 @@
 // Hash router. Routes are plain tokens: #home, #library(.<id>),
 // #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
-// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #live,
-// #l.<lessonId>, #g.<gameId>, #dev-chart.
+// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #tools, #live,
+// #l.<lessonId>, #g.<gameId>, #t.<toolId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
+import { resolvePremiumModuleUrl } from './premium-loader.js';
 import { h, icon } from './ui.js';
 
 const PAGE_PATHS = {
@@ -16,6 +17,7 @@ const PAGE_PATHS = {
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
   games: '../pages/games.js',
+  tools: '../pages/tools.js',
   dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
@@ -89,12 +91,13 @@ export function parseHash(hash) {
   // Older accounts hashes (Stripe cancel_url #pricing, GameShell upgrade / sign-in links) alias Unlock and Account.
   if (token === 'pricing' || token.startsWith('pricing.')) return { key: token, kind: 'page', page: 'paywall' };
   if (token === 'signin' || token === 'signup') return { key: token, kind: 'page', page: 'account', param: token === 'signup' ? 'signup' : null };
+  if (token === 'reset' || token === 'reset.update') return { key: token, kind: 'page', page: 'account', param: 'reset' };
   // Supabase Auth redirect fragments (#error=…, #access_token=…) open Account instead of echoing on the 404 card.
   if (/(^|&)(access_token|error|error_code|error_description)=/.test(token)) return { key: 'account', kind: 'page', page: 'account' };
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'tools' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
   // #dev-chart is a chart-rendering dev tool: localhost only; other hosts see Not found.
   if (token === 'dev-chart') {
     let local = false;
@@ -105,12 +108,15 @@ export function parseHash(hash) {
     if (local) return { key: token, kind: 'page', page: token };
   }
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
+  if (token === 'g.checklist-discipline') return { key: token, kind: 'tool', id: 'pre-trade-checklist' };
+  if (token === 'g.journal-review') return { key: token, kind: 'tool', id: 'journal-review' };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
+  if (token.startsWith('t.')) return { key: token, kind: 'tool', id: token.slice(2) };
   return { key: token, kind: 'notfound' };
 }
 
 function titleFor(route, entry) {
-  if (route.kind === 'lesson' || route.kind === 'game') return entry ? `${entry.title} · ${SITE}` : SITE;
+  if (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool') return entry ? `${entry.title} · ${SITE}` : SITE;
   switch (route.page) {
     case 'home': return `${SITE} — Learn to read the market`;
     case 'library': return `Pattern Library · ${SITE}`;
@@ -119,6 +125,7 @@ function titleFor(route, entry) {
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
     case 'games': return `Games · ${SITE}`;
+    case 'tools': return `Tools · ${SITE}`;
     case 'dashboard': return `Dashboard · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;
@@ -131,9 +138,9 @@ const DEFAULT_DESC = 'Learn trading fundamentals by playing: candlesticks, suppo
 
 /** Per-route meta description for share previews and crawlers (falls back to the static tag). */
 function descriptionFor(route, entry) {
-  if (route.kind === 'lesson' || route.kind === 'game') {
+  if (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool') {
     return entry
-      ? `${entry.title} — interactive ${route.kind} in The Trade School: learn to read the market by playing. Educational only, not financial advice.`
+      ? `${entry.title} - interactive ${route.kind} in The Trade School. Educational only, not financial advice.`
       : DEFAULT_DESC;
   }
   switch (route.page) {
@@ -144,9 +151,10 @@ function descriptionFor(route, entry) {
     case 'playbook': return 'Rule-based chart setups with a checklist, entry, stop and target. Educational only, not financial advice.';
     case 'live': return 'The Live Market Lab: quotes, market hours and real charts with source and delay labelled. Educational only.';
     case 'games': return 'Every game in The Trade School — drills for candlesticks, patterns, trends, Fibonacci, risk and more. Educational only.';
+    case 'tools': return 'Practical trading-process tools for checklists and journal review. Educational only.';
     case 'dashboard': return 'Your progress across both tracks: lessons, games, XP, badges and daily streak. Educational only.';
     case 'account': return 'Sign in or create a free account to open the Beginner and Advanced tracks. Educational only.';
-    case 'paywall': return 'Unlock every lesson and game in the Beginner and Advanced tracks. Educational only.';
+    case 'paywall': return 'Unlock every lesson, game and tool in the Beginner and Advanced tracks. Educational only.';
     case 'dev-chart': return 'Chart rendering dev page.';
     default: return DEFAULT_DESC;
   }
@@ -246,7 +254,7 @@ async function render(hash, { initial = false, retry = false } = {}) {
 
   let entry = null;
   let path = null;
-  if (route.kind === 'lesson' || route.kind === 'game') {
+  if (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool') {
     entry = registry.findEntry(route.id);
     if (entry && entry.type === route.kind) {
       path = new URL('../' + entry.path.replace(/^\.\//, ''), import.meta.url).href;
@@ -271,7 +279,7 @@ async function render(hash, { initial = false, retry = false } = {}) {
     return;
   }
 
-  // Access gate: paid lessons/games show the paywall teaser (visible to unsigned + unpaid).
+  // Access gate: paid lessons/games/tools show the paywall teaser (visible to unsigned + unpaid).
   // Optional gate.onUnauthenticated may still redirect, but the default shell leaves the
   // paywall mounted so teasers are never hidden behind a hard login wall.
   let blocked = false;
@@ -302,9 +310,15 @@ async function render(hash, { initial = false, retry = false } = {}) {
   }, 180);
 
   try {
+    if (!blocked && entry && (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool')) {
+      const premiumUrl = await resolvePremiumModuleUrl(entry, accessInfo(), { bust: retry });
+      if (premiumUrl) path = premiumUrl;
+      if (my !== renderToken) return;
+    }
     // "Try again" re-fetches the page module itself (a failed or broken import is cached by URL);
     // shared core modules keep their URLs, so they stay single instances.
-    const mod = await import(retry ? `${path}?retry=${++retries}` : path);
+    const canRetryWithQuery = retry && !String(path).startsWith('blob:');
+    const mod = await import(canRetryWithQuery ? `${path}?retry=${++retries}` : path);
     if (my !== renderToken) return;
     const def = mod.default;
     if (!def || typeof def.mount !== 'function') throw new Error(`Module for "${route.key}" has no default export with mount().`);

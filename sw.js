@@ -21,6 +21,10 @@ const BUILD = 'dev'; // replaced with the commit SHA by .github/workflows/pages.
 const PREFIX = 'tts-';
 const CACHE = `${PREFIX}${VERSION}-${BUILD}`;
 const NAV_TIMEOUT_MS = 6000;
+const NEVER_CACHE_PATHS = [];
+const NEVER_CACHE_ENDPOINTS = /\/functions\/v1\/premium-content(?:\/|$)/;
+const SECURITY_CUTOVER = false;
+const CUTOVER_PARAM = 'tts-sw-cutover';
 
 // The shell must precache or the install fails (and the old worker keeps serving).
 const CORE = [
@@ -170,9 +174,17 @@ self.addEventListener('install', (event) => {
       .map((p) => new URL(p, scopeUrl()).href)
       .filter((u) => !done.has(u));
     await Promise.all(extra.map((u) => precacheOne(cache, u).catch(() => {})));
-    // No skipWaiting() here: an update waits until the page asks (js/pwa.js update toast).
+    if (SECURITY_CUTOVER) await self.skipWaiting();
+    // Normal updates do not skipWaiting here: they wait until the page asks (js/pwa.js update toast).
   })());
 });
+
+function cutoverUrl(url) {
+  const next = new URL(url);
+  if (next.searchParams.get(CUTOVER_PARAM) === BUILD) return null;
+  next.searchParams.set(CUTOVER_PARAM, BUILD);
+  return next.href;
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
@@ -186,6 +198,14 @@ self.addEventListener('activate', (event) => {
       }
     }
     await self.clients.claim();
+    if (SECURITY_CUTOVER && self.clients.matchAll) {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        if (!client.navigate || !client.url) continue;
+        const href = cutoverUrl(client.url);
+        if (href) client.navigate(href).catch(() => {});
+      }
+    }
   })());
 });
 
@@ -209,7 +229,10 @@ self.addEventListener('message', (event) => {
 function cacheable(url, request) {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false; // blob:, data:, chrome-extension:
   if (url.origin !== self.location.origin) return false; // Supabase, Stripe, market data, fonts
+  if (NEVER_CACHE_ENDPOINTS.test(url.pathname)) return false;
   if (PREMIUM.test(url.pathname)) return false;
+  const rel = url.pathname.slice(scopeUrl().pathname.length).replace(/^\/+/, '');
+  if (NEVER_CACHE_PATHS.includes(rel)) return false;
   if (request.headers.has('range')) return false;
   if (url.pathname.endsWith('/sw.js')) return false;
   return true;

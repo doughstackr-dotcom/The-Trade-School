@@ -792,8 +792,10 @@ export default {
   mount(root, ctx) {
     const { store } = ctx;
     const cleanups = [];
-    // First-visit welcome (skippable, a11y modal).
-    try { showWelcome(store); } catch (err) { console.error(err); }
+    // First-visit welcome (skippable, a11y modal) waits until the auth-first gate is not active.
+    if (!access.isEnforcing()) {
+      try { showWelcome(store); } catch (err) { console.error(err); }
+    }
     const totalLessons = UNITS.filter((u) => u.lesson).length;
 
     const chartHost = h('figure', { class: 'hero__chart' });

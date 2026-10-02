@@ -525,7 +525,7 @@ export const store = {
 
   /** Completion of a tier: lessons done + games with at least one star. */
   tierProgress(tier) {
-    const path = learningPath(tier);
+    const path = learningPath(tier).filter((p) => p.type === 'lesson' || p.type === 'game');
     let done = 0;
     for (const p of path) {
       if (p.type === 'lesson' ? state.lessons[p.id]?.done : (state.games[p.id]?.stars || 0) >= 1) done++;
