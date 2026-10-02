@@ -137,9 +137,9 @@ export default {
               return;
             }
             if (res.needsConfirmation) {
-              msg.textContent = 'Check your email to confirm, then sign in.';
               toast('Confirm your email to finish sign-up', { type: 'info', duration: 6000 });
               setView('signin');
+              msg.textContent = 'Check your email to confirm, then sign in.';
             } else {
               toast('Account created', { type: 'info' });
               if (!goAfterAuth(ctx)) paint();
@@ -415,3 +415,4 @@ export default {
     return () => { if (unsub) unsub(); };
   },
 };
+

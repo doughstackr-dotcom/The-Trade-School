@@ -1,8 +1,7 @@
 // Boot: render the app shell (top bar, phone tab bar, footer) and start the router.
 import { store } from './core/store.js';
-import { startRouter, navigate, setAccessGate, currentRoute } from './core/router.js';
+import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
-import { installAuthGate } from './core/auth-gate.js';
 import { h, svg, icon, sfx } from './core/ui.js';
 import { findEntry } from './registry.js';
 import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
@@ -275,7 +274,15 @@ function boot() {
   }
   const shell = buildShell(app);
   let accessKey = null;
-  let authGate = null;
+  function replaceWithAccountSignup() {
+    const before = location.href;
+    try {
+      history.replaceState(history.state, '', '#account.signup');
+      window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: before, newURL: location.href }));
+    } catch {
+      navigate('account.signup');
+    }
+  }
   // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
   function wireGate() {
     setAccessGate({
@@ -284,7 +291,7 @@ function boot() {
       paywallPath: '../pages/paywall.js',
       onUnauthenticated: (route) => {
         access.rememberReturn(route?.key || 'home');
-        authGate?.open(route, { mode: 'signup' });
+        replaceWithAccountSignup();
       },
     });
   }
@@ -305,12 +312,11 @@ function boot() {
     store,
     onRoute: (route, entry) => {
       shell.setActive(route, entry || (route.id ? findEntry(route.id) : null));
-      authGate?.sync();
     },
   });
-  authGate = installAuthGate({ navigate, currentRoute });
 }
 
 boot();
 
 export { navigate };
+

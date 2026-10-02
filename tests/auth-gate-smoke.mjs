@@ -89,7 +89,7 @@ async function installMockSupabase(page) {
               window.__authCallCount += 1;
               if (email.includes('reject') && !rejectedOnce) {
                 rejectedOnce = true;
-                throw new Error('Temporary auth outage');
+                return { data: { session: null }, error: new Error('Temporary auth outage') };
               }
               session = { access_token: 'test-token', user: { id: 'u1', email } };
               if (authCb) emitAuth('SIGNED_IN', session);
@@ -193,30 +193,45 @@ async function main() {
     const exempt = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installMockSupabase(exempt);
     await exempt.goto(`http://127.0.0.1:${PORT}/#home`);
-    await exempt.getByRole('dialog', { name: /Create your free account/i }).waitFor();
+    await exempt.waitForSelector('[data-mounted="home"]');
+    if (await exempt.getByRole('dialog').count()) throw new Error('public home route should not show an auth modal');
     await exempt.goto(`http://127.0.0.1:${PORT}/#account`);
-    await exempt.locator('.modal').waitFor({ state: 'detached' });
     await exempt.getByRole('heading', { name: 'Sign in' }).waitFor();
-    if (await exempt.locator('#app').evaluate((app) => app.hasAttribute('inert'))) throw new Error('auth modal left app inert on account route');
-    await exempt.goto(`http://127.0.0.1:${PORT}/#home`);
-    await exempt.getByRole('dialog', { name: /Create your free account/i }).waitFor();
+    if (await exempt.getByRole('dialog').count()) throw new Error('account route should render as a page, not an auth modal');
+    if (await exempt.locator('#app').evaluate((app) => app.hasAttribute('inert'))) throw new Error('account route left app inert');
     await exempt.goto(`http://127.0.0.1:${PORT}/#privacy`);
-    await exempt.locator('.modal').waitFor({ state: 'detached' });
     await exempt.waitForSelector('[data-mounted="privacy"]');
-    if (await exempt.locator('#app').evaluate((app) => app.hasAttribute('inert'))) throw new Error('auth modal left app inert on legal route');
+    if (await exempt.getByRole('dialog').count()) throw new Error('legal route should not show an auth modal');
+    if (await exempt.locator('#app').evaluate((app) => app.hasAttribute('inert'))) throw new Error('legal route left app inert');
+
+    const fromHome = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await installMockSupabase(fromHome);
+    await fromHome.goto(`http://127.0.0.1:${PORT}/#home`);
+    await fromHome.waitForSelector('[data-mounted="home"]');
+    await fromHome.locator('a[href="#l.candle-anatomy"]').first().click();
+    await fromHome.waitForSelector('[data-mounted="account.signup"]');
+    if (new URL(fromHome.url()).hash !== '#account.signup') throw new Error('home lesson click did not route directly to account signup');
+    if (await fromHome.getByRole('dialog').count()) throw new Error('home lesson click should not show auth modal');
+    await fromHome.goBack();
+    await fromHome.waitForSelector('[data-mounted="home"]');
+    await fromHome.goForward();
+    await fromHome.waitForSelector('[data-mounted="account.signup"]');
+    if (new URL(fromHome.url()).hash !== '#account.signup') throw new Error('forward navigation did not restore account signup route');
 
     const retry = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installMockSupabase(retry);
-    await retry.goto(`http://127.0.0.1:${PORT}/#home`);
-    await retry.getByRole('dialog', { name: /Create your free account/i }).waitFor();
-    await retry.getByRole('tab', { name: 'Sign in' }).click();
+    await retry.goto(`http://127.0.0.1:${PORT}/#l.candle-anatomy`);
+    await retry.waitForSelector('[data-mounted="account.signup"]');
+    if (new URL(retry.url()).hash !== '#account.signup') throw new Error('locked lesson did not route directly to account signup');
+    await retry.getByRole('button', { name: 'Sign in' }).click();
     await retry.getByLabel('Email').fill('reject@example.test');
     await retry.getByLabel('Password').fill('secret123');
     await retry.getByRole('button', { name: /^Sign in$/ }).click();
-    await retry.getByRole('dialog').getByRole('status').filter({ hasText: 'Temporary auth outage' }).waitFor();
+    await retry.locator('.account__msg', { hasText: 'Temporary auth outage' }).waitFor();
+    if (new URL(retry.url()).hash !== '#account') throw new Error('failed login should remain on account sign-in');
     await retry.getByLabel('Email').fill('ray@example.test');
     await retry.getByRole('button', { name: /^Sign in$/ }).click();
-    await retry.locator('.modal').waitFor({ state: 'detached' });
+    await retry.waitForURL('**/#l.candle-anatomy');
     if ((await retry.evaluate(() => window.__authCallCount)) !== 2) throw new Error('auth retry was not attempted after rejection');
     if ((await retry.evaluate(() => window.__authCallbackPromiseCount)) !== 0) throw new Error('auth callback returned a Promise during sign-in');
     if ((await retry.evaluate(() => window.__authLockedEntitlementReadCount)) !== 0) throw new Error('sign-in entitlement read ran while Supabase auth lock was held');
@@ -225,8 +240,9 @@ async function main() {
     await installMockSupabase(page);
 
     await page.goto(`http://127.0.0.1:${PORT}/#l.candle-anatomy`);
-    await page.getByRole('dialog', { name: /Create your free account/i }).waitFor();
-    await page.getByRole('tab', { name: 'Sign in' }).click();
+    await page.waitForSelector('[data-mounted="account.signup"]');
+    if (new URL(page.url()).hash !== '#account.signup') throw new Error('deep-linked lesson did not route to account signup');
+    await page.getByRole('button', { name: 'Sign in' }).click();
     await page.getByLabel('Email').fill('ray@example.test');
     await page.getByLabel('Password').fill('secret123');
     await page.getByRole('button', { name: /^Sign in$/ }).click();
@@ -244,18 +260,20 @@ async function main() {
     await page.getByRole('heading', { name: 'Sign in' }).waitFor();
     if (await page.getByRole('dialog').count()) throw new Error('account route should not show auth modal after logout');
     await page.goto(`http://127.0.0.1:${PORT}/#home`);
-    await page.getByRole('dialog', { name: /Create your free account/i }).waitFor();
+    await page.waitForSelector('[data-mounted="home"]');
+    if (await page.getByRole('dialog').count()) throw new Error('home route should not show auth modal after logout');
 
     const verify = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installMockSupabase(verify);
-    await verify.goto(`http://127.0.0.1:${PORT}/#home`);
-    await verify.getByRole('dialog', { name: /Create your free account/i }).waitFor();
+    await verify.goto(`http://127.0.0.1:${PORT}/#l.candle-anatomy`);
+    await verify.waitForSelector('[data-mounted="account.signup"]');
     await verify.getByLabel('Email').fill('verify@example.test');
     await verify.getByLabel('Password', { exact: true }).fill('secret123');
     await verify.getByLabel('Confirm password').fill('secret123');
     await verify.getByRole('button', { name: /^Create account$/ }).click();
     await verify.getByText('Check your email to confirm, then sign in.').waitFor();
-    await verify.getByRole('dialog', { name: /Sign in to continue/i }).waitFor();
+    await verify.getByRole('heading', { name: 'Sign in' }).waitFor();
+    if (new URL(verify.url()).hash !== '#account') throw new Error('pending verification should leave user on account sign-in');
 
     const recovery = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installMockSupabase(recovery);
@@ -294,3 +312,4 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
