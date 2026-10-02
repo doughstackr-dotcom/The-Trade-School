@@ -136,6 +136,15 @@ async function installMockSupabase(page) {
   });
 }
 
+async function newMockPage(browser, { viewport, language = 'en' } = {}) {
+  const page = await browser.newPage({ viewport: viewport || { width: 390, height: 844 } });
+  await installMockSupabase(page);
+  if (language === 'es') {
+    await page.addInitScript(() => localStorage.setItem('tts-language', 'es'));
+  }
+  return page;
+}
+
 async function verifyBundledSupabase(browser) {
   const page = await browser.newPage();
   await page.setContent('<!doctype html><meta charset="utf-8">');
@@ -190,8 +199,7 @@ async function main() {
   try {
     await verifyBundledSupabase(browser);
 
-    const exempt = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(exempt);
+    const exempt = await newMockPage(browser, { viewport: { width: 390, height: 844 } });
     await exempt.goto(`http://127.0.0.1:${PORT}/#home`);
     await exempt.waitForSelector('[data-mounted="home"]');
     if (await exempt.getByRole('dialog').count()) throw new Error('public home route should not show an auth modal');
@@ -204,22 +212,46 @@ async function main() {
     if (await exempt.getByRole('dialog').count()) throw new Error('legal route should not show an auth modal');
     if (await exempt.locator('#app').evaluate((app) => app.hasAttribute('inert'))) throw new Error('legal route left app inert');
 
-    const fromHome = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(fromHome);
-    await fromHome.goto(`http://127.0.0.1:${PORT}/#home`);
-    await fromHome.waitForSelector('[data-mounted="home"]');
-    await fromHome.locator('a[href="#l.candle-anatomy"]').first().click();
-    await fromHome.waitForSelector('[data-mounted="account.signup"]');
-    if (new URL(fromHome.url()).hash !== '#account.signup') throw new Error('home lesson click did not route directly to account signup');
-    if (await fromHome.getByRole('dialog').count()) throw new Error('home lesson click should not show auth modal');
-    await fromHome.goBack();
-    await fromHome.waitForSelector('[data-mounted="home"]');
-    await fromHome.goForward();
-    await fromHome.waitForSelector('[data-mounted="account.signup"]');
-    if (new URL(fromHome.url()).hash !== '#account.signup') throw new Error('forward navigation did not restore account signup route');
+    const homeTargets = [
+      { label: 'hero beginner', selector: '.hero__ctas [data-auth-return="beginner"]', expectedReturn: 'beginner', verifyBack: true },
+      { label: 'hero advanced', selector: '.hero__ctas [data-auth-return="advanced"]', expectedReturn: 'advanced' },
+      { label: 'beginner track card', selector: '.track-card--beginner .track-card__cta[data-auth-return="beginner"]', expectedReturn: 'beginner' },
+      { label: 'beginner lesson row', selector: '.track-card--beginner .unit-row[data-auth-return="l.candle-anatomy"]', expectedReturn: 'l.candle-anatomy' },
+      { label: 'advanced lesson row', selector: '.track-card--advanced .unit-row[data-auth-return="l.chart-patterns"]', expectedReturn: 'l.chart-patterns' },
+    ];
+    const viewports = [
+      { name: 'mobile', value: { width: 390, height: 844 } },
+      { name: 'desktop', value: { width: 1280, height: 900 } },
+    ];
+    for (const viewport of viewports) {
+      for (const language of ['en', 'es']) {
+        for (const target of homeTargets) {
+          const fromHome = await newMockPage(browser, { viewport: viewport.value, language });
+          await fromHome.goto(`http://127.0.0.1:${PORT}/#home`);
+          await fromHome.waitForSelector('[data-mounted="home"]');
+          const link = fromHome.locator(target.selector).first();
+          await link.waitFor();
+          const href = await link.getAttribute('href');
+          if (href !== '#account.signup') throw new Error(`${target.label} (${viewport.name}/${language}) did not point directly to account signup`);
+          await link.click();
+          await fromHome.waitForSelector('[data-mounted="account.signup"]');
+          if (new URL(fromHome.url()).hash !== '#account.signup') throw new Error(`${target.label} (${viewport.name}/${language}) did not route directly to account signup`);
+          if (await fromHome.getByRole('dialog').count()) throw new Error(`${target.label} (${viewport.name}/${language}) should not show auth modal`);
+          const remembered = await fromHome.evaluate(() => sessionStorage.getItem('tts-return-hash'));
+          if (remembered !== target.expectedReturn) throw new Error(`${target.label} (${viewport.name}/${language}) remembered ${remembered}, expected ${target.expectedReturn}`);
+          if (target.verifyBack && viewport.name === 'mobile' && language === 'en') {
+            await fromHome.goBack();
+            await fromHome.waitForSelector('[data-mounted="home"]');
+            await fromHome.goForward();
+            await fromHome.waitForSelector('[data-mounted="account.signup"]');
+            if (new URL(fromHome.url()).hash !== '#account.signup') throw new Error('forward navigation did not restore account signup route');
+          }
+          await fromHome.close();
+        }
+      }
+    }
 
-    const retry = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(retry);
+    const retry = await newMockPage(browser, { viewport: { width: 390, height: 844 } });
     await retry.goto(`http://127.0.0.1:${PORT}/#l.candle-anatomy`);
     await retry.waitForSelector('[data-mounted="account.signup"]');
     if (new URL(retry.url()).hash !== '#account.signup') throw new Error('locked lesson did not route directly to account signup');
@@ -236,8 +268,7 @@ async function main() {
     if ((await retry.evaluate(() => window.__authCallbackPromiseCount)) !== 0) throw new Error('auth callback returned a Promise during sign-in');
     if ((await retry.evaluate(() => window.__authLockedEntitlementReadCount)) !== 0) throw new Error('sign-in entitlement read ran while Supabase auth lock was held');
 
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(page);
+    const page = await newMockPage(browser, { viewport: { width: 390, height: 844 } });
 
     await page.goto(`http://127.0.0.1:${PORT}/#l.candle-anatomy`);
     await page.waitForSelector('[data-mounted="account.signup"]');
@@ -252,6 +283,16 @@ async function main() {
     if (!(await page.locator('button', { hasText: 'Checkout testing pending' }).first().evaluate((button) => button.disabled))) {
       throw new Error('checkout was not disabled in paid-route modal');
     }
+    await page.goto(`http://127.0.0.1:${PORT}/#home`);
+    await page.waitForSelector('[data-mounted="home"]');
+    const signedInHomeLink = page.locator('.track-card--beginner .unit-row[href="#l.candle-anatomy"]').first();
+    await signedInHomeLink.waitFor();
+    await signedInHomeLink.click();
+    await page.getByRole('dialog', { name: /Upgrade|access needed/i }).waitFor();
+    if (new URL(page.url()).hash !== '#l.candle-anatomy') throw new Error('signed-in free home lesson click did not preserve the lesson route');
+    if (!(await page.locator('button', { hasText: 'Checkout testing pending' }).first().evaluate((button) => button.disabled))) {
+      throw new Error('checkout was not disabled after signed-in free home lesson click');
+    }
     await page.goto(`http://127.0.0.1:${PORT}/#account`);
     await page.waitForFunction(() => document.querySelectorAll('.modal').length === 0);
     if (await page.locator('#app').evaluate((app) => app.hasAttribute('inert'))) throw new Error('upgrade modal left app inert after navigation');
@@ -263,8 +304,7 @@ async function main() {
     await page.waitForSelector('[data-mounted="home"]');
     if (await page.getByRole('dialog').count()) throw new Error('home route should not show auth modal after logout');
 
-    const verify = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(verify);
+    const verify = await newMockPage(browser, { viewport: { width: 390, height: 844 } });
     await verify.goto(`http://127.0.0.1:${PORT}/#l.candle-anatomy`);
     await verify.waitForSelector('[data-mounted="account.signup"]');
     await verify.getByLabel('Email').fill('verify@example.test');
@@ -275,8 +315,7 @@ async function main() {
     await verify.getByRole('heading', { name: 'Sign in' }).waitFor();
     if (new URL(verify.url()).hash !== '#account') throw new Error('pending verification should leave user on account sign-in');
 
-    const recovery = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(recovery);
+    const recovery = await newMockPage(browser, { viewport: { width: 390, height: 844 } });
     await recovery.goto(`http://127.0.0.1:${PORT}/?code=recovery-code`);
     await recovery.waitForSelector('[data-mounted="account.recovery"]');
     if (new URL(recovery.url()).hash !== '#account.recovery') throw new Error('PKCE recovery callback did not route to account recovery');
@@ -290,8 +329,7 @@ async function main() {
     if ((await recovery.evaluate(() => window.__authCallbackPromiseCount)) !== 0) throw new Error('auth callback returned a Promise during PKCE recovery');
     if ((await recovery.evaluate(() => window.__authLockedEntitlementReadCount)) !== 0) throw new Error('entitlement read ran while Supabase auth lock was held');
 
-    const reset = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await installMockSupabase(reset);
+    const reset = await newMockPage(browser, { viewport: { width: 390, height: 844 } });
     await reset.goto(`http://127.0.0.1:${PORT}/#reset`);
     await reset.getByRole('heading', { name: 'Reset password' }).waitFor();
     await reset.getByLabel('Email').fill('ray@example.test');

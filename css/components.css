@@ -7418,6 +7418,16 @@ body[data-route="paywall"] .main {
 }
 .teaser-banner__title { margin: 0.15rem 0 0.35rem; font-size: 1.25rem; }
 .teaser-banner__actions { flex-wrap: wrap; }
+.library-teaser-banner {
+  justify-content: center;
+  text-align: center;
+}
+.library-teaser-banner .teaser-banner__copy {
+  max-width: 42rem;
+}
+.library-teaser-banner .teaser-banner__actions {
+  justify-content: center;
+}
 
 .teaser-lock {
   position: relative;

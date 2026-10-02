@@ -577,6 +577,19 @@ function trackCard(store, tier) {
   return sharedTrackCard(store, tier, { cta: 'dashboard' });
 }
 
+function authFirstTrackLink(returnHash, attrs = {}) {
+  if (!returnHash || !access.isEnforcing() || access.getAccess().user) return attrs;
+  return {
+    ...attrs,
+    href: '#account.signup',
+    'data-auth-return': returnHash,
+    on: {
+      ...(attrs.on || {}),
+      click: () => access.rememberReturn(returnHash),
+    },
+  };
+}
+
 function styleIcons(g) {
   const ids = stylesOf(g);
   const labels = ids.map((id) => findStyle(id)?.label || id);
@@ -811,8 +824,8 @@ export default {
           h('p', { class: 'hero__lead' },
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
           h('div', { class: 'hero__ctas' },
-            h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
-            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
+            h('a', authFirstTrackLink('beginner', { class: 'btn btn--primary btn--lg', href: '#beginner' }), 'Start Beginner', icon('arrow-right')),
+            h('a', authFirstTrackLink('advanced', { class: 'btn btn--lg hero__btn2', href: '#advanced' }), 'Jump to Advanced'),
             h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
@@ -874,7 +887,7 @@ export default {
             h('div', null,
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
-            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible — open one to see the paywall teaser.')),
+            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible - sign in or create an account to keep your place.')),
           tracksHost),
         playYourWay(),
         arcade,

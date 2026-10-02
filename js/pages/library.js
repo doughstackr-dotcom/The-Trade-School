@@ -287,6 +287,7 @@ export default {
     if (gate.locked) {
       // Teaser: list always visible; detail deep-links stay on the locked list preview.
       access.rememberReturn(wantDetail ? `library.${param}` : 'library');
+      gate.banner?.classList.add('library-teaser-banner');
       root.append(gate.banner, gate.wrap(host));
       renderList();
     } else {

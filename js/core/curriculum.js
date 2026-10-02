@@ -1,5 +1,5 @@
 // Shared Beginner / Advanced curriculum cards (Home + Dashboard).
-// Cards are always visible; locked units route to the paywall teaser when enforcing.
+// Cards are always visible; signed-out locked units route to account signup first.
 import { h, icon, starRow, meter, tierChip } from './ui.js';
 import { TIERS, unitsOf, findEntry, hashFor } from '../registry.js';
 import * as access from './access.js';
@@ -22,6 +22,23 @@ export function canLaunch(entry) {
   if (!entry) return false;
   if (!access.isEnforcing()) return true;
   return access.canOpen(entry, { kind: entry.type, id: entry.id });
+}
+
+function shouldStartWithAccount() {
+  return access.isEnforcing() && !access.getAccess().user;
+}
+
+function authFirstLink(returnHash, attrs = {}) {
+  if (!returnHash || !shouldStartWithAccount()) return attrs;
+  return {
+    ...attrs,
+    href: '#account.signup',
+    'data-auth-return': returnHash,
+    on: {
+      ...(attrs.on || {}),
+      click: () => access.rememberReturn(returnHash),
+    },
+  };
 }
 
 function unitTarget(unit) {
@@ -50,10 +67,10 @@ export function trackCard(store, tier, opts = {}) {
   const cta = opts.cta === undefined ? 'dashboard' : opts.cta;
   let ctaNode = null;
   if (cta === 'dashboard') {
-    ctaNode = h('a', { class: 'btn track-card__cta', href: `#${tier.id}` },
+    ctaNode = h('a', authFirstLink(tier.id, { class: 'btn track-card__cta', href: `#${tier.id}` }),
       `Open ${tier.title} on Dashboard`, icon('arrow-right'));
   } else if (cta === 'section') {
-    ctaNode = h('a', { class: 'btn track-card__cta', href: `#${tier.id}` },
+    ctaNode = h('a', authFirstLink(tier.id, { class: 'btn track-card__cta', href: `#${tier.id}` }),
       `Jump to ${tier.title}`, icon('arrow-right'));
   }
 
@@ -72,17 +89,19 @@ export function trackCard(store, tier, opts = {}) {
       units.map((u, i) => {
         const target = unitTarget(u);
         const open = target ? canLaunch(target) : false;
-        const href = target ? `#${hashFor(target.id)}` : '#paywall';
-        const lockNeed = target ? access.lockLabel(target) : 'Paid plan';
+        const returnHash = target ? hashFor(target.id) : null;
+        const href = returnHash ? `#${returnHash}` : '#paywall';
+        const signedOutLocked = !!target && !open && shouldStartWithAccount();
+        const lockNeed = signedOutLocked ? 'Sign in' : target ? access.lockLabel(target) : 'Paid plan';
         return h('li', null,
-          h('a', {
+          h('a', authFirstLink(signedOutLocked ? returnHash : null, {
             class: ['unit-row', !open && 'is-locked'],
             href,
             'aria-label': open
               ? u.title
-              : `${u.title} (locked — ${lockNeed || 'sign in'})`,
-            title: open ? u.title : `Locked — ${lockNeed || 'sign in or subscribe to open'}`,
-          },
+              : `${u.title} (locked - ${lockNeed || 'sign in'})`,
+            title: open ? u.title : `Locked - ${lockNeed || 'sign in or subscribe to open'}`,
+          }),
             h('span', { class: 'unit-row__n mono' }, String(i + 1).padStart(2, '0')),
             h('span', { class: 'unit-row__title' }, u.title),
             open
