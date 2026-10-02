@@ -210,7 +210,6 @@ export function trackPanel(store, tier, opts = {}) {
       const items = [];
       if (u.lesson) items.push(itemButton(store, 'lesson', u.lesson));
       for (const g of u.games) items.push(itemButton(store, 'game', g));
-      for (const t of (u.tools || [])) items.push(itemButton(store, 'tool', t));
       return h('li', { class: ['ladder__unit', done && 'is-done', current && 'is-current'] },
         h('div', { class: 'ladder__rail', 'aria-hidden': 'true' },
           h('span', { class: 'ladder__node mono' }, done ? icon('check', { size: 16 }) : String(i + 1).padStart(2, '0')),

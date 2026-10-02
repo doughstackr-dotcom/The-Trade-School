@@ -467,8 +467,6 @@ export const ARCADE_FILTERS = [
 export const PAGES = [
   { id: 'games', title: 'Games', hash: 'games', param: false, path: './pages/games.js',
     blurb: 'The arcade: practice, arcade and survival modes across every skill game. One free daily hook; the rest unlock with a plan.' },
-  { id: 'tools', title: 'Tools', hash: 'tools', param: false, path: './pages/tools.js',
-    blurb: 'Practical trading-process tools for checklists and journal review. They are paid modules, but not games.' },
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',

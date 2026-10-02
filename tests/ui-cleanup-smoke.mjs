@@ -42,14 +42,17 @@ function localServer() {
   return new Promise((resolve) => server.listen(PORT, '127.0.0.1', () => resolve(server)));
 }
 
-async function installMockSupabase(page) {
-  await page.addInitScript(() => {
+async function installMockSupabase(page, { signedIn = false } = {}) {
+  await page.addInitScript(({ signedIn }) => {
     localStorage.setItem('tts-enforce-access', '1');
+    const session = signedIn
+      ? { user: { email: 'simpleais@example.test', id: 'mock-user' }, access_token: 'mock-token' }
+      : null;
     window.supabase = {
       createClient() {
         return {
           auth: {
-            getSession: async () => ({ data: { session: null } }),
+            getSession: async () => ({ data: { session } }),
             onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
             initialize: async () => ({ error: null }),
           },
@@ -67,7 +70,7 @@ async function installMockSupabase(page) {
         };
       },
     };
-  });
+  }, { signedIn });
 }
 
 async function main() {
@@ -118,6 +121,33 @@ async function main() {
     await live.screenshot({ path: 'test-artifacts/live-market-hours-only-after.png', fullPage: true });
     await live.close();
 
+    const nav = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await nav.goto(`${base}#dashboard`);
+    await nav.waitForSelector('[data-mounted="dashboard"]');
+    const topLabels = await nav.locator('.nav').innerText();
+    const tabLabels = await nav.locator('.tabbar').innerText();
+    const footerLabels = await nav.locator('.footer__links').innerText();
+    if (/Tools|Glossary/.test(topLabels)) throw new Error(`removed item still in top nav: ${topLabels}`);
+    if (/Tools|Glossary/.test(tabLabels)) throw new Error(`removed item still in mobile tab nav: ${tabLabels}`);
+    if (!/Glossary/.test(footerLabels) || /Tools/.test(footerLabels)) throw new Error(`footer nav mismatch: ${footerLabels}`);
+    await nav.screenshot({ path: 'test-artifacts/dashboard-nav-after.png', fullPage: true });
+    await nav.close();
+
+    const legacyTools = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await legacyTools.goto(`${base}#tools`);
+    await legacyTools.waitForSelector('[data-mounted="tools"]');
+    if (await legacyTools.getByRole('heading', { name: 'Tools' }).count()) throw new Error('#tools rendered the removed Tools page');
+    if (!(await legacyTools.getByRole('heading', { name: /Your school hub|Welcome, guest/i }).count())) {
+      throw new Error('#tools did not land on Dashboard content');
+    }
+    await legacyTools.goto(`${base}#t.pre-trade-checklist`);
+    await legacyTools.waitForSelector('[data-mounted="t.pre-trade-checklist"]');
+    if (await legacyTools.locator('.tools-page').count()) throw new Error('tool deep link rendered removed Tools page content');
+    if (!(await legacyTools.getByRole('heading', { name: /Your school hub|Welcome, guest/i }).count())) {
+      throw new Error('tool deep link did not land on Dashboard content');
+    }
+    await legacyTools.close();
+
     const library = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installMockSupabase(library);
     await library.goto(`${base}#library`);
@@ -137,6 +167,65 @@ async function main() {
     }
     await library.screenshot({ path: 'test-artifacts/library-centered-banner-after.png', fullPage: true });
     await library.close();
+
+    const libraryWide = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await installMockSupabase(libraryWide, { signedIn: true });
+    await libraryWide.goto(`${base}#library`);
+    await libraryWide.waitForSelector('[data-mounted="library"]');
+    const wideBanner = await libraryWide.locator('.library-teaser-banner').evaluate((el) => {
+      const banner = el.getBoundingClientRect();
+      const actions = el.querySelector('.teaser-banner__actions').getBoundingClientRect();
+      const copy = el.querySelector('.teaser-banner__copy').getBoundingClientRect();
+      const viewportCenter = window.innerWidth / 2;
+      const bannerCenter = banner.left + banner.width / 2;
+      return {
+        centered: Math.abs(viewportCenter - bannerCenter) < 2,
+        separated: copy.right + 24 <= actions.left,
+        inViewport: banner.left >= 0 && banner.right <= window.innerWidth,
+      };
+    });
+    if (!wideBanner.centered || !wideBanner.separated || !wideBanner.inViewport) {
+      throw new Error(`wide library banner layout failed: ${JSON.stringify(wideBanner)}`);
+    }
+    await libraryWide.screenshot({ path: 'test-artifacts/library-wide-banner-after.png', fullPage: true });
+    await libraryWide.close();
+
+    const lockedLesson = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await installMockSupabase(lockedLesson, { signedIn: true });
+    await lockedLesson.goto(`${base}#l.candle-anatomy`);
+    await lockedLesson.waitForSelector('[data-mounted="l.candle-anatomy"]');
+    await lockedLesson.getByRole('dialog', { name: 'Upgrade to unlock' }).waitFor();
+    await lockedLesson.waitForTimeout(300);
+    const modalLayout = await lockedLesson.locator('.upgrade-modal__plans').evaluate((el) => {
+      const plans = [...el.querySelectorAll('.plan-card')].map((card) => {
+        const rect = card.getBoundingClientRect();
+        const overflowing = [...card.querySelectorAll('*')].some((child) => {
+          const childRect = child.getBoundingClientRect();
+          return childRect.right > rect.right + 1 || childRect.left < rect.left - 1;
+        });
+        return { width: rect.width, overflowing };
+      });
+      return {
+        columns: getComputedStyle(el).gridTemplateColumns.split(' ').length,
+        plans,
+        copy: document.body.textContent,
+      };
+    });
+    if (modalLayout.columns !== 2 || modalLayout.plans.some((p) => p.width < 260 || p.overflowing)) {
+      throw new Error(`upgrade modal plan layout failed: ${JSON.stringify(modalLayout.plans)}`);
+    }
+    if (!modalLayout.copy.includes('Payments are temporarily unavailable.')) {
+      throw new Error('upgrade modal still has internal payment-unavailable copy');
+    }
+    await lockedLesson.screenshot({ path: 'test-artifacts/upgrade-modal-wide-after.png', fullPage: true });
+    await lockedLesson.setViewportSize({ width: 390, height: 844 });
+    await lockedLesson.reload();
+    await lockedLesson.waitForSelector('[data-mounted="l.candle-anatomy"]');
+    await lockedLesson.getByRole('dialog', { name: 'Upgrade to unlock' }).waitFor();
+    await lockedLesson.waitForTimeout(300);
+    const mobileColumns = await lockedLesson.locator('.upgrade-modal__plans').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    if (mobileColumns !== 1) throw new Error('upgrade modal plans did not stack on mobile');
+    await lockedLesson.close();
 
     console.log('targeted UI cleanup checks passed');
   } finally {

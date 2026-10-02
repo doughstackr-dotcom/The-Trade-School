@@ -41,7 +41,7 @@ test('manifest: valid, relative to the site, installable icons (any + maskable) 
   assert.deepEqual(pngSize('icons/favicon-32.png'), [32, 32]);
 });
 
-test('index.html: manifest, icons, theme colours for light and dark, home-screen metas, pwa.js after main.js', () => {
+test('index.html: manifest, icons, theme colours for light and dark, home-screen metas, boot loader', () => {
   const html = read('index.html');
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest">/);
   assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon-180\.png"/);
@@ -51,9 +51,24 @@ test('index.html: manifest, icons, theme colours for light and dark, home-screen
   assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /name="apple-mobile-web-app-status-bar-style"/);
   assert.match(html, /viewport-fit=cover/);
-  const main = html.indexOf('src="js/main.js"');
-  const pwa = html.indexOf('src="js/pwa.js"');
-  assert.ok(main > 0 && pwa > main, 'pwa.js loads after main.js');
+  assert.match(html, /<script type="module" src="js\/boot\.js"><\/script>/);
+  assert.equal(html.includes('src="js/main.js"'), false, 'main.js is imported by boot.js after stale-worker cleanup');
+  assert.equal(html.includes('src="js/pwa.js"'), false, 'pwa.js is imported by boot.js after stale-worker cleanup');
+});
+
+test('boot.js: clears an unwanted existing worker before importing the app', () => {
+  const boot = read('js/boot.js');
+  const cleanup = read('js/sw-cleanup.js');
+  assert.match(boot, /clearStaleWorkerForFreshBoot/);
+  assert.match(boot, /await import\('\.\/main\.js'\)/);
+  assert.match(boot, /await import\('\.\/pwa\.js'\)/);
+  assert.match(cleanup, /export const CLEARED_PARAM = 'tts-sw-cleared';/);
+  assert.match(cleanup, /navigator\.serviceWorker\.controller/);
+  assert.match(cleanup, /w\?\.postMessage\(\{ type: 'DISABLE' \}\)/);
+  assert.match(cleanup, /k\.startsWith\('tts-'\)/);
+  assert.match(cleanup, /location\.replace\(href\)/);
+  assert.match(cleanup, /flag === '1'/, 'explicit ?sw=1 keeps offline mode');
+  assert.match(cleanup, /saved === '1'/, 'saved offline preference keeps offline mode');
 });
 
 /** Loads sw.js in a vm with stubbed service-worker globals; returns its listeners. */
@@ -191,10 +206,15 @@ test('sw.js: version stamp placeholder, required shell files exist, module graph
   const activateStart = src.indexOf("addEventListener('activate'");
   const installSrc = src.slice(installStart, activateStart);
   assert.match(installSrc, /if \(SECURITY_CUTOVER\) await self\.skipWaiting\(\);/, 'only storage security cutovers skip waiting on install');
+  assert.match(installSrc, /done\.delete\(new URL\('js\/boot\.js'/, 'boot entry is walked from the module graph');
+  assert.match(installSrc, /done\.delete\(new URL\('js\/main\.js'/, 'boot-imported main.js is walked from the module graph');
+  assert.match(installSrc, /done\.delete\(new URL\('js\/pwa\.js'/, 'boot-imported pwa.js is walked from the module graph');
   const moduleImports = vm.runInNewContext(`${src.match(/function moduleImports[\s\S]*?\n}\n/)[0]}; moduleImports`);
-  const found = moduleImports(read('js/main.js'));
-  assert.ok(found.includes('./core/router.js') && found.includes('./core/store.js'), JSON.stringify(found));
-  for (const spec of found) assert.ok(exists(path.join('js', spec)), `main.js imports a missing file: ${spec}`);
+  const bootFound = moduleImports(read('js/boot.js'));
+  assert.ok(bootFound.includes('./main.js') && bootFound.includes('./pwa.js'), JSON.stringify(bootFound));
+  const mainFound = moduleImports(read('js/main.js'));
+  assert.ok(mainFound.includes('./core/router.js') && mainFound.includes('./core/store.js'), JSON.stringify(mainFound));
+  for (const spec of mainFound) assert.ok(exists(path.join('js', spec)), `main.js imports a missing file: ${spec}`);
   assert.deepEqual([...moduleImports("import './a.js';\nexport { x } from '../b.js';\nimport {\n  q,\n} from './c.js';\nconst d = import('./d.js');")].sort(), ['../b.js', './a.js', './c.js', './d.js']);
 });
 

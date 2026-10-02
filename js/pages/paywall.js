@@ -128,7 +128,7 @@ export default {
         body: h('div', { class: 'upgrade-modal' },
           h('p', { class: 'upgrade-modal__lead' }, intro),
           h('p', { class: 'callout callout--warn' },
-            'Checkout is temporarily unavailable in this candidate while live Stripe checkout and tier entitlements are tested.'),
+            'Payments are temporarily unavailable.'),
           h('div', { class: 'paywall__plans upgrade-modal__plans' },
             planCard('beginner', { selected: need !== 'advanced', current: a.level, onSelect: setSelectedPlan }),
             planCard('advanced', { selected: need === 'advanced', current: a.level, onSelect: setSelectedPlan }))),
@@ -213,9 +213,6 @@ export default {
         h('p', { class: 'paywall__back' },
           h('a', { href: `#${back}` }, icon('arrow-left', { size: 16 }),
             back === 'home' ? 'Back home' : 'Back to Dashboard')),
-        h('section', { class: 'paywall__tools', 'aria-label': 'Practical tools remain available' },
-          h('a', { href: '#t.pre-trade-checklist' }, 'Pre-trade checklist'),
-          h('a', { href: '#t.journal-review' }, 'Journal review')),
       ),
     );
 

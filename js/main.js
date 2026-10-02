@@ -12,11 +12,9 @@ import { clearPremiumModuleCache } from './core/premium-loader.js';
 const NAV = [
   { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
-  { hash: 'tools', label: 'Tools', icon: 'check' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
-  { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
   { hash: 'platforms', label: 'Platforms', icon: 'spark', tab: false, wide: true },
 ];
 
@@ -60,11 +58,11 @@ function navKeyFor(route) {
   if (route.kind === 'page') {
     // Legacy #beginner / #advanced land on dashboard with a section.
     if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
-    if (['library', 'glossary', 'playbook', 'live', 'games', 'tools', 'account', 'platforms'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if (route.kind === 'game') return 'games';
-  if (route.kind === 'tool') return 'tools';
+  if (route.kind === 'tool') return 'dashboard';
   // Lessons highlight Dashboard (track nav entries removed).
   if (route.kind === 'lesson') return 'dashboard';
   return null;
@@ -223,7 +221,6 @@ function buildShell(app) {
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#dashboard' }, 'Dashboard'),
         h('a', { href: '#games' }, 'Games'),
-        h('a', { href: '#tools' }, 'Tools'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),

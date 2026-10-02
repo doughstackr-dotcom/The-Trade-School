@@ -310,7 +310,6 @@ export class LessonShell {
     const tier = e.tier === 'both' ? 'beginner' : e.tier;
     const unit = unitOf(this.id, tier);
     const games = (unit?.games || []).map((id) => findEntry(id)).filter(Boolean);
-    const tools = (unit?.tools || []).map((id) => findEntry(id)).filter(Boolean);
     const next = nextItem(this.id, tier);
     // Skip past this unit's games when looking for the next lesson.
     let nextLesson = null;
@@ -334,14 +333,7 @@ export class LessonShell {
         st?.plays ? starRow(st.stars || 0, { size: 14 }) : h('span', { class: 'chip chip--accent chip--sm' }, 'New'),
         icon('arrow-right', { size: 18 }));
     });
-    const toolCards = tools.map((tool) => h('a', { class: 'lesson-done__game card card--link', href: `#${hashFor(tool.id)}` },
-      h('span', { class: 'lesson-done__game-icon', 'aria-hidden': 'true' }, icon('check', { size: 22 })),
-      h('span', { class: 'lesson-done__game-text' },
-        h('strong', null, tool.title),
-        h('small', { class: 'muted' }, tool.blurb)),
-      h('span', { class: 'chip chip--sm' }, 'Tool'),
-      icon('arrow-right', { size: 18 })));
-    const practiceCards = [...gameCards, ...toolCards];
+    const practiceCards = gameCards;
 
     return h('div', { class: 'lesson-done card card--raised' },
       h('div', { class: 'lesson-done__icon', 'aria-hidden': 'true' }, icon('check', { size: 34 })),
@@ -354,8 +346,6 @@ export class LessonShell {
       h('div', { class: 'row lesson-done__actions' },
         gameCards.length
           ? h('a', { class: 'btn btn--primary', href: `#${hashFor(games[0].id)}` }, icon('play'), `Play ${games[0].title}`)
-          : toolCards.length
-            ? h('a', { class: 'btn btn--primary', href: `#${hashFor(tools[0].id)}` }, icon('check'), `Open ${tools[0].title}`)
           : null,
         nextLesson ? h('a', { class: 'btn', href: `#l.${nextLesson.id}` }, `Next lesson: ${nextLesson.title}`, icon('arrow-right')) : null,
         h('button', { type: 'button', class: 'btn btn--ghost', on: { click: () => this.go(0) } }, icon('restart'), 'Review from start')));

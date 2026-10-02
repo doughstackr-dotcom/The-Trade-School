@@ -1,6 +1,6 @@
 // Hash router. Routes are plain tokens: #home, #library(.<id>),
 // #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
-// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #tools, #live,
+// #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #live,
 // #l.<lessonId>, #g.<gameId>, #t.<toolId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
@@ -17,7 +17,6 @@ const PAGE_PATHS = {
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
   games: '../pages/games.js',
-  tools: '../pages/tools.js',
   dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
@@ -97,7 +96,8 @@ export function parseHash(hash) {
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'tools' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
+  if (token === 'tools') return { key: token, kind: 'page', page: 'dashboard' };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
   // #dev-chart is a chart-rendering dev tool: localhost only; other hosts see Not found.
   if (token === 'dev-chart') {
     let local = false;
@@ -108,10 +108,10 @@ export function parseHash(hash) {
     if (local) return { key: token, kind: 'page', page: token };
   }
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
-  if (token === 'g.checklist-discipline') return { key: token, kind: 'tool', id: 'pre-trade-checklist' };
-  if (token === 'g.journal-review') return { key: token, kind: 'tool', id: 'journal-review' };
+  if (token === 'g.checklist-discipline') return { key: token, kind: 'page', page: 'dashboard' };
+  if (token === 'g.journal-review') return { key: token, kind: 'page', page: 'dashboard' };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
-  if (token.startsWith('t.')) return { key: token, kind: 'tool', id: token.slice(2) };
+  if (token.startsWith('t.')) return { key: token, kind: 'page', page: 'dashboard' };
   return { key: token, kind: 'notfound' };
 }
 
@@ -125,7 +125,6 @@ function titleFor(route, entry) {
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
     case 'games': return `Games · ${SITE}`;
-    case 'tools': return `Tools · ${SITE}`;
     case 'dashboard': return `Dashboard · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;
@@ -151,7 +150,6 @@ function descriptionFor(route, entry) {
     case 'playbook': return 'Rule-based chart setups with a checklist, entry, stop and target. Educational only, not financial advice.';
     case 'live': return 'The Live Market Lab: quotes, market hours and real charts with source and delay labelled. Educational only.';
     case 'games': return 'Every game in The Trade School — drills for candlesticks, patterns, trends, Fibonacci, risk and more. Educational only.';
-    case 'tools': return 'Practical trading-process tools for checklists and journal review. Educational only.';
     case 'dashboard': return 'Your progress across both tracks: lessons, games, XP, badges and daily streak. Educational only.';
     case 'account': return 'Sign in or create a free account to open the Beginner and Advanced tracks. Educational only.';
     case 'paywall': return 'Unlock every lesson, game and tool in the Beginner and Advanced tracks. Educational only.';

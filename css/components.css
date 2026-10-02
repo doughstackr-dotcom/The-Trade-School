@@ -1469,6 +1469,10 @@ figcaption {
   width: min(640px, 100%);
 }
 
+.modal--lg {
+  width: min(760px, 100%);
+}
+
 .modal-backdrop.is-in .modal {
   transform: none;
 }
@@ -4490,7 +4494,7 @@ figcaption {
   margin-top: 1px;
 }
 
-/* Glossary drops out of the top nav below 1180px (it stays in the footer). */
+/* Wide-only nav items drop out of the top nav below 1180px. */
 @media (max-width: 1179.98px) {
   .nav__link--wide {
     display: none;
@@ -6865,6 +6869,67 @@ body[data-route="paywall"] .main {
   font-size: 14px;
 }
 .paywall__actions { flex-wrap: wrap; }
+.upgrade-modal {
+  display: grid;
+  gap: 14px;
+}
+
+.upgrade-modal__lead {
+  margin: 0;
+}
+
+.upgrade-modal__plans {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.upgrade-modal__plans .plan-card {
+  min-height: 0;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+}
+
+.upgrade-modal__plans .plan-card__topline {
+  align-items: flex-start;
+}
+
+.upgrade-modal__plans .plan-card__title {
+  overflow-wrap: anywhere;
+  font-size: 18px;
+}
+
+.upgrade-modal__plans .plan-card__badge {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.upgrade-modal__plans .plan-card__price {
+  margin-top: 12px;
+  gap: 5px;
+}
+
+.upgrade-modal__plans .plan-card__amount {
+  overflow-wrap: anywhere;
+  font-size: clamp(30px, 5vw, 38px);
+  line-height: 1;
+}
+
+.upgrade-modal__plans .plan-card__cadence,
+.upgrade-modal__plans .plan-card__note {
+  font-size: 13px;
+}
+
+.upgrade-modal__plans .plan-card__rule {
+  margin: 12px 0;
+}
+
+.upgrade-modal__plans .plan-card__perk {
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
 @media (max-width: 859.98px) {
   .paywall {
     width: min(100% - 24px, 42rem);
@@ -7419,14 +7484,36 @@ body[data-route="paywall"] .main {
 .teaser-banner__title { margin: 0.15rem 0 0.35rem; font-size: 1.25rem; }
 .teaser-banner__actions { flex-wrap: wrap; }
 .library-teaser-banner {
+  width: min(100%, var(--container, 1120px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 32px;
+  align-items: center;
   justify-content: center;
-  text-align: center;
+  text-align: left;
 }
 .library-teaser-banner .teaser-banner__copy {
   max-width: 42rem;
 }
 .library-teaser-banner .teaser-banner__actions {
-  justify-content: center;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+@media (max-width: 720px) {
+  .library-teaser-banner {
+    grid-template-columns: minmax(0, 1fr);
+    text-align: center;
+  }
+
+  .library-teaser-banner .teaser-banner__copy {
+    margin-inline: auto;
+  }
+
+  .library-teaser-banner .teaser-banner__actions {
+    justify-content: center;
+    min-width: 0;
+  }
 }
 
 .teaser-lock {

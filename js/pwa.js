@@ -12,8 +12,8 @@
 //   over (SKIP_WAITING) and reloads once it controls the page.
 // <html data-sw="…"> records the outcome for tests: registered | off | unsupported | framed | error.
 import { h, svg, icon, modal, toast } from './core/ui.js';
+import { clearRegisteredWorkers, isLocalHost, workerCleanupUrl } from './sw-cleanup.js';
 
-const LOCAL_HOST = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
 const KEY_OPT = 'tts-sw';
 const KEY_DISMISS = 'tts-install-dismissed';
 const DISMISS_MS = 30 * 24 * 3600 * 1000;
@@ -97,7 +97,7 @@ export function swDecision() {
     /* sandboxed */
   }
   if (origin === 'null' || !('serviceWorker' in navigator) || !window.isSecureContext) return 'unsupported';
-  const local = LOCAL_HOST.test(location.hostname);
+  const local = isLocalHost();
   if (location.protocol !== 'https:' && !local) return 'unsupported';
   const flag = queryFlag();
   if (flag === '0') return 'off';
@@ -113,21 +113,20 @@ export function swDecision() {
 
 async function unregisterAll() {
   try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    // A worker keeps controlling this page after unregister(): tell it to stop caching first.
-    for (const w of [navigator.serviceWorker.controller, ...regs.flatMap((r) => [r.active, r.waiting, r.installing])]) {
-      try {
-        w?.postMessage({ type: 'DISABLE' });
-      } catch {
-        /* gone */
-      }
-    }
-    await Promise.all(regs.map((r) => r.unregister()));
-    if (typeof caches === 'undefined') return;
-    const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k.startsWith('tts-')).map((k) => caches.delete(k)));
+    const hadController = !!navigator.serviceWorker.controller;
+    await clearRegisteredWorkers();
+    if (hadController) reloadAfterWorkerCleanup();
   } catch {
     /* nothing registered */
+  }
+}
+
+function reloadAfterWorkerCleanup() {
+  try {
+    const href = workerCleanupUrl();
+    if (href) location.replace(href);
+  } catch {
+    try { location.reload(); } catch { /* ignore */ }
   }
 }
 
@@ -361,7 +360,7 @@ function boot() {
   if (flag === '1') write(KEY_OPT, '1');
   if (decision === 'off') {
     setState('off');
-    if (flag === '0') write(KEY_OPT, LOCAL_HOST.test(location.hostname) ? null : '0');
+    if (flag === '0') write(KEY_OPT, isLocalHost() ? null : '0');
     // Switched off (or never opted in on localhost): remove any worker / caches left behind.
     unregisterAll();
     return;

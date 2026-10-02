@@ -13,7 +13,6 @@ function unitStatus(store, unit) {
   }
   const best = Math.max(0, ...(unit.games || []).map((g) => store.gameStats(g)?.stars || 0));
   if ((unit.games || []).length) bits.push(starRow(best, { size: 13 }));
-  if ((unit.tools || []).length) bits.push(h('span', { class: 'chip chip--sm' }, icon('check', { size: 13 }), 'Tool'));
   return h('span', { class: 'unit-row__status' }, bits);
 }
 
@@ -47,10 +46,6 @@ function unitTarget(unit) {
     if (e) return e;
   }
   for (const id of unit.games || []) {
-    const e = findEntry(id);
-    if (e) return e;
-  }
-  for (const id of unit.tools || []) {
     const e = findEntry(id);
     if (e) return e;
   }

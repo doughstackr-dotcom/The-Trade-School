@@ -22,24 +22,26 @@ function memStorage() {
   };
 }
 
-test('PUBLIC_PAGES keeps home, dashboard, tools and platforms open', () => {
+test('PUBLIC_PAGES keeps home, dashboard and platforms open', () => {
   for (const p of [
     'home', 'dashboard', 'progress', 'library', 'glossary',
-    'playbook', 'games', 'tools', 'live', 'platforms', 'affiliate', 'account', 'paywall',
+    'playbook', 'games', 'live', 'platforms', 'affiliate', 'account', 'paywall',
   ]) {
     assert.ok(PUBLIC_PAGES.includes(p), `expected ${p} in PUBLIC_PAGES`);
   }
+  assert.equal(PUBLIC_PAGES.includes('tools'), false);
   assert.equal(PUBLIC_PAGES.includes('beginner'), false);
   assert.equal(PUBLIC_PAGES.includes('advanced'), false);
   // Legacy standalone track page removed; #beginner/#advanced → dashboard.
   assert.equal(PUBLIC_PAGES.includes('track'), false);
 });
 
-test('TEASER_PAGES are routable tools that self-gate; Platforms is not teaser-locked', () => {
-  for (const p of ['library', 'glossary', 'playbook', 'games', 'tools']) {
+test('TEASER_PAGES are routable previews that self-gate; Platforms is not teaser-locked', () => {
+  for (const p of ['library', 'glossary', 'playbook', 'games']) {
     assert.ok(TEASER_PAGES.includes(p), `expected ${p} in TEASER_PAGES`);
     assert.ok(PUBLIC_PAGES.includes(p), `${p} stays publicly routable for teasers`);
   }
+  assert.equal(TEASER_PAGES.includes('tools'), false);
   assert.equal(TEASER_PAGES.includes('platforms'), false);
   assert.ok(PUBLIC_PAGES.includes('platforms'));
 });
@@ -62,7 +64,6 @@ test('isCurriculumGated: only Beginner/Advanced lessons/games/tools (not Dashboa
   assert.equal(isCurriculumGated(null, { page: 'playbook' }), false);
   assert.equal(isCurriculumGated(null, { page: 'live' }), false);
   assert.equal(isCurriculumGated(null, { page: 'glossary' }), false);
-  assert.equal(isCurriculumGated(null, { page: 'tools' }), false);
 
   assert.equal(isCurriculumGated({ type: 'lesson', tier: 'beginner', id: 'candle-anatomy' }, { kind: 'lesson' }), true);
   assert.equal(isCurriculumGated({ type: 'game', tier: 'advanced', id: 'fib-sniper' }, { kind: 'game' }), true);
@@ -114,7 +115,6 @@ test('canOpen (unsigned, enforcing): public pages yes; curriculum no', async () 
   assert.equal(canOpen(null, { page: 'live' }), true);
   assert.equal(canOpen(null, { page: 'glossary' }), true);
   assert.equal(canOpen(null, { page: 'games' }), true);
-  assert.equal(canOpen(null, { page: 'tools' }), true);
   assert.equal(canOpen(null, { page: 'account' }), true);
 
   // Dead track page key is not curriculum-gated; Dashboard sections stay open.

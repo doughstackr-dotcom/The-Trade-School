@@ -264,7 +264,6 @@ async function routes() {
     ...((reg.PAGES || []).some((p) => p.id === 'playbook') ? ['playbook.hammer'] : []),
     ...reg.LESSONS.map((l) => `l.${l.id}`),
     ...reg.GAMES.map((g) => `g.${g.id}`),
-    ...(reg.TOOLS || []).map((t) => `t.${t.id}`),
     ...(reg.DEV_ENTRIES || []).map((e) => `${e.type === 'game' ? 'g' : 'l'}.${e.id}`),
     // accounts (§9): signed out, access open on localhost — these must render without network
     'pricing', 'pricing.advanced', 'account', 'signin', 'signup', 'reset', 'reset.update', 'terms', 'privacy',

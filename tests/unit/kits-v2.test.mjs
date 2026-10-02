@@ -58,7 +58,7 @@ test('registry: curriculum order and the new entries', () => {
   assert.equal(reg.hashFor('journal-review'), 't.journal-review');
   assert.equal(reg.findPage('playbook').hash, 'playbook');
   assert.equal(reg.findPage('games').hash, 'games');
-  assert.equal(reg.findPage('tools').hash, 'tools');
+  assert.equal(reg.findPage('tools'), null);
   assert.equal(reg.findEntry('_kit-demo').dev, true);
   assert.ok(!reg.LESSONS.some((l) => l.id === '_kit-demo'), 'dev entries stay out of the curriculum');
 });

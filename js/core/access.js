@@ -285,7 +285,7 @@ export function requiredPlan(entryOrMode) {
   return 'free';
 }
 
-/** Pages anyone may open without a session (home, dashboard, tools, auth).
+/** Pages anyone may open without a session (home, dashboard, auth).
  *  library / glossary / playbook stay routable so unpaid & anonymous visitors see
  *  in-page teasers; full interaction requires hasPaidAccess() (see pages).
  *  Platforms stays fully public with no teaser lock.
@@ -293,12 +293,12 @@ export function requiredPlan(entryOrMode) {
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'dashboard', 'progress', // #progress aliases to dashboard
-  'library', 'glossary', 'playbook', 'games', 'tools', 'live', 'platforms', 'affiliate', // #affiliate aliases to platforms
+  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate aliases to platforms
   'dev-chart',
 ]);
 
 /** Tool pages that mount for everyone but self-gate full content behind a paid plan. */
-export const TEASER_PAGES = Object.freeze(['library', 'glossary', 'playbook', 'games', 'tools']);
+export const TEASER_PAGES = Object.freeze(['library', 'glossary', 'playbook', 'games']);
 
 /**
  * True when the user may use paid tool pages (Library, Playbook, Glossary) and

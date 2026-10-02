@@ -3,7 +3,7 @@
  * - Versioned cache: `tts-<VERSION>-<BUILD>`. The deploy workflow stamps BUILD with the commit, so
  *   every deploy installs a new worker, which waits until the page asks it to take over (the
  *   "Update available — Reload" toast in js/pwa.js). Old caches are deleted on activate.
- * - Precache: the app shell (index.html, css, js/main.js, js/core, js/pages, registry, config,
+ * - Precache: the app shell (index.html, css, js/boot.js, js/core, js/pages, registry, config,
  *   icons, manifest) plus every same-origin stylesheet / script that index.html links. Only the
  *   core of the shell must succeed; the rest is best effort, so a missing optional file never
  *   blocks the install.
@@ -33,6 +33,8 @@ const CORE = [
   'css/base.css',
   'css/components.css',
   'css/chart.css',
+  'js/boot.js',
+  'js/sw-cleanup.js',
   'js/main.js',
   'js/pwa.js',
   'js/registry.js',
@@ -167,9 +169,11 @@ self.addEventListener('install', (event) => {
     await cache.addAll(CORE.filter((p) => p !== './').map(freshRequest));
     // Everything the entry scripts import, then the optional list and index.html's other links.
     const done = new Set(CORE.map((p) => new URL(p, scopeUrl()).href));
+    done.delete(new URL('js/boot.js', scopeUrl()).href);
+    done.delete(new URL('js/sw-cleanup.js', scopeUrl()).href);
     done.delete(new URL('js/main.js', scopeUrl()).href);
     done.delete(new URL('js/pwa.js', scopeUrl()).href);
-    await precacheModuleGraph(cache, ['js/main.js', 'js/pwa.js'], done);
+    await precacheModuleGraph(cache, ['js/boot.js'], done);
     const extra = [...new Set([...OPTIONAL, ...linkedAssets(html)])]
       .map((p) => new URL(p, scopeUrl()).href)
       .filter((u) => !done.has(u));
