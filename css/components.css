@@ -7253,3 +7253,205 @@ figcaption {
   border-color: color-mix(in oklab, var(--accent) 35%, var(--line));
 }
 
+
+/* ================================================================ ARCADE LAYER (v2)
+   Neon treatment for the shared chrome. Everything flows through tokens: the glow
+   variables collapse to soft shadows in Chart Paper (light) mode, so both themes
+   keep passing with one rule set. Rules live at the end so equal-specificity
+   overrides win without !important. */
+
+/* Cabinet edge under the sticky chrome: cyan → magenta neon hairline. */
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--accent) 22%, var(--arcade) 78%, transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.brand__word {
+  text-shadow: 0 0 14px rgba(53, 224, 255, 0.25);
+}
+
+.brand__mark .brand__body--bull {
+  filter: drop-shadow(0 0 4px rgba(41, 242, 156, 0.6));
+}
+
+.nav__link.is-active {
+  color: var(--text);
+}
+
+.nav__link.is-active::after {
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+  box-shadow: 0 1px 8px rgba(53, 224, 255, 0.5);
+  border-radius: 99px;
+}
+
+/* XP pill → neon HUD readout. */
+.xp-pill {
+  background: rgba(6, 11, 20, 0.55);
+  border: 1px solid color-mix(in oklab, var(--accent) 34%, var(--line));
+  box-shadow: var(--glow-inset);
+}
+
+.xp-pill:hover {
+  border-color: color-mix(in oklab, var(--accent) 62%, var(--line));
+  box-shadow: var(--glow-accent), var(--glow-inset);
+}
+
+.xp-pill__lv {
+  font-family: var(--font-arcade);
+  font-size: 0.75rem;
+  color: var(--accent-strong);
+  text-shadow: 0 0 10px rgba(53, 224, 255, 0.45);
+}
+
+.xp-pill__fill {
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+  box-shadow: 0 0 8px rgba(53, 224, 255, 0.55);
+}
+
+/* Primary buttons carry a quiet neon halo. */
+.btn--primary {
+  box-shadow: var(--glow-accent), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.btn--primary:hover {
+  box-shadow: 0 0 22px rgba(53, 224, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* PRESS START cabinet button: pixel label, double border, glow pulse on hover. */
+.btn--arcade {
+  position: relative;
+  font-family: var(--font-arcade);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: var(--radius);
+  box-shadow:
+    var(--glow-accent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn--arcade::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed color-mix(in oklab, var(--accent-ink) 36%, transparent);
+  border-radius: calc(var(--radius) - 3px);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.btn--arcade:hover {
+  animation: arcade-btn-pulse 1.1s ease-in-out infinite;
+}
+
+.btn--arcade:active {
+  translate: 0 2px;
+  box-shadow: var(--glow-inset);
+}
+
+@keyframes arcade-btn-pulse {
+  0%, 100% { box-shadow: var(--glow-accent), inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+  50% { box-shadow: 0 0 26px rgba(53, 224, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+}
+
+/* Magenta "insert coin" variant (Daily Challenge, shop). */
+.btn--arcade-2 {
+  background: var(--arcade);
+  border-color: transparent;
+  color: #FFF7FB;
+  box-shadow: var(--glow-arcade);
+}
+
+.btn--arcade-2:hover {
+  background: color-mix(in oklab, var(--arcade), white 12%);
+  border-color: transparent;
+}
+
+/* Neon-edged panel for hero / boss / cabinet blocks. */
+.neon-frame {
+  position: relative;
+  border: 1px solid color-mix(in oklab, var(--accent) 38%, var(--line));
+  box-shadow: var(--glow-accent), var(--glow-inset);
+}
+
+.neon-frame--arcade {
+  border-color: color-mix(in oklab, var(--arcade) 44%, var(--line));
+  box-shadow: var(--glow-arcade), inset 0 0 18px rgba(255, 79, 216, 0.05);
+}
+
+/* Answer feedback gets a neon ring, not just a tint. */
+.option.is-correct {
+  box-shadow: var(--glow-bull);
+}
+
+.option.is-wrong {
+  box-shadow: var(--glow-bear);
+}
+
+/* Quiz correct/wrong marks pop harder. */
+.option.is-selected.is-correct .option__mark {
+  filter: drop-shadow(0 0 6px rgba(41, 242, 156, 0.7));
+}
+
+.option.is-selected.is-wrong .option__mark {
+  filter: drop-shadow(0 0 6px rgba(255, 92, 110, 0.7));
+}
+
+/* Meters glow while filling. */
+.meter__fill {
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+  box-shadow: 0 0 8px rgba(53, 224, 255, 0.45);
+}
+
+.meter--bull .meter__fill,
+.meter__fill--bull {
+  background: var(--bull);
+  box-shadow: 0 0 8px rgba(41, 242, 156, 0.45);
+}
+
+.meter--bear .meter__fill,
+.meter__fill--bear {
+  background: var(--bear);
+  box-shadow: 0 0 8px rgba(255, 92, 110, 0.45);
+}
+
+/* Chips: accent chip lights up. */
+.chip--accent {
+  box-shadow: 0 0 10px rgba(53, 224, 255, 0.22);
+}
+
+/* Toasts: neon edge by type. */
+.toast--xp {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  box-shadow: var(--glow-accent);
+}
+
+.toast--badge {
+  border-color: color-mix(in oklab, var(--arcade) 45%, var(--line));
+  box-shadow: var(--glow-arcade);
+}
+
+/* Modal cabinets: neon edge on the dialog. */
+.modal {
+  border: 1px solid color-mix(in oklab, var(--accent) 26%, var(--line));
+  box-shadow: var(--shadow-lg), var(--glow-accent);
+}
+
+/* Level-up flourish. */
+.levelup__badge {
+  filter: drop-shadow(0 0 14px rgba(255, 79, 216, 0.55));
+}
+
+.levelup__num {
+  font-family: var(--font-arcade);
+  color: var(--arcade);
+  text-shadow: 0 0 12px rgba(255, 79, 216, 0.5);
+}

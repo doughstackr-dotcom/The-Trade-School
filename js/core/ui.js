@@ -522,7 +522,62 @@ export const sfx = {
   win: () => play('win', [[523.25, 0, 0.14, 'triangle', 0.13], [659.25, 0.09, 0.14, 'triangle', 0.13], [783.99, 0.18, 0.14, 'triangle', 0.13], [1046.5, 0.27, 0.42, 'triangle', 0.13]]),
   badge: () => play('badge', [[783.99, 0, 0.12, 'sine', 0.12], [1174.66, 0.08, 0.3, 'sine', 0.1]]),
   whoosh: () => play('whoosh', [[400, 0, 0.18, 'sine', 0.05, 900]]),
+  // Arcade additions (v2): coin insert, combo arp, power-up, boss klaxon, big fanfare.
+  coin: () => play('coin', [[988, 0, 0.07, 'square', 0.07], [1319, 0.07, 0.24, 'square', 0.07]]),
+  combo: () => play('combo', [[659.25, 0, 0.06, 'square', 0.06], [830.6, 0.055, 0.06, 'square', 0.06], [987.77, 0.11, 0.14, 'square', 0.06]]),
+  powerup: () => play('powerup', [[392, 0, 0.09, 'square', 0.05], [523.25, 0.08, 0.09, 'square', 0.05], [659.25, 0.16, 0.09, 'square', 0.05], [880, 0.24, 0.2, 'square', 0.05]]),
+  alarm: () => play('alarm', [[440, 0, 0.16, 'sawtooth', 0.05, 330], [440, 0.2, 0.16, 'sawtooth', 0.05, 330]]),
+  fanfare: () => play('fanfare', [[523.25, 0, 0.11, 'triangle', 0.12], [659.25, 0.1, 0.11, 'triangle', 0.12], [783.99, 0.2, 0.11, 'triangle', 0.12], [1046.5, 0.3, 0.16, 'triangle', 0.13], [783.99, 0.46, 0.1, 'triangle', 0.11], [1046.5, 0.56, 0.5, 'triangle', 0.14]]),
 };
+
+// ------------------------------------------------------------------ arcade juice (v2)
+
+/**
+ * Micro screen-shake. Adds .is-shaking (css/base.css keyframes) and removes it when the
+ * animation ends. No-op under reduced motion (the global unwind makes it instant) or when
+ * the sound/motion setting is off. `el` defaults to <main>.
+ */
+export function shake(el = null, { intensity = 1 } = {}) {
+  if (typeof document === 'undefined' || reducedMotion()) return;
+  const target = el || document.getElementById('main');
+  if (!target) return;
+  target.style.setProperty('--shake-scale', String(Math.max(0.4, Math.min(1.6, intensity))));
+  target.classList.remove('is-shaking');
+  void target.offsetWidth; // restart the animation on rapid hits
+  target.classList.add('is-shaking');
+  const clear = () => target.classList.remove('is-shaking');
+  target.addEventListener('animationend', clear, { once: true });
+  setTimeout(clear, 500); // safety net if animationend never fires (element removed)
+}
+
+/**
+ * Floating arcade popup ("+120", "COMBO ×3") at a point or element. tone:
+ * 'bull' | 'bear' | 'arcade' | 'accent'. Auto-removes; no-op under reduced motion.
+ */
+export function floatText(text, { at = null, x = null, y = null, tone = 'accent', size = '' } = {}) {
+  if (typeof document === 'undefined' || reducedMotion()) return null;
+  let px = x;
+  let py = y;
+  if (px == null || py == null) {
+    const ref = at || document.getElementById('main');
+    if (ref?.getBoundingClientRect) {
+      const r = ref.getBoundingClientRect();
+      px = px ?? (r.left + r.width / 2);
+      py = py ?? (r.top + r.height / 3);
+    } else {
+      px = px ?? window.innerWidth / 2;
+      py = py ?? window.innerHeight / 3;
+    }
+  }
+  const el = h('span', {
+    class: ['float-text', tone && `float-text--${tone}`, size && `float-text--${size}`],
+    style: { left: `${Math.round(px)}px`, top: `${Math.round(py)}px` },
+    'aria-hidden': 'true',
+  }, String(text));
+  document.body.append(el);
+  setTimeout(() => el.remove(), 950);
+  return el;
+}
 
 // ------------------------------------------------------------------ quiz
 

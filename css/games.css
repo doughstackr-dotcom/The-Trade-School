@@ -318,3 +318,223 @@
   margin-inline: 0;
   display: block;
 }
+
+/* ================================================================ ARCADE HUD (v2) */
+
+/* Game HUD reads like a cabinet dashboard. */
+.hud {
+  background: rgba(6, 11, 20, 0.5);
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
+  box-shadow: var(--glow-inset);
+}
+
+.hud__value {
+  color: var(--accent-strong);
+  text-shadow: 0 0 10px rgba(53, 224, 255, 0.4);
+}
+
+.hud__label {
+  font-family: var(--font-arcade);
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hud__cell--score .hud__value {
+  font-family: var(--font-arcade);
+  color: var(--text);
+  text-shadow: 0 0 12px rgba(53, 224, 255, 0.5);
+}
+
+.hud__streak.is-hot .hud__value {
+  color: var(--arcade);
+  text-shadow: 0 0 12px rgba(255, 79, 216, 0.55);
+}
+
+/* Lives hearts burn. */
+.hud__hearts .icon--heart {
+  filter: drop-shadow(0 0 5px rgba(255, 92, 110, 0.65));
+}
+
+/* Timer bar: cyan draining to magenta warning. */
+.timerbar__track {
+  background: rgba(6, 11, 20, 0.6);
+  border: 1px solid color-mix(in oklab, var(--accent) 20%, var(--line));
+}
+
+.timerbar__fill {
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+  box-shadow: 0 0 10px rgba(53, 224, 255, 0.5);
+}
+
+.timerbar.is-low .timerbar__fill {
+  background: var(--bear);
+  box-shadow: 0 0 12px rgba(255, 92, 110, 0.65);
+}
+
+.timerbar__text {
+  font-family: var(--font-arcade);
+}
+
+/* Boss bar (js/core/arcade.js BossBar). */
+.bossbar {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: rgba(6, 11, 20, 0.55);
+  border: 1px solid color-mix(in oklab, var(--arcade) 40%, var(--line));
+  border-radius: var(--radius);
+  box-shadow: var(--glow-arcade), var(--glow-inset);
+}
+
+.bossbar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bossbar__name {
+  font-family: var(--font-arcade);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--arcade);
+  text-shadow: 0 0 10px rgba(255, 79, 216, 0.5);
+}
+
+.bossbar__phase {
+  font-family: var(--font-arcade);
+  font-size: 0.6875rem;
+  color: var(--text-3);
+}
+
+.bossbar__track {
+  position: relative;
+  height: 14px;
+  background: rgba(255, 92, 110, 0.12);
+  border: 1px solid color-mix(in oklab, var(--bear) 40%, var(--line));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bossbar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bear) 0 10px,
+    color-mix(in oklab, var(--bear), black 22%) 10px 20px
+  );
+  box-shadow: 0 0 12px rgba(255, 92, 110, 0.55);
+  transition: width 0.35s var(--ease-out);
+}
+
+.bossbar.is-dying .bossbar__fill {
+  animation: bossbar-flicker 0.5s steps(2, end) infinite;
+}
+
+.bossbar.is-clear .bossbar__fill {
+  background: none;
+  box-shadow: none;
+}
+
+.bossbar.is-clear {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+@keyframes bossbar-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Wager bank (arcade.js Wager). */
+.wager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in oklab, var(--warn) 38%, var(--line));
+  border-radius: var(--radius);
+  background: rgba(255, 180, 84, 0.06);
+}
+
+.wager__bank {
+  font-family: var(--font-arcade);
+  font-size: 1rem;
+  color: var(--warn);
+  text-shadow: 0 0 10px rgba(255, 180, 84, 0.45);
+}
+
+.wager__label {
+  font-family: var(--font-arcade);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.wager__stake {
+  font-family: var(--font-arcade);
+  color: var(--arcade);
+}
+
+/* READY / GO flash (arcade.js readyGo). */
+.readygo {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.readygo__text {
+  font-family: var(--font-arcade);
+  font-size: clamp(2rem, 8vw, 4rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 0 24px rgba(53, 224, 255, 0.6);
+  animation: readygo-pop 0.75s var(--ease-back) forwards;
+}
+
+.readygo__text--go {
+  color: var(--bull);
+  text-shadow: 0 0 24px rgba(41, 242, 156, 0.6);
+}
+
+@keyframes readygo-pop {
+  0% { opacity: 0; scale: 0.4; }
+  35% { opacity: 1; scale: 1.15; }
+  55% { scale: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; scale: 1.05; }
+}
+
+/* Campaign stage chips: pixel numbers, neon cleared state. */
+.game-campaign__number {
+  font-family: var(--font-arcade);
+}
+
+.game-campaign__level.is-cleared {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+.game-campaign__level.is-selected {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  box-shadow: var(--glow-accent);
+}
+
+/* Results score in pixel type. */
+.game-results__score,
+.results-score {
+  font-family: var(--font-arcade);
+  text-shadow: 0 0 16px rgba(53, 224, 255, 0.45);
+}

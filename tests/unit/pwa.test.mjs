@@ -47,7 +47,8 @@ test('index.html: manifest, icons, theme colours for light and dark, home-screen
   assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon-180\.png"/);
   assert.match(html, /<link rel="icon" href="[^"]+"/, 'a favicon (the site uses an inline SVG data URI)');
   assert.match(html, /name="theme-color" content="#F3F5F9" media="\(prefers-color-scheme: light\)"/);
-  assert.match(html, /name="theme-color" content="#0B1220" media="\(prefers-color-scheme: dark\)"/);
+  // v2 arcade palette: dark is the default brand theme (near-black navy CRT).
+  assert.match(html, /name="theme-color" content="#060B14" media="\(prefers-color-scheme: dark\)"/);
   assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /name="apple-mobile-web-app-status-bar-style"/);
   assert.match(html, /viewport-fit=cover/);

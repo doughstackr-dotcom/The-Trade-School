@@ -49,7 +49,7 @@ function applyTheme(pref) {
   const root = document.documentElement;
   if (pref === 'light' || pref === 'dark') root.setAttribute('data-theme', pref);
   else root.removeAttribute('data-theme');
-  const color = effectiveTheme(pref) === 'dark' ? '#0B1220' : '#F3F5F9';
+  const color = effectiveTheme(pref) === 'dark' ? '#060B14' : '#F3F5F9';
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', color));
 }
 
