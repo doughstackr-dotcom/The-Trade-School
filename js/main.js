@@ -3,6 +3,7 @@ import { store } from './core/store.js';
 import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
 import { h, svg, icon, sfx, toast } from './core/ui.js';
+import { senseiSVG, wireSensei, SENSEI_TIPS } from './core/mascot.js';
 import { findEntry } from './registry.js';
 import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
 
@@ -147,6 +148,24 @@ function buildShell(app) {
     }
   }
 
+  // The Candle Sensei: header buddy wearing the equipped hat; tap for a tip.
+  const buddy = h('button', {
+    type: 'button',
+    class: 'sensei-buddy',
+    'aria-label': 'The Candle Sensei — press for a trading tip',
+    title: 'The Candle Sensei',
+    on: { click: () => {
+      sfx.click();
+      toast(SENSEI_TIPS[Math.floor(Math.random() * SENSEI_TIPS.length)], { type: 'info', duration: 4200 });
+    } },
+  });
+  const renderBuddy = (mood = 'idle') => {
+    const hat = String(store.state.cosmetics?.equipped?.hat || 'none').replace(/^hat-/, '') || 'none';
+    buddy.replaceChildren(senseiSVG({ size: 30, mood, hat }));
+  };
+  renderBuddy();
+  wireSensei(store, (mood) => renderBuddy(mood));
+
   // Sound toggle
   const soundBtn = h('button', { type: 'button', class: 'icon-btn', on: { click: () => {
     store.setSetting('sound', !store.state.settings.sound);
@@ -251,7 +270,7 @@ function buildShell(app) {
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, authBtn, logoutBtn, soundBtn, themeBtn, languageBtn)));
+      h('div', { class: 'topbar__tools' }, xpPill, buddy, authBtn, logoutBtn, soundBtn, themeBtn, languageBtn)));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },

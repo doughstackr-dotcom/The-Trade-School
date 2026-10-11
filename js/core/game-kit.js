@@ -7,6 +7,7 @@
 // until they run out, difficulty ramps). Chart sources (§12.2): Textbook or Real market, with
 // game.realRound() / game.revealSource() for "mystery chart" rounds and a textbook fallback.
 import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast, choiceQuiz, shake, floatText as floatPopup } from './ui.js';
+import { senseiSVG } from './mascot.js';
 import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
 import { CAMPAIGN_LEVEL_COUNT, campaignProfile, campaignDifficulty } from './game-levels.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
@@ -465,6 +466,8 @@ export class GameShell {
     this._renderScore(before, `+${gained}`);
     this._renderStreak(true);
     sfx.correct();
+    // The Candle Sensei reacts (mascot listens for these).
+    document.dispatchEvent(new CustomEvent('tts:hit', { detail: { streak: this.streak, gained } }));
     // Arcade juice: streak multipliers pop at the score cell; a higher tier chimes.
     if (mult > 1) {
       floatPopup(`×${mult}`, { at: this._scoreWrap, tone: 'arcade' });
@@ -489,6 +492,7 @@ export class GameShell {
     this._renderStreak(false);
     sfx.wrong();
     shake(this._play); // arcade juice: micro screen-shake on a miss
+    document.dispatchEvent(new CustomEvent('tts:miss'));
     this._lastMult = 1;
     let note = '';
     if (this.lives != null) {
@@ -1940,8 +1944,18 @@ export class GameShell {
       : null;
 
     const modeLabel = s.mode && this.modes ? this.modes.find((m) => m.id === s.mode)?.label || s.mode : null;
+    // The Candle Sensei reacts to the result (mood by stars; wears the equipped hat).
+    const senseiMood = s.stars >= 3 ? 'fire' : s.stars === 2 ? 'cheer' : s.stars === 1 ? 'zen' : 'wince';
+    const senseiLine = s.stars >= 3 ? 'The Sensei bows. Read like that and the market pays attention.'
+      : s.stars === 2 ? 'Good read. One more star lives in the details.'
+        : s.stars === 1 ? 'A start. Review the lesson and run it back.'
+          : 'Every wick teaches. Breathe, review, retry.';
+    const hatKind = String(this.store?.equippedOf?.('hat') || 'none').replace(/^hat-/, '') || 'none';
     const card = h('div', { class: 'results card card--raised', 'data-style': s.style },
       h('p', { class: 'eyebrow' }, [e.title, modeLabel, this.daily ? this._dailyDateText() : styleLabel].filter(Boolean).join(' · ')),
+      h('div', { class: 'results__sensei' },
+        senseiSVG({ size: 54, mood: senseiMood, hat: hatKind, label: `Candle Sensei, ${senseiMood}` }),
+        h('p', { class: 'results__sensei-line' }, senseiLine)),
       starsEl,
       h('h2', { class: 'results__title' }, headline),
       h('p', { class: 'results__sub muted' }, sub),

@@ -5,6 +5,7 @@ import { LESSONS, GAMES, findBadge, learningPath } from '../registry.js';
 import { toast, modal, h, icon } from './ui.js';
 import { CAMPAIGN_LEVEL_COUNT, clampCampaignLevel } from './game-levels.js';
 import { findCosmetic, defaultOf, isEquippable } from './cosmetics.js';
+import { senseiSVG } from './mascot.js';
 
 const KEY = 'tts-progress-v1';
 const THEME_KEY = 'tts-theme';
@@ -202,7 +203,9 @@ export function levelFor(xp) {
 
 function showLevelUp(lv) {
   if (typeof document === 'undefined') return;
+  const hat = String(state.cosmetics?.equipped?.hat || 'none').replace(/^hat-/, '') || 'none';
   const body = h('div', { class: 'levelup' },
+    h('div', { class: 'levelup__sensei' }, senseiSVG({ size: 64, mood: 'fire', hat, label: 'The Candle Sensei celebrates' })),
     h('div', { class: 'levelup__badge', 'aria-hidden': 'true' }, icon('crown', { size: 34 })),
     h('p', { class: 'levelup__num mono' }, `Level ${lv.number}`),
     h('p', { class: 'levelup__title' }, lv.title),
