@@ -538,3 +538,166 @@
   font-family: var(--font-arcade);
   text-shadow: 0 0 16px rgba(53, 224, 255, 0.45);
 }
+
+/* ================================================================ ARCADE MECHANICS (v2)
+   Shared bits for the redesigned drill games: Pattern Blitz flash, Trend Rush /
+   Cross Catch streaming HUD + big call buttons, Volume Verdict stake chips. */
+
+/* The chart frame is the positioning context for the flash overlay. */
+.chart-frame {
+  position: relative;
+}
+
+/* Pattern Blitz: MEMORIZE overlay + shrinking bar, then the dimmed memory chart. */
+.blitz-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--bg) 38%, transparent);
+  backdrop-filter: blur(1px);
+}
+
+.blitz-flash__label {
+  font-size: 1.25rem;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(53, 224, 255, 0.5);
+  animation: arcade-blink 1.2s steps(1, end) infinite;
+}
+
+.blitz-bar {
+  width: 150px;
+  height: 10px;
+  border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line));
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(6, 11, 20, 0.5);
+}
+
+.blitz-bar__fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+  box-shadow: 0 0 10px rgba(53, 224, 255, 0.55);
+  transform-origin: left center;
+}
+
+.is-blitz-dim > *:not(.blitz-flash) {
+  filter: saturate(0.25) brightness(0.62) contrast(0.92);
+  transition: filter 0.25s;
+}
+
+/* Trend Rush / Cross Catch: streaming HUD + the big call buttons. */
+.rush-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 10px 0 12px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in oklab, var(--accent) 24%, var(--line));
+  border-radius: var(--radius);
+  background: rgba(6, 11, 20, 0.45);
+  box-shadow: var(--glow-inset);
+}
+
+.rush-hud .arcade-label {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.rush__payout {
+  font-family: var(--font-arcade);
+  font-size: 1.0625rem;
+  color: var(--accent-strong);
+  text-shadow: 0 0 10px rgba(53, 224, 255, 0.4);
+}
+
+.rush__count {
+  font-family: var(--font-arcade);
+  font-size: 1.0625rem;
+  color: var(--text);
+}
+
+.rush-actions {
+  margin-top: 14px;
+}
+
+.rush-option {
+  min-height: 52px;
+  font-size: 15px;
+}
+
+.rush-option--bullish .option__label {
+  color: var(--bull-strong);
+}
+
+.rush-option--bearish .option__label {
+  color: var(--bear-strong);
+}
+
+.catch-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 640px) {
+  .catch-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.catch-btn {
+  min-height: 56px;
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+}
+
+.catch-btn:hover:not(.is-locked) {
+  box-shadow: var(--glow-bull);
+}
+
+.catch-btn--pass {
+  border-color: color-mix(in oklab, var(--info) 40%, var(--line));
+}
+
+.catch-btn--pass:hover:not(.is-locked) {
+  box-shadow: var(--glow-accent);
+}
+
+/* Volume Verdict Live: stake chips. */
+.stake-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.stake-chips__label {
+  margin-right: 4px;
+}
+
+.stake-chip {
+  min-width: 52px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-arcade);
+  font-size: 0.875rem;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.stake-chip:hover {
+  border-color: color-mix(in oklab, var(--warn) 45%, var(--line));
+}
+
+.stake-chip.is-on {
+  border-color: color-mix(in oklab, var(--warn) 60%, var(--line));
+  color: var(--warn);
+  box-shadow: 0 0 10px rgba(255, 180, 84, 0.35);
+}
