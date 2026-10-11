@@ -181,74 +181,65 @@
   white-space: nowrap;
 }
 
-/* —— Coming soon strip —— */
+/* —— Trading bots (coming soon, demo/education) —— */
 
-.aff-section--soon {
+.aff-section--bots {
   margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
 }
 
-.aff-soon {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.aff-soon__tile {
+.aff-bots {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.aff-soon__logo {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  gap: 12px;
+  padding: 18px;
   border: 1px dashed color-mix(in oklab, var(--line) 80%, var(--text-3));
-  background: var(--surface);
-  color: var(--text-3);
+  border-radius: var(--radius, 12px);
+  background: var(--surface-2);
 }
 
-.aff-soon__logo--img {
-  border-style: solid;
-  background: color-mix(in oklab, #ffffff 94%, var(--surface));
-  padding: 6px;
-  box-sizing: border-box;
-}
-
-.aff-soon__logo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.aff-soon__meta {
+.aff-bots__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.aff-soon__name {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text);
+.aff-bots__mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
-.aff-soon__note {
+.aff-bots__lead {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
+  max-width: 46rem;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.aff-bots__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 46rem;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.aff-bots__callout {
+  width: 100%;
+  max-width: none;
+  margin: 4px 0 0;
+  box-sizing: border-box;
 }
 
 /* —— Responsive: stack CTA under body on narrow viewports —— */
