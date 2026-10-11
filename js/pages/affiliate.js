@@ -9,9 +9,20 @@ import { h, icon } from '../core/ui.js';
  * - category: grouping key matching CATEGORIES
  * - logoText / logoUrl: optional monogram or image URL (null = placeholder)
  * - affiliateUrl: exact referral href, or null / '' for TBD (CTA disabled)
- * - status: 'live' | 'coming' — coming slots show “Coming soon / Partner TBD”
+ * - status: 'live' — only live partners are rendered
  */
 export const PARTNERS = [
+  {
+    id: 'tradingview',
+    name: 'TradingView',
+    category: 'tools',
+    description: 'Browser-based charting for stocks, crypto, forex and more. Practice with paper trading, '
+      + 'build your own indicators and strategies in Pine Script, and test ideas before risking a cent.',
+    logoText: null,
+    logoUrl: 'assets/affiliates/tradingview.svg',
+    affiliateUrl: 'https://www.tradingview.com/pricing/?share_your_love=Raynaythegreat',
+    status: 'live',
+  },
   {
     id: 'pocket-option',
     name: 'Pocket Option',
@@ -62,69 +73,39 @@ export const PARTNERS = [
     affiliateUrl: 'https://app.upcomers.com/en/checkout?ref=gy4xupgr',
     status: 'live',
   },
-  {
-    id: 'partner-tbd-2',
-    name: 'Partner TBD',
-    category: null,
-    description: 'Coming soon — another trading platform or tool partnership will land here.',
-    logoText: null,
-    logoUrl: null,
-    affiliateUrl: null,
-    status: 'coming',
-  },
-  {
-    id: 'partner-tbd-3',
-    name: 'Partner TBD',
-    category: null,
-    description: 'Coming soon — placeholder slot for a future affiliate link.',
-    logoText: null,
-    logoUrl: null,
-    affiliateUrl: null,
-    status: 'coming',
-  },
-  {
-    id: 'partner-tbd-4',
-    name: 'Partner TBD',
-    category: null,
-    description: 'Coming soon — placeholder slot for a future affiliate link.',
-    logoText: null,
-    logoUrl: null,
-    affiliateUrl: null,
-    status: 'coming',
-  },
 ];
 
 /** Section headings for live partners (order = display order). */
 export const CATEGORIES = [
+  { id: 'tools', title: 'Tools & charting', blurb: 'Charting, paper trading and strategy-building tools.' },
   { id: 'brokers', title: 'Brokers & apps', blurb: 'Brokerages and investing apps with referral links.' },
   { id: 'funded', title: 'Funded accounts', blurb: 'Prop / funded-account platforms.' },
   { id: 'binary', title: 'Binary Options', blurb: 'Fast-paced, high-risk platforms. Review the terms carefully and only risk money you can afford to lose.' },
 ];
 
-function logoSlot(p, { compact = false } = {}) {
-  const base = compact ? 'aff-soon__logo' : 'aff-row__logo';
+function logoSlot(p) {
   if (p.logoUrl) {
-    return h('div', { class: `${base} ${base}--img`, 'aria-hidden': 'true' },
+    return h('div', { class: 'aff-row__logo aff-row__logo--img', 'aria-hidden': 'true' },
       h('img', {
-        class: compact ? 'aff-soon__logo-img' : 'aff-row__logo-img',
+        class: 'aff-row__logo-img',
         src: p.logoUrl,
         alt: '',
-        width: compact ? 36 : 48,
-        height: compact ? 36 : 48,
+        width: 48,
+        height: 48,
         loading: 'lazy',
         decoding: 'async',
       }));
   }
   if (p.logoText) {
     return h('div', {
-      class: `${base} ${base}--mono`,
+      class: 'aff-row__logo aff-row__logo--mono',
       'aria-hidden': 'true',
     }, p.logoText);
   }
   return h('div', {
-    class: `${base} ${base}--empty`,
+    class: 'aff-row__logo aff-row__logo--empty',
     'aria-hidden': 'true',
-  }, icon('layers', { size: compact ? 16 : 20 }));
+  }, icon('layers', { size: 20 }));
 }
 
 function cta(p) {
@@ -168,18 +149,6 @@ function partnerRow(p, index) {
   h('div', { class: 'aff-row__action' }, cta(p), referralNote(p)));
 }
 
-function comingTile(p) {
-  return h('article', {
-    class: 'aff-soon__tile',
-    id: `aff-${p.id}`,
-  },
-  logoSlot(p, { compact: true }),
-  h('div', { class: 'aff-soon__meta' },
-    h('span', { class: 'aff-soon__name' }, p.name),
-    h('span', { class: 'chip chip--sm chip--outline' }, 'Coming soon')),
-  h('p', { class: 'aff-soon__note faint' }, 'Partner TBD'));
-}
-
 function categorySection(cat, partners, startIndex) {
   let i = startIndex;
   const rows = partners.map((p) => {
@@ -200,11 +169,46 @@ function categorySection(cat, partners, startIndex) {
   };
 }
 
+/** Trading bots — coming soon. Demo strategy bots for education, never real money. */
+const BOTS_POINTS = [
+  'Build simple strategy bots from playbook setups — entry, stop and target.',
+  'Backtest and paper-trade them on demo accounts. No real money, ever.',
+  'Learn how automation follows a plan — and exactly where it fails.',
+];
+
+function botsSection() {
+  return h('section', {
+    class: 'aff-section aff-section--bots',
+    id: 'trading-bots',
+    'aria-labelledby': 'aff-bots-title',
+  },
+  h('header', { class: 'aff-section__head' },
+    h('h2', { class: 'aff-section__title', id: 'aff-bots-title' }, 'Trading bots'),
+    h('p', { class: 'aff-section__blurb muted' },
+      'Coming soon — guided demos that let you build, backtest and run simple strategy bots.')),
+  h('article', { class: 'aff-bots' },
+    h('div', { class: 'aff-bots__head' },
+      h('span', { class: 'aff-bots__mark', 'aria-hidden': 'true' }, icon('spark', { size: 20 })),
+      h('span', { class: 'chip chip--sm chip--outline' }, 'Coming soon')),
+    h('p', { class: 'aff-bots__lead' },
+      'Trading bot demos are on the way. You will assemble rules from the Setup Playbook, test them '
+      + 'against historical charts, and watch a bot execute the plan — all inside a safe sandbox '
+      + 'built for strategic education.'),
+    h('ul', { class: 'aff-bots__list' },
+      BOTS_POINTS.map((point) => h('li', null, point))),
+    h('div', { class: 'callout callout--warn aff-bots__callout', role: 'note' },
+      icon('info', { size: 18 }),
+      h('div', null,
+        h('p', null, h('strong', null, 'Educational demos only.')),
+        h('p', { class: 'muted' },
+          'These bots are for demo and strategic education. They are not financial advice, and nothing '
+          + 'here should be connected to real money. Build and experiment at your own risk.')))));
+}
+
 export default {
   id: 'platforms',
   mount(root) {
     const live = PARTNERS.filter((p) => p.status === 'live');
-    const coming = PARTNERS.filter((p) => p.status !== 'live');
 
     const sections = [];
     let index = 0;
@@ -242,18 +246,13 @@ export default {
         h('header', { class: 'aff-section__head' },
           h('h2', { class: 'aff-section__title', id: 'aff-trading-platforms' }, 'Trading platforms')),
         ...sections),
-      coming.length
-        ? h('section', {
-          class: 'aff-section aff-section--soon',
-          'aria-labelledby': 'aff-cat-soon',
-        },
-        h('header', { class: 'aff-section__head' },
-          h('h2', { class: 'aff-section__title', id: 'aff-cat-soon' }, 'Coming soon'),
-          h('p', { class: 'aff-section__blurb muted' },
-            'Partner TBD — more trading platforms and tools will land here.')),
-        h('div', { class: 'aff-soon', role: 'list' },
-          coming.map((p) => h('div', { role: 'listitem' }, comingTile(p)))))
-        : null,
-      null));
+      botsSection(),
+      h('div', { class: 'callout callout--warn aff-disclaimer', role: 'note' },
+        icon('info', { size: 18 }),
+        h('div', null,
+          h('p', null, h('strong', null, 'Affiliate disclosure.')),
+          h('p', { class: 'muted' },
+            'These are educational partnerships, not endorsements. Always do your own research, '
+            + 'read each platform’s terms, and never risk money you cannot afford to lose.')))));
   },
 };
