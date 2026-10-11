@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pattern Contact Sheet</title>
+<!-- Standalone visual check of every candlestick and chart pattern generator.
+     Serve the repo root and open /tests/visual/patterns.html
+     Query: ?theme=dark|light  ?only=candle|chart  ?id=<patternId>  ?seeds=1,2,3  ?fail=0 -->
+<style>
+  /* Fallback tokens (spec §5) in case css/tokens.css is missing; tokens.css overrides them. */
+  :root {
+    color-scheme: light;
+    --bg: #F3F5F9; --surface: #FFFFFF; --surface-2: #E9EDF4; --line: #D5DCE7; --grid: #E6EBF2;
+    --text: #0F1B2D; --text-2: #46546B; --text-3: #76839A; --accent: #0A8F6A; --accent-ink: #FFFFFF;
+    --accent-soft: #D5F1E7; --bull: #0A8F6A; --bull-soft: #D5F1E7; --bear: #D23F4A; --bear-soft: #F8DADD;
+    --info: #2F66D9; --warn: #C2610C; --support: #0A8F6A; --resistance: #D23F4A; --ma1: #2F66D9;
+    --ma2: #0A8F6A; --ma3: #8E44C9; --fib: #0A8F6A; --live-indicator: #B7790F; --muted: #76839A; --focus: #2F66D9;
+    --radius: 10px; --radius-sm: 6px;
+    --font-display: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0B1220; --surface: #111A2B; --surface-2: #18233A; --line: #26324B; --grid: #1B2640;
+      --text: #E7EDF6; --text-2: #A5B1C6; --text-3: #6F7D96; --accent: #5B8CFF; --accent-ink: #061018;
+      --accent-soft: #1A2744; --bull: #27C990; --bull-soft: #0F3A2E; --bear: #F2646E; --bear-soft: #44191E;
+      --info: #6C9CFF; --warn: #FF9F4A; --support: #27C990; --resistance: #F2646E; --ma1: #6C9CFF;
+      --ma2: #27C990; --ma3: #C08BFF; --fib: #5B8CFF; --live-indicator: #F2B53A; --muted: #6F7D96; --focus: #8DB3FF;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0B1220; --surface: #111A2B; --surface-2: #18233A; --line: #26324B; --grid: #1B2640;
+    --text: #E7EDF6; --text-2: #A5B1C6; --text-3: #6F7D96; --accent: #5B8CFF; --accent-ink: #061018;
+    --accent-soft: #1A2744; --bull: #27C990; --bull-soft: #0F3A2E; --bear: #F2646E; --bear-soft: #44191E;
+    --info: #6C9CFF; --warn: #FF9F4A; --support: #27C990; --resistance: #F2646E; --ma1: #6C9CFF;
+    --ma2: #27C990; --ma3: #C08BFF; --fib: #5B8CFF; --live-indicator: #F2B53A; --muted: #6F7D96; --focus: #8DB3FF;
+  }
+</style>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/chart.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 var(--font-body);
+    padding: 20px max(16px, env(safe-area-inset-left));
+  }
+  h1 { font: 700 26px/1.2 var(--font-display); margin: 0 0 4px; text-wrap: balance; }
+  h2 { font: 700 20px/1.2 var(--font-display); margin: 28px 0 10px; }
+  .lead { color: var(--text-2); margin: 0 0 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .bar a {
+    color: var(--text); text-decoration: none; border: 1px solid var(--line); background: var(--surface);
+    padding: 6px 10px; border-radius: var(--radius-sm); font-weight: 600;
+  }
+  .bar a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .row {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 12px;
+  }
+  .row header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 8px; }
+  .row h3 { font: 700 16px/1.2 var(--font-display); margin: 0; }
+  .meta { color: var(--text-3); font: 500 12px/1.3 var(--font-mono); }
+  .tag { font: 600 11px/1 var(--font-mono); padding: 3px 6px; border-radius: 4px; background: var(--surface-2); color: var(--text-2); }
+  .tag.bull { background: var(--bull-soft); color: var(--text); }
+  .tag.bear { background: var(--bear-soft); color: var(--text); }
+  .tag.bad { background: var(--bear); color: #fff; }
+  .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-w, 260px)), 1fr)); }
+  .card { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px; background: var(--surface); }
+  .card.problem { border-color: var(--bear); box-shadow: 0 0 0 1px var(--bear); }
+  .card .cap { display: flex; justify-content: space-between; gap: 6px; color: var(--text-3); font: 500 11px/1.3 var(--font-mono); margin-bottom: 4px; }
+  .card .cap b { color: var(--text-2); }
+  .card svg { width: 100%; height: auto; }
+  .issues { color: var(--bear); font: 600 11px/1.3 var(--font-mono); margin-top: 4px; }
+  #summary { font: 600 13px/1.4 var(--font-mono); }
+  #summary.ok { color: var(--bull); }
+  #summary.bad { color: var(--bear); }
+</style>
+</head>
+<body>
+<h1>Pattern contact sheet</h1>
+<p class="lead">Every candlestick pattern (with its lead-in and follow-through) and every chart pattern
+(key points, neckline or boundaries, measured-move target), for several seeds. Highlighted columns are the
+pattern candles. Cards outlined in red failed a geometry self-check.</p>
+<nav class="bar" aria-label="Views">
+  <a href="?">All</a>
+  <a href="?only=candle">Candles</a>
+  <a href="?only=chart">Chart patterns</a>
+  <a href="?theme=dark">Dark</a>
+  <a href="?theme=light">Light</a>
+</nav>
+<p id="summary" role="status"></p>
+<main id="sheet"></main>
+<script type="module" src="./patterns.js"></script>
+</body>
+</html>
