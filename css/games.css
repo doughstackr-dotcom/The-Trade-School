@@ -701,3 +701,180 @@
   color: var(--warn);
   box-shadow: 0 0 10px rgba(255, 180, 84, 0.35);
 }
+
+/* ================================================================ 3B MECHANICS (v2)
+   Case Files clue table, Fib Sniper place bar + placing cursor, Timeframe Tower
+   blocks, Fakeout Filter gauntlet + double-down. */
+
+/* Case Files. */
+.case-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.case-head__boss {
+  text-shadow: 0 0 10px rgba(255, 92, 110, 0.5);
+}
+
+.clue-table {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in oklab, var(--text-3) 40%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--surface-2) 55%, transparent);
+}
+
+.clue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.clue-chip {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.clue-chip:hover {
+  border-color: color-mix(in oklab, var(--warn) 50%, var(--line));
+  color: var(--text);
+}
+
+.clue-chip.is-open {
+  border-color: color-mix(in oklab, var(--warn) 55%, var(--line));
+  color: var(--warn);
+  box-shadow: 0 0 8px rgba(255, 180, 84, 0.25);
+  cursor: default;
+}
+
+.clue-reveals {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clue-reveal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: 0.875rem;
+}
+
+.clue-reveal__text {
+  color: var(--text-2);
+}
+
+/* Fib Sniper: Bullseye. */
+.chart-frame.is-placing {
+  cursor: crosshair;
+}
+
+.place-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in oklab, var(--arcade) 35%, var(--line));
+  border-radius: var(--radius);
+  background: rgba(6, 11, 20, 0.45);
+  box-shadow: var(--glow-inset);
+}
+
+.place-input {
+  width: 130px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.place-current {
+  color: var(--arcade);
+  text-shadow: 0 0 8px rgba(255, 79, 216, 0.4);
+}
+
+/* Timeframe Tower. */
+.tower {
+  display: flex;
+  flex-direction: column-reverse; /* block 1 at the bottom, like a real tower */
+  align-items: stretch;
+  gap: 6px;
+  max-width: 420px;
+  margin: 0 auto 16px;
+}
+
+.tower-block {
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--surface-2) 45%, transparent);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+.tower-block.is-stacked {
+  border-style: solid;
+  border-color: color-mix(in oklab, var(--bull) 55%, var(--line));
+  background: color-mix(in oklab, var(--bull-soft) 65%, var(--surface));
+  box-shadow: var(--glow-bull);
+}
+
+.tower-block.is-cracked {
+  border-style: solid;
+  border-color: color-mix(in oklab, var(--bear) 60%, var(--line));
+  background: color-mix(in oklab, var(--bear-soft) 55%, var(--surface));
+  box-shadow: var(--glow-bear);
+  animation: shake-juice 0.34s linear;
+}
+
+/* Fakeout Filter gauntlet. */
+.gauntlet-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  justify-items: stretch;
+}
+
+.gauntlet-actions .option-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 640px) {
+  .gauntlet-actions .option-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dd-btn {
+  justify-self: center;
+  min-height: 44px;
+  padding: 0 22px;
+  font-size: 0.8125rem;
+}
+
+.dd-btn.is-armed {
+  animation: arcade-btn-pulse 0.9s ease-in-out infinite;
+}
+
+.dd-btn:disabled {
+  opacity: 0.4;
+}

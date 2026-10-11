@@ -1,7 +1,10 @@
-// Fib Sniper — pick the right retracement level for a marked swing.
+// Fib Sniper: Bullseye (v2 of Fib Sniper) — place the retracement, hit the ring.
+// Practice keeps the classic study quiz. Arcade and Survival hide the line and make you
+// PLACE it: click the chart (or type the price) where the called-for retracement sits.
+// Precision rings: within 2% of the impulse = 100 PERFECT, 5% = 80, 10% = 60.
 import { GameShell } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
-import { h } from '../core/ui.js';
+import { h, sfx, floatText } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
 
@@ -34,19 +37,19 @@ export default {
   id: 'fib-sniper',
   mount(root, ctx) {
     const game = new GameShell(root, ctx, {
-      preview: (el) => gameplayPreview(el, { seed: 17, direction: 'up', title: 'fib-sniper', score: 200, streak: 2, round: '2/3' }),
+      preview: (el) => gameplayPreview(el, { seed: 17, direction: 'up', title: 'Fib Sniper', score: 200, streak: 2, round: '2/3' }),
       rounds: 7,
-      timer: { seconds: 28, perRound: true },
+      timer: { seconds: 30, perRound: true },
       howTo: [
         'The start and end of an impulse are marked on the chart.',
-        'Name the dashed retracement measured back from the end of that move.',
-        'Later rounds include down moves and shallower or deeper levels.',
+        'Arcade: place the called-for retracement yourself — click the chart at the price, or type it. Precision rings score you.',
+        'Later rounds call for shallower or deeper levels on up and down impulses.',
       ],
-      onRound(g, { rng, stage, difficulty }) {
+      onRound(g, { rng, stage, difficulty, style }) {
         const r = build(rng, difficulty);
         const host = h('div', { class: 'chart-frame' });
         stage.append(
-          h('p', { class: 'quiz__q' }, `${r.direction === 'up' ? 'Low → high' : 'High → low'} impulse: which retracement is the dashed level?`),
+          h('p', { class: 'quiz__q' }, `${r.direction === 'up' ? 'Low → high' : 'High → low'} impulse: where does the ${style === 'practice' ? 'dashed' : r.pick.label} retracement${style === 'practice' ? ' sit' : ' sit? Place it'}?`),
           host,
         );
         const chart = new CandleChart(host, {
@@ -54,24 +57,104 @@ export default {
           height: 260, yPad: 0.16, ariaLabel: 'Impulse with Fibonacci retracement level',
         });
         chart.addSegment({ a: { idx: r.first.idx, price: r.first.price }, b: { idx: r.second.idx, price: r.second.price }, color: r.direction === 'up' ? 'bull' : 'bear', arrow: true, label: 'Impulse' });
-        chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Fib?' });
         chart.addMarker({ idx: r.first.idx, position: r.direction === 'up' ? 'below' : 'above', shape: 'dot', color: 'accent' });
         chart.addMarker({ idx: r.second.idx, position: r.direction === 'up' ? 'above' : 'below', shape: 'dot', color: 'accent' });
-        g.setHint('Measure from the impulse end back toward its start. Deeper retracements are farther from the end.');
-        const quiz = g.ask({
-          options: rng.shuffle(r.choices.map((x) => ({ label: x.label, value: x.id }))),
-          answer: r.pick.id,
-          explain: `<strong>${r.pick.label}</strong> at ${r.level.toFixed(2)} (impulse size ${Math.abs(r.second.price - r.first.price).toFixed(2)}). A Fib level alone is not a trade signal.`,
-          onAnswer: (ok) => {
-            for (const x of r.choices) {
-              const px = r.second.price - (r.second.price - r.first.price) * x.r;
-              chart.addHLine({ price: px, color: x.id === r.pick.id ? 'accent' : 'info', dashed: true, label: x.label });
-            }
-            chart.reveal({ to: r.candles.length, interval: 40 });
-            verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
-          },
+
+        const revealAll = () => {
+          for (const x of r.choices) {
+            const px = r.second.price - (r.second.price - r.first.price) * x.r;
+            chart.addHLine({ price: px, color: x.id === r.pick.id ? 'accent' : 'info', dashed: true, label: x.label });
+          }
+          chart.reveal({ to: r.candles.length, interval: 40 });
+        };
+
+        // ------------------------------------------------ practice: the classic quiz
+        if (style === 'practice') {
+          chart.addHLine({ price: r.level, color: 'accent', dashed: true, label: 'Fib?' });
+          g.setHint('Measure from the impulse end back toward its start. Deeper retracements are farther from the end.');
+          const quiz = g.ask({
+            options: rng.shuffle(r.choices.map((x) => ({ label: x.label, value: x.id }))),
+            answer: r.pick.id,
+            explain: `<strong>${r.pick.label}</strong> at ${r.level.toFixed(2)} (impulse size ${Math.abs(r.second.price - r.first.price).toFixed(2)}). A Fib level alone is not a trade signal.`,
+            onAnswer: (ok) => {
+              revealAll();
+              verdictFlourish(stage, { ok, title: ok ? 'Solid read' : 'Review the chart', scoreDelta: ok ? 100 : 0 });
+            },
+          });
+          stage.append(quiz);
+          return () => chart.destroy();
+        }
+
+        // ------------------------------------------------ arcade / survival: place it
+        const impulse = Math.abs(r.second.price - r.first.price) || 1;
+        const dec = r.candles[0] && r.candles[0].c > 1000 ? 0 : 2;
+        host.classList.add('is-placing');
+        let placed = null;
+        let settled = false;
+
+        const priceOut = h('span', { class: 'place-current mono' }, '—');
+        const lockBtn = h('button', { type: 'button', class: 'btn btn--sm btn--primary', disabled: '' }, 'Lock it in');
+
+        const place = (price) => {
+          if (settled || placed != null || !Number.isFinite(price)) return;
+          placed = price;
+          host.classList.remove('is-placing');
+          chart.addHLine({ price, color: 'arcade', dashed: true, label: 'Your call' });
+          sfx.coin();
+          priceOut.textContent = price.toFixed(dec);
+          lockBtn.disabled = false;
+          lockBtn.focus({ preventScroll: true });
+        };
+
+        const settle = () => {
+          if (settled || placed == null) return;
+          settled = true;
+          const err = Math.abs(placed - r.level) / impulse;
+          const ring = err <= 0.02 ? 3 : err <= 0.05 ? 2 : err <= 0.10 ? 1 : 0;
+          const points = [0, 60, 80, 100][ring];
+          const label = ['MISS', 'GLANCING', 'GREAT', 'BULLSEYE'][ring];
+          const explain = `<strong>${r.pick.label}</strong> at ${r.level.toFixed(dec)} — you placed ${placed.toFixed(dec)} (${(err * 100).toFixed(1)}% of the impulse off). ${['No ring this time.', 'Glancing hit.', 'Sharp placement.', 'Dead centre.']} A Fib level alone is not a trade signal.`;
+          revealAll();
+          if (ring > 0) {
+            floatText(label, { at: host, tone: ring === 3 ? 'bull' : 'accent' });
+            if (ring === 3) sfx.powerup();
+            g.correct(explain, { points });
+          } else {
+            g.wrong(explain);
+          }
+          verdictFlourish(stage, { ok: ring > 0, title: ring === 3 ? 'Bullseye!' : ring > 0 ? label.toLowerCase() : 'Off the mark', scoreDelta: points });
+          g.nextButton();
+        };
+
+        host.addEventListener('pointerdown', (e) => {
+          if (settled || placed != null) return;
+          const rect = host.getBoundingClientRect();
+          const price = chart.yToPrice(e.clientY - rect.top);
+          place(price);
         });
-        stage.insertBefore(quiz, host);
+        lockBtn.addEventListener('click', settle);
+
+        // Keyboard path: type the price and place.
+        const input = h('input', {
+          class: 'mono place-input', type: 'text', inputmode: 'decimal', autocomplete: 'off',
+          'aria-label': `Price of the ${r.pick.label} retracement`,
+          placeholder: `price for ${r.pick.label}`,
+        });
+        const placeBar = h('div', { class: 'place-bar' },
+          h('span', { class: 'arcade-label' }, `Place the ${r.pick.label} line`),
+          input,
+          h('button', { type: 'button', class: 'btn btn--sm btn--arcade', on: { click: () => place(parseFloat(String(input.value).replace(/,/g, '.'))) } }, 'Set line'),
+          h('span', { class: 'place-current-wrap arcade-label' }, 'Placed:', priceOut),
+          lockBtn);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            place(parseFloat(String(input.value).replace(/,/g, '.')));
+          }
+        });
+        stage.append(placeBar);
+        g.setHint('Measure from the impulse end back toward its start; the ratio times the impulse size is the distance.');
+
         return () => chart.destroy();
       },
     });
