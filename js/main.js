@@ -11,6 +11,7 @@ import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/
 const NAV = [
   { hash: 'map', label: 'Map', icon: 'compass' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
+  { hash: 'shop', label: 'Shop', icon: 'medal', tab: false },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
@@ -57,13 +58,30 @@ function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
     if (route.page === 'map' || route.page === 'dashboard' || route.page === 'progress') return 'map';
-    if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'shop', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if (route.kind === 'game') return 'games';
   // Lessons highlight the world map.
   if (route.kind === 'lesson') return 'map';
   return null;
+}
+
+/** Applies equipped cosmetics (cabinet skin on <html>, candles + frame on <body>). */
+function applyCosmetics() {
+  try {
+    const c = store.state.cosmetics?.equipped || {};
+    const root = document.documentElement;
+    const body = document.body;
+    const skin = c.skin === 'midnight' ? null : c.skin;
+    if (skin) root.setAttribute('data-skin', skin);
+    else root.removeAttribute('data-skin');
+    for (const [slot, attr] of [['candles', 'data-candles'], ['frame', 'data-frame']]) {
+      const val = slot === 'candles' ? c.candles : c.frame;
+      if (val && val !== 'classic' && val !== 'frame-classic') body.setAttribute(attr, val);
+      else body.removeAttribute(attr);
+    }
+  } catch { /* storage blocked: defaults are already applied */ }
 }
 
 
@@ -243,6 +261,7 @@ function buildShell(app) {
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#map' }, 'World map'),
         h('a', { href: '#games' }, 'Games'),
+        h('a', { href: '#shop' }, 'Credit shop'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),
@@ -286,6 +305,8 @@ function boot() {
   if (!app) return;
   installI18n();
   applyTheme(store.state.settings.theme);
+  applyCosmetics();
+  store.on('cosmetics', applyCosmetics);
   try {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(store.state.settings.theme));
   } catch {

@@ -1,0 +1,258 @@
+/* Credit shop (v2) + cosmetic overrides.
+   Cabinet skins re-token the whole app via [data-skin] on <html> (dark looks; the
+   Chart Paper light theme stays untouched). Candle palettes scope to chart surfaces
+   only, so buttons and semantics keep their bull/bear meaning. */
+
+/* ---------------------------------------------------------------- shop page */
+
+.shop-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 34px;
+}
+
+.shop-balance {
+  display: grid;
+  gap: 2px;
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in oklab, var(--arcade) 40%, var(--line));
+  box-shadow: var(--glow-arcade), var(--glow-inset);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+}
+
+.shop-balance__value {
+  font-family: var(--font-arcade);
+  font-size: 2rem;
+  color: var(--arcade);
+  text-shadow: 0 0 16px rgba(255, 79, 216, 0.5);
+}
+
+.shop-balance__hint {
+  font-size: 0.75rem;
+}
+
+.shop-section {
+  margin-bottom: 44px;
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.shop-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s var(--ease-out);
+}
+
+.shop-item:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+}
+
+.shop-item.is-equipped {
+  border-color: color-mix(in oklab, var(--bull) 55%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+.shop-item.is-owned:not(.is-equipped) {
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--line));
+}
+
+.shop-item__swatch {
+  display: flex;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.shop-item__swatch-a,
+.shop-item__swatch-b {
+  flex: 1;
+}
+
+.shop-item__name {
+  font-size: 1rem;
+}
+
+.shop-item__blurb {
+  font-size: 0.875rem;
+  color: var(--text-2);
+  flex: 1;
+}
+
+.shop-item__price {
+  color: var(--warn);
+}
+
+.shop-item__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn.is-dim {
+  opacity: 0.55;
+}
+
+.shop-footnote {
+  padding-block: 18px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- cabinet skins */
+
+html[data-skin="synthwave"] {
+  --bg: #120726;
+  --surface: #1B0C36;
+  --surface-2: #241043;
+  --line: #3A1E63;
+  --grid: #1D0F38;
+  --text: #F2E8FF;
+  --text-2: #BCA8DC;
+  --text-3: #8E7BB0;
+  --accent: #FF5CC8;
+  --accent-ink: #2B0120;
+  --accent-soft: #38104A;
+  --arcade: #7AF5FF;
+  --arcade-soft: #0E3640;
+  --btn-primary: #FF5CC8;
+  --btn-primary-hover: #FF87D6;
+  --focus: #9AF7FF;
+  --topbar-bg: rgba(18, 7, 38, 0.86);
+  --glow-accent: 0 0 16px rgba(255, 92, 200, 0.35);
+  --glow-arcade: 0 0 16px rgba(122, 245, 255, 0.35);
+  --glow-inset: inset 0 0 18px rgba(255, 92, 200, 0.06);
+}
+
+html[data-skin="gameboy"] {
+  --bg: #0B1A0B;
+  --surface: #122712;
+  --surface-2: #1A331A;
+  --line: #2E4A2E;
+  --grid: #14290F;
+  --text: #D8EAB0;
+  --text-2: #A8C284;
+  --text-3: #7C985C;
+  --accent: #9BBF6B;
+  --accent-ink: #0D1C0D;
+  --accent-soft: #24401F;
+  --arcade: #C8E6A0;
+  --arcade-soft: #2C4426;
+  --bull: #B7E08A;
+  --bear: #D98A4B;
+  --bull-soft: #24380F;
+  --bear-soft: #3A2410;
+  --info: #A8C284;
+  --warn: #C8B060;
+  --support: #B7E08A;
+  --resistance: #D98A4B;
+  --btn-primary: #9BBF6B;
+  --btn-primary-hover: #B4D484;
+  --focus: #C8E6A0;
+  --topbar-bg: rgba(11, 26, 11, 0.88);
+  --glow-accent: 0 0 12px rgba(155, 191, 107, 0.3);
+  --glow-arcade: 0 0 12px rgba(200, 230, 160, 0.3);
+  --glow-bull: 0 0 10px rgba(183, 224, 138, 0.35);
+  --glow-bear: 0 0 10px rgba(217, 138, 75, 0.35);
+}
+
+html[data-skin="blueprint"] {
+  --bg: #0A1E3C;
+  --surface: #10294E;
+  --surface-2: #163562;
+  --line: #2C4A7C;
+  --grid: #0F2445;
+  --text: #D7E6FF;
+  --text-2: #A4BCe4;
+  --text-3: #7892BD;
+  --accent: #7EB3FF;
+  --accent-ink: #04162E;
+  --accent-soft: #1B3A66;
+  --arcade: #9FD0FF;
+  --arcade-soft: #1B3A66;
+  --btn-primary: #7EB3FF;
+  --btn-primary-hover: #A3C8FF;
+  --focus: #A3C8FF;
+  --topbar-bg: rgba(10, 30, 60, 0.88);
+  --glow-accent: 0 0 16px rgba(126, 179, 255, 0.35);
+  --glow-arcade: 0 0 16px rgba(159, 208, 255, 0.3);
+}
+
+/* ---------------------------------------------------------------- candle palettes
+   Scoped to chart surfaces so bull/bear semantics elsewhere stay put. */
+
+body[data-candles="pastel"] .chart-frame,
+body[data-candles="pastel"] .chart-compare,
+body[data-candles="pastel"] .game-intro__preview-art {
+  --bull: #7BE0C3;
+  --bear: #F49BB4;
+  --bull-soft: #1C4438;
+  --bear-soft: #46222E;
+}
+
+body[data-candles="mono"] .chart-frame,
+body[data-candles="mono"] .chart-compare,
+body[data-candles="mono"] .game-intro__preview-art {
+  --bull: #C9D4E8;
+  --bear: #8899B8;
+  --bull-soft: #2A3346;
+  --bear-soft: #20293A;
+}
+
+body[data-candles="fire"] .chart-frame,
+body[data-candles="fire"] .chart-compare,
+body[data-candles="fire"] .game-intro__preview-art {
+  --bull: #FFC24D;
+  --bear: #FF6B35;
+  --bull-soft: #42300F;
+  --bear-soft: #42190A;
+}
+
+/* ---------------------------------------------------------------- XP frames */
+
+body[data-frame="frame-gold"] .xp-pill {
+  border-color: color-mix(in oklab, var(--live-indicator) 55%, var(--line));
+  box-shadow: 0 0 14px rgba(242, 181, 58, 0.3), var(--glow-inset);
+}
+
+body[data-frame="frame-gold"] .xp-pill__lv {
+  color: var(--live-indicator);
+  text-shadow: 0 0 10px rgba(242, 181, 58, 0.5);
+}
+
+body[data-frame="frame-gold"] .xp-pill__fill {
+  background: linear-gradient(to right, var(--live-indicator), #FFE9A8);
+  box-shadow: 0 0 8px rgba(242, 181, 58, 0.55);
+}
+
+body[data-frame="frame-arcade"] .xp-pill {
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--arcade) 55%, var(--line));
+}
+
+body[data-frame="frame-arcade"] .xp-pill__lv {
+  color: var(--arcade);
+  text-shadow: 0 0 10px rgba(255, 79, 216, 0.5);
+}
+
+body[data-frame="frame-arcade"] .xp-pill::after {
+  content: "▮";
+  margin-left: 4px;
+  color: var(--arcade);
+  font-size: 0.625rem;
+  animation: arcade-blink 1.2s steps(1, end) infinite;
+}

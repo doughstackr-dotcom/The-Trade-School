@@ -4,6 +4,7 @@
 import { LESSONS, GAMES, findBadge, learningPath } from '../registry.js';
 import { toast, modal, h, icon } from './ui.js';
 import { CAMPAIGN_LEVEL_COUNT, clampCampaignLevel } from './game-levels.js';
+import { findCosmetic, defaultOf, isEquippable } from './cosmetics.js';
 
 const KEY = 'tts-progress-v1';
 const THEME_KEY = 'tts-theme';
@@ -34,6 +35,11 @@ function defaults(settings) {
     bestStreak: 0,
     gamePrefs: {},        // id -> { style, source, level, mode }  (remembered intro choices)
     daily: { last: null, streak: 0, best: 0, history: {}, levels: {} }, // Daily Challenge (local dates)
+    // Candle Credits (v2): lifetimeXp mints tokens 1:1 with XP earned (xp itself never drops);
+    // tokensSpent is the running spend; cosmetics maps to js/core/cosmetics.js ids.
+    lifetimeXp: 0,
+    tokensSpent: 0,
+    cosmetics: { owned: [], equipped: {} },
     settings: { sound: true, theme: 'system', ...(settings || {}) },
   };
 }
@@ -112,6 +118,22 @@ function normalize(saved) {
       .map((key) => [key, clampCampaignLevel(base.daily.levels[key])]));
     if (!Array.isArray(base.badges)) base.badges = [];
     base.xp = Number.isFinite(base.xp) ? base.xp : 0;
+    // v1 progress carried no lifetime total: baseline-mint tokens for the XP already earned.
+    if (saved.lifetimeXp == null && base.xp > 0) base.lifetimeXp = base.xp;
+    base.lifetimeXp = Number.isFinite(base.lifetimeXp) ? Math.max(0, Math.round(base.lifetimeXp)) : 0;
+    base.tokensSpent = Number.isFinite(base.tokensSpent) ? Math.max(0, Math.round(base.tokensSpent)) : 0;
+    if (base.tokensSpent > base.lifetimeXp) base.tokensSpent = base.lifetimeXp;
+    if (!Array.isArray(base.cosmetics?.owned)) base.cosmetics = { owned: [], equipped: {} };
+    base.cosmetics.owned = base.cosmetics.owned.filter((id) => isEquippable(id));
+    const equipped = {};
+    for (const [slot, id] of Object.entries(base.cosmetics.equipped || {})) {
+      // Equipping requires owning (or being the free default).
+      if (isEquippable(id) && (base.cosmetics.owned.includes(id) || findCosmetic(id)?.price === 0)) equipped[slot] = id;
+    }
+    for (const slot of ['skin', 'candles', 'frame', 'hat']) {
+      if (!equipped[slot]) equipped[slot] = defaultOf(slot);
+    }
+    base.cosmetics.equipped = equipped;
   }
   return base;
 }
@@ -230,6 +252,7 @@ export const store = {
     if (!amount) return 0;
     const before = levelFor(state.xp);
     state.xp += amount;
+    state.lifetimeXp += amount; // every XP earned mints one Candle Credit
     const after = levelFor(state.xp);
     if (!opts.silent) toast(`+${amount} XP${reason ? ` · ${reason}` : ''}`, { type: 'xp' });
     emit('xp', { amount, total: state.xp, reason });
@@ -240,6 +263,65 @@ export const store = {
     checkMetaBadges(opts.silent);
     changed();
     return amount;
+  },
+
+  // ------------------------------------------------------------ Candle Credits (v2)
+
+  /** Spendable Candle Credits: lifetime XP earned minus tokens spent (never negative). */
+  tokens() {
+    return Math.max(0, (state.lifetimeXp || 0) - (state.tokensSpent || 0));
+  },
+
+  /** Spend n credits. Returns true and emits 'tokens' when the balance covers it. */
+  spendTokens(n) {
+    const cost = Math.max(0, Math.round(Number(n) || 0));
+    if (!cost || cost > this.tokens()) return false;
+    state.tokensSpent += cost;
+    emit('tokens', { spent: cost, balance: this.tokens() });
+    changed();
+    return true;
+  },
+
+  hasCosmetic(id) {
+    if (findCosmetic(id)?.price === 0) return true;
+    return state.cosmetics.owned.includes(id);
+  },
+
+  equippedOf(slot) {
+    return state.cosmetics.equipped[slot] || defaultOf(slot);
+  },
+
+  /** Buys a cosmetic with credits. → true | 'poor' | 'owned' | 'unknown'. */
+  buyCosmetic(id) {
+    const item = findCosmetic(id);
+    if (!item) return 'unknown';
+    if (this.hasCosmetic(id)) return 'owned';
+    if (item.price > this.tokens()) return 'poor';
+    if (!this.spendTokens(item.price)) return 'poor';
+    state.cosmetics.owned.push(id);
+    emit('tokens', { spent: item.price, balance: this.tokens(), bought: id });
+    changed();
+    return true;
+  },
+
+  /** Equip an owned (or free) cosmetic. Returns the equipped id or null. */
+  equipCosmetic(id) {
+    const item = findCosmetic(id);
+    if (!item || !this.hasCosmetic(id)) return null;
+    state.cosmetics.equipped[item.slot] = id;
+    emit('cosmetics', { slot: item.slot, id });
+    changed();
+    return id;
+  },
+
+  /** Unequip a slot back to its default look. */
+  resetCosmetic(slot) {
+    const d = defaultOf(slot);
+    if (!d) return null;
+    state.cosmetics.equipped[slot] = d;
+    emit('cosmetics', { slot, id: d });
+    changed();
+    return d;
   },
 
   isLessonDone(id) {

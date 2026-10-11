@@ -246,6 +246,7 @@ export function requiredPlan(entryOrMode) {
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'map', 'dashboard', 'progress', // v2 hub; legacy dashboard/progress hashes redirect to the map
+  'shop', // credit shop (local cosmetics, no account needed)
   'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);
