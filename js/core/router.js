@@ -9,14 +9,13 @@ import { h, icon } from './ui.js';
 const PAGE_PATHS = {
   home: '../pages/home.js',
   library: '../pages/library.js',
-  // progress aliases to the merged dashboard (Progress visual shell + track panels).
-  progress: '../pages/progress.js',
+  // v2: the world map is the hub; #dashboard / #progress redirect to it (parseHash).
+  map: '../pages/map.js',
   glossary: '../pages/glossary.js',
   platforms: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
   games: '../pages/games.js',
-  dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
   'dev-chart': '../pages/dev-chart.js',
@@ -72,9 +71,13 @@ export function parseHash(hash) {
   }
   token = token.trim();
   if (!token || token === 'home') return { key: 'home', kind: 'page', page: 'home' };
-  // Legacy track hashes → unified Dashboard hub (scroll to section on mount).
+  // v2 world map is the hub; legacy dashboard/progress hashes land on it.
+  if (token === 'map' || token === 'dashboard' || token === 'progress') {
+    return { key: token === 'map' ? 'map' : token, kind: 'page', page: 'map' };
+  }
+  // Legacy track hashes → world map (scroll to the track's trail on mount).
   if (token === 'beginner' || token === 'advanced') {
-    return { key: token, kind: 'page', page: 'dashboard', section: token };
+    return { key: token, kind: 'page', page: 'map', section: token };
   }
   if (token === 'library' || token.startsWith('library.')) {
     return { key: token, kind: 'page', page: 'library', param: token.slice('library.'.length) || null };
@@ -82,8 +85,6 @@ export function parseHash(hash) {
   if (token === 'playbook' || token.startsWith('playbook.')) {
     return { key: token, kind: 'page', page: 'playbook', param: token.slice('playbook.'.length) || null };
   }
-  // #progress is an alias of #dashboard (merged progress + curriculum page).
-  if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
   // #affiliate is an alias of #platforms (renamed partners page).
   if (token === 'affiliate') return { key: 'affiliate', kind: 'page', page: 'platforms' };
   // Older accounts hashes (Stripe cancel_url #pricing, GameShell upgrade / sign-in links) alias Unlock and Account.
@@ -94,7 +95,7 @@ export function parseHash(hash) {
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'paywall') return { key: token, kind: 'page', page: token };
   // #dev-chart is a chart-rendering dev tool: localhost only; other hosts see Not found.
   if (token === 'dev-chart') {
     let local = false;
@@ -119,7 +120,7 @@ function titleFor(route, entry) {
     case 'playbook': return `Setup Playbook · ${SITE}`;
     case 'live': return `Live Market Lab · ${SITE}`;
     case 'games': return `Games · ${SITE}`;
-    case 'dashboard': return `Dashboard · ${SITE}`;
+    case 'map': return `World Map · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
@@ -144,7 +145,7 @@ function descriptionFor(route, entry) {
     case 'playbook': return 'Rule-based chart setups with a checklist, entry, stop and target. Educational only, not financial advice.';
     case 'live': return 'The Live Market Lab: quotes, market hours and real charts with source and delay labelled. Educational only.';
     case 'games': return 'Every game in The Trade School — drills for candlesticks, patterns, trends, Fibonacci, risk and more. Educational only.';
-    case 'dashboard': return 'Your progress across both tracks: lessons, games, XP, badges and daily streak. Educational only.';
+    case 'map': return 'Your campaign world map: trails through both tracks, boss capstones, XP, badges and records. Educational only.';
     case 'account': return 'Sign in or create a free account to open the Beginner and Advanced tracks. Educational only.';
     case 'paywall': return 'Unlock every lesson and game in the Beginner and Advanced tracks. Educational only.';
     case 'dev-chart': return 'Chart rendering dev page.';
@@ -177,16 +178,16 @@ function newSeed() {
 
 function backTarget(route, entry) {
   if (entry && (entry.tier === 'beginner' || entry.tier === 'advanced' || entry.tier === 'both')) {
-    return 'dashboard';
+    return 'map';
   }
-  if (route.section === 'beginner' || route.section === 'advanced') return 'dashboard';
-  if (route.tier) return 'dashboard';
+  if (route.section === 'beginner' || route.section === 'advanced') return 'map';
+  if (route.tier) return 'map';
   return 'home';
 }
 
 function errorCard(route, entry, err, retry) {
   const back = backTarget(route, entry);
-  const backLabel = back === 'home' ? 'Back to home' : 'Back to Dashboard';
+  const backLabel = back === 'home' ? 'Back to home' : 'Back to the map';
   return h('div', { class: 'container' },
     h('div', { class: 'route-error card', role: 'alert' },
       h('div', { class: 'route-error__icon', 'aria-hidden': 'true' }, icon('info', { size: 28 })),
@@ -206,7 +207,7 @@ function notFoundCard(route) {
       h('p', { class: 'muted' }, `We couldn't find “${route.key}”. It may have moved.`),
       h('div', { class: 'row' },
         h('button', { type: 'button', class: 'btn btn--primary', on: { click: () => navigate('home') } }, icon('home'), 'Go home'),
-        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('dashboard') } }, 'Dashboard'))));
+        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('map') } }, 'World map'))));
 }
 
 function skeleton() {

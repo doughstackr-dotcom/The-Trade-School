@@ -91,7 +91,7 @@ function squiggle(done) {
     svg('polyline', { points: pts.join(' '), 'vector-effect': 'non-scaling-stroke' }));
 }
 
-function itemButton(store, type, id) {
+export function itemButton(store, type, id) {
   const e = findEntry(id);
   if (!e) return null;
   const open = canLaunch(e);

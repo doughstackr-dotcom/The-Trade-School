@@ -51,7 +51,7 @@ export default {
     const planName = PLANS[need]?.name || 'Paid';
     const title = entry?.title || 'This page';
     const back = entry?.tier === 'advanced' || entry?.tier === 'beginner' || entry?.tier === 'both'
-      ? 'dashboard'
+      ? 'map'
       : 'home';
     const routeKey = ctx.route?.key || '';
 

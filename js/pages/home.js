@@ -749,7 +749,7 @@ function levelStrip(store) {
       h('div', { class: 'level-strip__badges' },
         h('span', { class: 'eyebrow' }, `Badges · ${earned.length}/${BADGES.length}`),
         h('div', { class: 'level-strip__row' }, slots)),
-      h('a', { class: 'btn', href: '#dashboard' }, 'View dashboard', icon('arrow-right'))));
+      h('a', { class: 'btn', href: '#map' }, 'View the map', icon('arrow-right'))));
 }
 
 // ------------------------------------------------------------------ page
@@ -811,7 +811,7 @@ export default {
           h('div', { class: 'hero__ctas' },
             h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
             h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
-            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
+            h('a', { class: 'btn btn--lg btn--ghost', href: '#map' }, 'Open the map')),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
             h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),

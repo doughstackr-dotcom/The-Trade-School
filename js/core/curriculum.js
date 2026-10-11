@@ -46,7 +46,7 @@ export function trackCard(store, tier, opts = {}) {
   let ctaNode = null;
   if (cta === 'dashboard') {
     ctaNode = h('a', { class: 'btn track-card__cta', href: `#${tier.id}` },
-      `Open ${tier.title} on Dashboard`, icon('arrow-right'));
+      `Open ${tier.title} on the map`, icon('arrow-right'));
   } else if (cta === 'section') {
     ctaNode = h('a', { class: 'btn track-card__cta', href: `#${tier.id}` },
       `Jump to ${tier.title}`, icon('arrow-right'));

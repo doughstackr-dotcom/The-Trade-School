@@ -53,7 +53,7 @@ export default {
           snap.user
             ? h('a', { class: 'btn btn--primary', href: '#paywall' }, icon('lock', { size: 16 }), 'View plans')
             : h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in to play free'),
-          h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
+          h('a', { class: 'btn btn--ghost', href: '#map' }, 'Map'),
           freeEntry
             ? h('a', { class: 'btn btn--ghost', href: `#${hashFor(FREE_GAME_ID)}` }, icon('flame', { size: 16 }), `Open ${freeEntry.title}`)
             : null))

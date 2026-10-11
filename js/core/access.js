@@ -245,7 +245,7 @@ export function requiredPlan(entryOrMode) {
  */
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
-  'dashboard', 'progress', // #progress aliases to dashboard
+  'map', 'dashboard', 'progress', // v2 hub; legacy dashboard/progress hashes redirect to the map
   'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);
