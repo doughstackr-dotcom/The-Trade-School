@@ -878,3 +878,100 @@
 .dd-btn:disabled {
   opacity: 0.4;
 }
+
+/* ================================================================ 3C BOSS MECHANICS (v2)
+   The Oracle whisper + verdict, Boss Gauntlet versus strip, The Final Trade shock
+   warning, Oracle Arena armor. (Boss bars live in the shared .bossbar styles.) */
+
+.oracle-whisper {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 9px 14px;
+  border: 1px dashed color-mix(in oklab, var(--arcade) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--arcade-soft) 45%, transparent);
+  font-style: italic;
+  color: var(--text-2);
+}
+
+.oracle-whisper__icon {
+  font-style: normal;
+  color: var(--arcade);
+  text-shadow: 0 0 8px rgba(255, 79, 216, 0.5);
+}
+
+.oracle-verdict--gauntlet-win,
+.gauntlet-verdict--win {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+/* Boss Gauntlet versus strip. */
+.vs-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in oklab, var(--arcade) 30%, var(--line));
+  border-radius: 999px;
+  background: rgba(6, 11, 20, 0.5);
+}
+
+.vs-strip__side {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vs-strip__score {
+  font-family: var(--font-arcade);
+  font-size: 0.9375rem;
+  color: var(--accent-strong);
+}
+
+.vs-strip__vs {
+  font-size: 0.6875rem;
+  color: var(--arcade);
+  text-shadow: 0 0 8px rgba(255, 79, 216, 0.5);
+}
+
+/* The Final Trade shock warning. */
+.shock-warning {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 9px 14px;
+  border: 1px solid color-mix(in oklab, var(--warn) 55%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--warn) 8%, transparent);
+  color: var(--warn);
+  animation: arcade-blink 1.6s steps(1, end) 3;
+}
+
+.shock-warning__icon {
+  filter: drop-shadow(0 0 6px rgba(255, 180, 84, 0.6));
+}
+
+/* Oracle Arena armor readout. */
+.arena-armor {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  background: rgba(6, 11, 20, 0.5);
+}
+
+.arena-armor .armor-on {
+  color: var(--accent);
+  filter: drop-shadow(0 0 5px rgba(53, 224, 255, 0.6));
+}
+
+.arena-armor .armor-off {
+  color: var(--text-3);
+  opacity: 0.5;
+}

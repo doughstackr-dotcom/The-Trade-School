@@ -71,6 +71,14 @@ export class BossBar {
     return this.hp;
   }
 
+  /** Restores n HP (never above max). The boss regains ground on player mistakes. */
+  heal(n = 1) {
+    if (this.dead) return 0;
+    this.hp = Math.min(this.max, this.hp + Math.max(0, Math.round(n)));
+    this._render();
+    return this.hp;
+  }
+
   /** Boss defeated: cleared state + fanfare. */
   ko() {
     this.hp = 0;
