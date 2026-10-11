@@ -1,0 +1,164 @@
+/* The Trade School — design tokens.
+   "Chart paper by day, trading desk by night": blue-slate neutrals.
+   Light: green primary accent (bullish lean) + red bearish semantics.
+   Dark: blue primary accent. Bull/bear stay green/red for meaning.
+   Yellow (--live-indicator) is reserved for real Live Market Lab chart indicators only. */
+
+:root {
+  color-scheme: light;
+
+  --bg: #F3F5F9;
+  --surface: #FFFFFF;
+  --surface-2: #E9EDF4;
+  --line: #D5DCE7;
+  --grid: #E6EBF2;
+  --text: #0F1B2D;
+  --text-2: #46546B;
+  --text-3: #64718A;
+  --accent: #0A8F6A;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #D5F1E7;
+  --bull: #0A8F6A;
+  --bull-soft: #D5F1E7;
+  --bear: #D23F4A;
+  --bear-soft: #F8DADD;
+  --info: #2F66D9;
+  --warn: #C2610C;
+  --support: #0A8F6A;
+  --resistance: #D23F4A;
+  --ma1: #2F66D9;
+  --ma2: #0A8F6A;
+  --ma3: #8E44C9;
+  --fib: #0A8F6A;
+  --muted: #76839A;
+  --focus: #2F66D9;
+  /* Yellow reserved for Massive-backed Live Market Lab indicators only. */
+  --live-indicator: #B7790F;
+  --live-indicator-soft: #F6E7C8;
+
+  /* Additions: text-safe variants and primary-button fill (green darkened for 4.5:1 with white ink). */
+  --accent-strong: #07704F;
+  --bull-strong: #07704F;
+  --bear-strong: #B3303B;
+  --btn-primary: #0A8F6A;
+  --btn-primary-hover: #066548;
+  --bull-ink: #FFFFFF;
+  --bear-ink: #FFFFFF;
+  --topbar-bg: rgba(243, 245, 249, 0.86);
+  --overlay: rgba(15, 27, 45, 0.44);
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 2px rgba(15, 27, 45, 0.06), 0 6px 20px -6px rgba(15, 27, 45, 0.14);
+  --shadow-lg: 0 2px 4px rgba(15, 27, 45, 0.06), 0 24px 48px -16px rgba(15, 27, 45, 0.28);
+
+  --font-display: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --topbar-h: 60px;
+  /* Single-line risk marquee (padding + text + border); sticky chrome stacks this above the topbar. */
+  --risk-ticker-h: 42px;
+  --chrome-h: calc(var(--risk-ticker-h) + var(--topbar-h));
+  --tabbar-h: 0px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0B1220;
+    --surface: #111A2B;
+    --surface-2: #18233A;
+    --line: #26324B;
+    --grid: #1B2640;
+    --text: #E7EDF6;
+    --text-2: #A5B1C6;
+    --text-3: #7F8DA5;
+    --accent: #5B8CFF;
+    --accent-ink: #061018;
+    --accent-soft: #1A2744;
+    --bull: #27C990;
+    --bull-soft: #0F3A2E;
+    --bear: #F2646E;
+    --bear-soft: #44191E;
+    --info: #6C9CFF;
+    --warn: #FF9F4A;
+    --support: #27C990;
+    --resistance: #F2646E;
+    --ma1: #6C9CFF;
+    --ma2: #27C990;
+    --ma3: #C08BFF;
+    --fib: #5B8CFF;
+    --muted: #6F7D96;
+    --focus: #8DB3FF;
+    --live-indicator: #F2B53A;
+    --live-indicator-soft: #3A2C10;
+
+    --accent-strong: #8DB3FF;
+    --bull-strong: #3DD69E;
+    --bear-strong: #FF7C85;
+    --btn-primary: #5B8CFF;
+    --btn-primary-hover: #7AA3FF;
+    --bull-ink: #04140E;
+    --bear-ink: #1C0507;
+    --topbar-bg: rgba(11, 18, 32, 0.82);
+    --overlay: rgba(2, 6, 14, 0.66);
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.45), 0 28px 60px -18px rgba(0, 0, 0, 0.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0B1220;
+  --surface: #111A2B;
+  --surface-2: #18233A;
+  --line: #26324B;
+  --grid: #1B2640;
+  --text: #E7EDF6;
+  --text-2: #A5B1C6;
+  --text-3: #7F8DA5;
+  --accent: #5B8CFF;
+  --accent-ink: #061018;
+  --accent-soft: #1A2744;
+  --bull: #27C990;
+  --bull-soft: #0F3A2E;
+  --bear: #F2646E;
+  --bear-soft: #44191E;
+  --info: #6C9CFF;
+  --warn: #FF9F4A;
+  --support: #27C990;
+  --resistance: #F2646E;
+  --ma1: #6C9CFF;
+  --ma2: #27C990;
+  --ma3: #C08BFF;
+  --fib: #5B8CFF;
+  --muted: #6F7D96;
+  --focus: #8DB3FF;
+  --live-indicator: #F2B53A;
+  --live-indicator-soft: #3A2C10;
+
+  --accent-strong: #8DB3FF;
+  --bull-strong: #3DD69E;
+  --bear-strong: #FF7C85;
+  --btn-primary: #5B8CFF;
+  --btn-primary-hover: #7AA3FF;
+  --bull-ink: #04140E;
+  --bear-ink: #1C0507;
+  --topbar-bg: rgba(11, 18, 32, 0.82);
+  --overlay: rgba(2, 6, 14, 0.66);
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.45), 0 28px 60px -18px rgba(0, 0, 0, 0.8);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}

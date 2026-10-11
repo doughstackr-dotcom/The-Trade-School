@@ -1,0 +1,204 @@
+/* Setup Playbook — card pattern embeds and list layout helpers.
+   Kept separate from components.css so concurrent shell/games edits stay clear. */
+
+.playbook-setups-head {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 0;
+}
+
+.playbook-setups-head .t-22 {
+  margin: 0;
+}
+
+.playbook-card__pattern {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2, var(--surface));
+}
+
+.playbook-card__pattern-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.playbook-card__pattern-kicker {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playbook-card__pattern-name {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.playbook-card__pattern-art {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  padding: 4px 0;
+}
+
+.playbook-card__pattern-art svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.playbook-card__pattern-empty {
+  min-height: 72px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Detail-page process guides (accordions) — list view is cards-only. */
+
+.playbook-detail-guides {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.playbook-detail-guides .section-head {
+  margin-bottom: 4px;
+}
+
+.playbook-accordion {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.playbook-accordion__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  list-style: none;
+  user-select: none;
+}
+
+.playbook-accordion__summary > span {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.playbook-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.playbook-accordion__summary::before {
+  content: '';
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted, #888);
+  border-bottom: 2px solid var(--muted, #888);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  margin-right: 4px;
+}
+
+.playbook-accordion[open] > .playbook-accordion__summary::before {
+  transform: rotate(45deg);
+}
+
+.playbook-accordion__summary:hover {
+  background: var(--surface-2, var(--surface));
+}
+
+.playbook-accordion__hint {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.playbook-accordion__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.playbook-detail-guide__blurb {
+  margin: 0;
+  font-size: 14px;
+}
+
+.playbook-detail-guide__note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--surface));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.playbook-detail-guide__empty {
+  margin: 0;
+  font-size: 13px;
+}
+
+.playbook-frameworks--detail,
+.playbook-checklists--detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playbook-framework--primary {
+  border-color: var(--accent, var(--line));
+}
+
+.playbook-risk-compact {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playbook-risk-compact li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--line);
+}
+
+.playbook-risk-compact strong {
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+.playbook-risk-compact .muted {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.playbook-detail-guides .playbook-disclaimer {
+  margin: 4px 0 0;
+}
