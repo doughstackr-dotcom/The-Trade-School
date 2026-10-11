@@ -32,6 +32,11 @@ function forceEnforceLocally() {
 }
 
 /** Whether the gate should block unpaid modules right now. */
+/** The live Supabase client once booted (null while offline / unconfigured). */
+export function supabaseClient() {
+  return client;
+}
+
 export function isEnforcing() {
   if (ACCESS_MODE === 'open') return false;
   if (ACCESS_MODE === 'enforce') return true;
@@ -247,6 +252,7 @@ export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
   'map', 'dashboard', 'progress', // v2 hub; legacy dashboard/progress hashes redirect to the map
   'shop', // credit shop (local cosmetics, no account needed)
+  'ranks', // leaderboards (public boards; submitting needs sign-in + opt-in)
   'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);

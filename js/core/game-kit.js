@@ -8,6 +8,7 @@
 // game.realRound() / game.revealSource() for "mystery chart" rounds and a textbook fallback.
 import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast, choiceQuiz, shake, floatText as floatPopup } from './ui.js';
 import { senseiSVG } from './mascot.js';
+import { maybeSubmit as submitLeaderboard } from './leaderboard.js';
 import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
 import { CAMPAIGN_LEVEL_COUNT, campaignProfile, campaignDifficulty } from './game-levels.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
@@ -807,6 +808,11 @@ export class GameShell {
       starGain: 0,
     };
     const recordedLevelRun = !!rec.levelResult;
+    // Opt-in leaderboards: submits only when Competitive mode is on (no-op otherwise).
+    if (!this.daily || daily?.first) {
+      submitLeaderboard(this.store, { gameId: this.id, style: this.style, score: this.score, stars })
+        .catch(() => { /* boards are optional garnish */ });
+    }
     const summary = {
       score: this.score,
       base: this.base,

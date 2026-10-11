@@ -12,6 +12,7 @@ const PAGE_PATHS = {
   // v2: the world map is the hub; #dashboard / #progress redirect to it (parseHash).
   map: '../pages/map.js',
   shop: '../pages/shop.js',
+  ranks: '../pages/ranks.js',
   glossary: '../pages/glossary.js',
   platforms: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
@@ -96,7 +97,7 @@ export function parseHash(hash) {
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'shop' || token === 'paywall') return { key: token, kind: 'page', page: token };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'shop' || token === 'ranks' || token === 'paywall') return { key: token, kind: 'page', page: token };
   // #dev-chart is a chart-rendering dev tool: localhost only; other hosts see Not found.
   if (token === 'dev-chart') {
     let local = false;
@@ -123,6 +124,7 @@ function titleFor(route, entry) {
     case 'games': return `Games · ${SITE}`;
     case 'map': return `World Map · ${SITE}`;
     case 'shop': return `Credit Shop · ${SITE}`;
+    case 'ranks': return `Ranks · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
@@ -149,6 +151,7 @@ function descriptionFor(route, entry) {
     case 'games': return 'Every game in The Trade School — drills for candlesticks, patterns, trends, Fibonacci, risk and more. Educational only.';
     case 'map': return 'Your campaign world map: trails through both tracks, boss capstones, XP, badges and records. Educational only.';
     case 'shop': return 'Spend Candle Credits — minted by every XP you earn — on cabinet skins, candle palettes and XP frames. Educational only.';
+    case 'ranks': return 'Opt-in leaderboards: weekly and all-time bests for every game, plus the weekly event. Handles only, never emails. Educational only.';
     case 'account': return 'Sign in or create a free account to open the Beginner and Advanced tracks. Educational only.';
     case 'paywall': return 'Unlock every lesson and game in the Beginner and Advanced tracks. Educational only.';
     case 'dev-chart': return 'Chart rendering dev page.';

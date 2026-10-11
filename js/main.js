@@ -13,6 +13,7 @@ const NAV = [
   { hash: 'map', label: 'Map', icon: 'compass' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
   { hash: 'shop', label: 'Shop', icon: 'medal', tab: false },
+  { hash: 'ranks', label: 'Ranks', icon: 'trophy', tab: false },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
@@ -59,7 +60,7 @@ function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
     if (route.page === 'map' || route.page === 'dashboard' || route.page === 'progress') return 'map';
-    if (['library', 'glossary', 'playbook', 'live', 'games', 'shop', 'account', 'platforms'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'shop', 'ranks', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if (route.kind === 'game') return 'games';

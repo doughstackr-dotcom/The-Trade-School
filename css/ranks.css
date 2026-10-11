@@ -1,0 +1,134 @@
+/* Ranks (#ranks): leaderboard cabinets + weekly event. */
+
+.ranks-page .page-head {
+  margin-bottom: 28px;
+}
+
+.ranks-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 28px;
+  margin-bottom: 22px;
+  padding: clamp(20px, 4vw, 28px);
+}
+
+.ranks-event__title {
+  margin: 2px 0 6px;
+}
+
+.ranks-enable {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.ranks-enable__row {
+  flex-wrap: nowrap;
+}
+
+.ranks-handle-input {
+  width: min(280px, 60vw);
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ranks-enable__note {
+  font-size: 0.875rem;
+}
+
+.ranks-live {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 26px;
+}
+
+.ranks-live__handle {
+  font-size: 1.125rem;
+  color: var(--arcade);
+  text-shadow: 0 0 10px rgba(255, 79, 216, 0.4);
+}
+
+.ranks-board-section {
+  margin-bottom: 40px;
+}
+
+.ranks-controls select {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.board-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.board-row:nth-child(1) {
+  border-color: color-mix(in oklab, var(--live-indicator) 50%, var(--line));
+  box-shadow: 0 0 12px rgba(242, 181, 58, 0.25);
+}
+
+.board-row.is-you {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  box-shadow: var(--glow-accent);
+}
+
+.board-row__rank {
+  font-family: var(--font-arcade);
+  font-size: 0.9375rem;
+  color: var(--text-3);
+}
+
+.board-row:nth-child(1) .board-row__rank,
+.board-row:nth-child(2) .board-row__rank,
+.board-row:nth-child(3) .board-row__rank {
+  color: var(--live-indicator);
+  text-shadow: 0 0 8px rgba(242, 181, 58, 0.45);
+}
+
+.board-row__handle {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.board-row__you {
+  margin-left: 8px;
+}
+
+.board-row__score {
+  font-family: var(--font-arcade);
+  font-size: 1rem;
+  color: var(--accent-strong);
+  text-shadow: 0 0 8px rgba(53, 224, 255, 0.35);
+}
+
+.board-empty {
+  padding: 26px 16px;
+  text-align: center;
+}
+
+.ranks-footnote {
+  padding-block: 18px;
+  text-align: center;
+}
