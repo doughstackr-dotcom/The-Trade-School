@@ -15,9 +15,19 @@ in your browser.
 > are past data, never a prediction. Nothing here says a pattern "always works"; the games
 > include failed setups on purpose.
 
+## V2 — the arcade layer
+
+v2 wraps the same curriculum in an arcade: a dark "Midnight Arcade" theme with CRT
+scanlines and neon accents (light "Chart Paper" theme stays), a campaign **world map**
+(`#map`) with boss capstones, 13 redesigned games (memorize flashes, streaming charts,
+timing catches, wagers, boss battles — Practice keeps the classic study flow), **Candle
+Credits** minted by every XP and spent in the **credit shop** (`#shop`) on skins and
+palettes, the **Candle Sensei** mascot, and opt-in **leaderboards** with a weekly event
+(`#ranks`). See `docs/ARCHITECTURE.md` §30.
+
 ## Dashboard & access
 
-- **`#dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
+- **`#map`** — the v2 world map hub: campaign trails, records, badges (legacy `#dashboard`/`#progress` redirect here).
 - **`#account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
 - Access gating: `js/core/access.js` + router `setAccessGate`. Free ids include candle anatomy, candle builder, daily challenge, markets & orders, and order desk. See `docs/SECRETS.md`.
 

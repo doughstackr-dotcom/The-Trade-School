@@ -759,9 +759,9 @@ function showWelcome(store) {
   const body = h('div', { class: 'welcome-modal' },
     h('p', null, 'Short visual lessons and games teach chart reading — then you can test your eye on textbook or real-market charts.'),
     h('ol', { class: 'welcome-modal__steps' },
-      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner track; Markets, orders & the spread comes late, then Put it together (Daily Challenge stays free).'),
+      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner trail on the world map; the capstones are boss stages (Daily Challenge stays free).'),
       h('li', null, h('strong', null, 'Play styles:'), ' Practice, Arcade, or Survival on every game.'),
-      h('li', null, h('strong', null, 'Dashboard:'), ' See the full map anytime under Dashboard.')),
+      h('li', null, h('strong', null, 'World map:'), ' Clear units to open the next; the Games hub stays free-play.')),
     h('p', { class: 'faint' }, 'Educational only — not financial advice. You can skip this tour.'),
   );
   modal({
@@ -800,8 +800,8 @@ export default {
     const hero = h('section', { class: 'hero' },
       h('div', { class: 'container hero__inner' },
         h('div', { class: 'hero__copy' },
-          h('p', { class: 'eyebrow eyebrow--accent hero__eyebrow' }, 'The Trade School · learn by playing'),
-          h('h1', { class: 'hero__title' },
+          h('p', { class: 'eyebrow eyebrow--accent hero__eyebrow arcade-label' }, 'The Trade School · insert coin to learn'),
+          h('h1', { class: 'hero__title neon-title' },
             h('span', { class: 'hero__line' }, 'Learn to read'), ' ',
             h('span', { class: 'hero__line' }, 'the market,'), ' ',
             h('span', { class: 'hero__line' }, h('span', { class: 'hero__em' }, 'one candle')), ' ',
@@ -809,13 +809,14 @@ export default {
           h('p', { class: 'hero__lead' },
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
           h('div', { class: 'hero__ctas' },
-            h('a', { class: 'btn btn--primary btn--lg', href: '#beginner' }, 'Start Beginner', icon('arrow-right')),
+            h('a', { class: 'btn btn--primary btn--lg btn--arcade', href: '#beginner' }, icon('play', { size: 18 }), 'Press Start · Beginner'),
             h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
             h('a', { class: 'btn btn--lg btn--ghost', href: '#map' }, 'Open the map')),
           h('dl', { class: 'hero__facts' },
             h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
             h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),
-            h('div', null, h('dt', null, 'Tracks'), h('dd', { class: 'mono' }, String(TIERS.length))))),
+            h('div', null, h('dt', null, 'Worlds'), h('dd', { class: 'mono' }, String(TIERS.length))),
+            h('div', null, h('dt', null, 'Bosses'), h('dd', { class: 'mono' }, '4')))),
         chartHost));
 
     const arcadeGrid = h('div', { class: 'arcade__grid', id: 'arcade-grid' });
