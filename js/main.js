@@ -2,7 +2,7 @@
 import { store } from './core/store.js';
 import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
-import { h, svg, icon, sfx } from './core/ui.js';
+import { h, svg, icon, sfx, toast } from './core/ui.js';
 import { findEntry } from './registry.js';
 import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
 import { clearPremiumModuleCache } from './core/premium-loader.js';
@@ -187,8 +187,32 @@ function buildShell(app) {
     'data-auth': 'out',
   }, icon('lock', { size: 14 }), h('span', { class: 'topbar__auth-label' }, 'Sign in'));
 
+  // Log out — icon button next to the account pill, visible only while signed in.
+  // The Account page keeps the full sign-out form; this is the always-reachable shortcut.
+  const logoutBtn = h('button', {
+    type: 'button',
+    class: 'icon-btn',
+    hidden: true,
+    on: {
+      click: () => {
+        if (!globalThis.confirm('Log out of The Trade School?')) return;
+        access.signOut()
+          .then(() => toast('Signed out', { type: 'info' }))
+          .catch(() => toast('Could not sign out — try again from Account', { type: 'warn' }));
+      },
+    },
+  });
+
   function renderAuth() {
     const a = access.getAccess();
+    logoutBtn.hidden = !a.user;
+    if (a.user) {
+      logoutBtn.setAttribute('aria-label', `Log out${a.user.email ? ` (${a.user.email})` : ''}`);
+      logoutBtn.title = 'Log out';
+    } else {
+      logoutBtn.removeAttribute('aria-label');
+      logoutBtn.removeAttribute('title');
+    }
     if (a.user) {
       const label = (a.user.email && a.user.email.split('@')[0]) || 'Account';
       authBtn.href = '#account';
@@ -211,7 +235,7 @@ function buildShell(app) {
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, authBtn, soundBtn, themeBtn, languageBtn)));
+      h('div', { class: 'topbar__tools' }, xpPill, authBtn, logoutBtn, soundBtn, themeBtn, languageBtn)));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },
