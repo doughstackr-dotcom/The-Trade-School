@@ -126,7 +126,8 @@ function ymdUTC(d: Date): string {
 function recentDates(count = 8): string[] {
   const out: string[] = [];
   const d = new Date();
-  for (let i = 0; i < count + 6 && out.length < count; i++) {
+  // Start at yesterday (UTC): today's grouped bars are never available on end-of-day plans.
+  for (let i = 1; i < count + 7 && out.length < count; i++) {
     const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - i));
     // Skip pure weekend probes less aggressively — still try Fri–Sun in case of holiday gaps.
     out.push(ymdUTC(x));
@@ -247,7 +248,18 @@ async function loadRecentStockSessions(): Promise<{ latest: Map<string, GroupedB
   let prev: Map<string, GroupedBar> | null = null;
   let latestDate: string | null = null;
   for (const d of recentDates(10)) {
-    const map = await fetchGroupedDay(d);
+    // The free / Basic plan answers 403 NOT_AUTHORIZED for the current day (and for a
+    // session that has not reached end of day yet). Treat that like an empty day and keep
+    // walking back, instead of failing the whole stock board.
+    let map: Map<string, GroupedBar>;
+    try {
+      map = await fetchGroupedDay(d);
+    } catch (err) {
+      // Only skip "not available on this plan yet" days; rate limits and outages still fail
+      // fast so the caller can fall back to the last good (stale) quotes.
+      if (err instanceof Error && /HTTP 403/.test(err.message)) continue;
+      throw err;
+    }
     if (!map.size) continue;
     if (!latest) {
       latest = map;
