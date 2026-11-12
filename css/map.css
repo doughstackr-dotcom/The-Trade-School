@@ -2,19 +2,24 @@
    the live node positions; CSS only styles it. Glow tokens collapse in Chart Paper. */
 
 .map-page .page-head {
-  margin-bottom: 28px;
+  margin-bottom: 32px;
+}
+
+/* Keep the account card off the first world header — they used to touch. */
+.map-page .dash-account {
+  margin-bottom: 36px;
 }
 
 .map-track {
-  margin-bottom: 56px;
+  margin-bottom: clamp(56px, 7vw, 80px);
 }
 
 .map-track__head {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: 20px 32px;
   align-items: center;
-  margin-bottom: 34px;
+  margin-bottom: 40px;
   padding: clamp(20px, 4vw, 28px);
 }
 
@@ -36,6 +41,17 @@
   display: grid;
   gap: 8px;
   justify-items: start;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.map-track__side .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.35;
+  padding-block: 10px;
 }
 
 .map-track__pct {
@@ -46,8 +62,7 @@
 
 .trail__wrap {
   position: relative;
-  max-width: 860px;
-  margin-inline: auto;
+  width: 100%;
 }
 
 .trail__path {
@@ -76,37 +91,51 @@
 .trail {
   list-style: none;
   margin: 0;
-  padding: 6px 0;
+  padding: 10px 0 14px;
   display: grid;
-  gap: 30px;
+  gap: clamp(36px, 4.4vw, 56px);
   position: relative;
 }
 
 .trail__row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-columns: clamp(160px, 16vw, 210px) minmax(0, 1fr);
   gap: 16px 26px;
   align-items: start;
 }
 
-/* The sway: alternate node columns left/right so the drawn path winds. Boss stays centred. */
-.trail__row:nth-child(odd) .trail__node-col {
-  translate: -16px 0;
+/* The sway: alternate rows left/right so the drawn path zigzags across the full width. */
+.trail__row:nth-child(even) {
+  grid-template-columns: minmax(0, 1fr) clamp(160px, 16vw, 210px);
 }
 
 .trail__row:nth-child(even) .trail__node-col {
-  translate: 16px 0;
+  grid-column: 2;
+  grid-row: 1;
 }
 
+.trail__row:nth-child(even) .trail__panel-host {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* The boss closes the trail from the centre, its panel full-width beneath it. */
 .trail__row.is-boss .trail__node-col {
-  translate: 0 0;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: center;
+}
+
+.trail__row.is-boss .trail__panel-host {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-top: 16px;
 }
 
 .trail__node-col {
   display: grid;
   justify-items: center;
   gap: 7px;
-  transition: translate 0.3s var(--ease-out);
 }
 
 .trail__node-btn {
@@ -166,7 +195,7 @@
   box-shadow: var(--glow-bull);
 }
 
-/* Boss nodes: oversized magenta cabinets. */
+/* Boss nodes: oversized accent cabinets. */
 .trail__node-btn.is-boss {
   width: 96px;
   height: 96px;
@@ -232,6 +261,7 @@
 
 .trail__panel-host {
   min-width: 0;
+  width: 100%;
   padding-top: 2px;
 }
 
@@ -253,7 +283,8 @@
 
 .trail-panel__items {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
 }
 
 .trail-panel__lock {
@@ -275,7 +306,7 @@
 
 /* ---------------------------------------------------------------- responsive */
 
-@media (max-width: 860px) {
+@media (max-width: 1080px) {
   .map-track__head {
     grid-template-columns: 1fr;
   }
@@ -287,12 +318,29 @@
     gap: 12px 14px;
   }
 
-  .trail__row:nth-child(odd) .trail__node-col {
-    translate: -8px 0;
+  .trail__row:nth-child(even) {
+    grid-template-columns: minmax(0, 1fr) 96px;
   }
 
   .trail__row:nth-child(even) .trail__node-col {
-    translate: 8px 0;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .trail__row:nth-child(even) .trail__panel-host {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .trail__row.is-boss .trail__node-col {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+
+  .trail__row.is-boss .trail__panel-host {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
   .trail__node-btn {
@@ -312,5 +360,9 @@
   .trail__node-label {
     font-size: 0.75rem;
     max-width: 120px;
+  }
+
+  .trail-panel__items {
+    grid-template-columns: 1fr;
   }
 }

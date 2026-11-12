@@ -445,7 +445,7 @@ export const PAGES = [
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',
-    blurb: 'A live chart with indicator toggles and a plain-English read of trend, levels and patterns.' },
+    blurb: 'Market hours for major exchanges and a short history of trading, from ancient marketplaces to electronic exchanges.' },
   { id: 'platforms', title: 'Platforms', hash: 'platforms', param: false, path: './pages/affiliate.js',
     blurb: 'Trading platforms and tools we partner with — affiliate / referral links with clear placeholders until filled.' },
 ];

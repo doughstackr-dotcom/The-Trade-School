@@ -17,13 +17,10 @@ in your browser.
 
 ## V2 — the arcade layer
 
-v2 wraps the same curriculum in an arcade: a dark "Midnight Arcade" theme with CRT
-scanlines and neon accents (light "Chart Paper" theme stays), a campaign **world map**
-(`#map`) with boss capstones, 13 redesigned games (memorize flashes, streaming charts,
-timing catches, wagers, boss battles — Practice keeps the classic study flow), **Candle
-Credits** minted by every XP and spent in the **credit shop** (`#shop`) on skins and
-palettes, the **Candle Sensei** mascot, and opt-in **leaderboards** with a weekly event
-(`#ranks`). See `docs/ARCHITECTURE.md` §30.
+v2 wraps the same curriculum in an arcade: a warm ink-and-paper theme, a campaign **world
+map** (`#map`) with boss capstones, 13 redesigned games (memorize flashes, streaming charts,
+timing catches, wagers, boss battles — Practice keeps the classic study flow). See
+`docs/ARCHITECTURE.md` §30.
 
 ## Dashboard & access
 

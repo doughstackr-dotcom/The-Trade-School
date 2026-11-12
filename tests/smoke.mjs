@@ -151,7 +151,7 @@ async function routes() {
   const reg = await import(pathToFileURL(path.join(ROOT, 'js', 'registry.js')).href);
   const all = [
     'home', 'beginner', 'advanced', 'library', 'progress', 'glossary', 'dashboard', 'account', 'dev-chart',
-    'map', 'shop', 'ranks', // v2: world map hub, credit shop, leaderboards
+    'map', // v2: world map hub
     ...(reg.PAGES || []).map((p) => p.hash),
     ...((reg.PAGES || []).some((p) => p.id === 'playbook') ? ['playbook.hammer'] : []),
     ...reg.LESSONS.map((l) => `l.${l.id}`),

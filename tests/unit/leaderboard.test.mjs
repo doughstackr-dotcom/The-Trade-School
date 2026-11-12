@@ -26,7 +26,9 @@ test('weeklyEventGame: always a real game, stable within the week, rotates acros
   const ids = new Set(GAMES.map((g) => g.id));
   const thisWeek = weeklyEventGame();
   assert.ok(ids.has(thisWeek), 'event game exists in the registry');
-  assert.equal(weeklyEventGame(new Date('2026-10-08T00:00:00Z')), thisWeek, 'stable mid-week');
+  const midWeek = new Date();
+  midWeek.setUTCDate(midWeek.getUTCDate() - ((midWeek.getUTCDay() + 6) % 7) + 2); // Wednesday of this week
+  assert.equal(weeklyEventGame(midWeek), thisWeek, 'stable mid-week');
   const seen = new Set([thisWeek]);
   for (let w = 1; w <= 30; w++) {
     const d = new Date(Date.UTC(2026, 0, 1 + w * 7));

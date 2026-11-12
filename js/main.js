@@ -3,7 +3,6 @@ import { store } from './core/store.js';
 import { startRouter, navigate, setAccessGate } from './core/router.js';
 import * as access from './core/access.js';
 import { h, svg, icon, sfx, toast } from './core/ui.js';
-import { senseiSVG, wireSensei, SENSEI_TIPS } from './core/mascot.js';
 import { findEntry } from './registry.js';
 import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
 
@@ -12,8 +11,6 @@ import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/
 const NAV = [
   { hash: 'map', label: 'Map', icon: 'compass' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
-  { hash: 'shop', label: 'Shop', icon: 'medal', tab: false },
-  { hash: 'ranks', label: 'Ranks', icon: 'trophy', tab: false },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
@@ -52,7 +49,7 @@ function applyTheme(pref) {
   const root = document.documentElement;
   if (pref === 'light' || pref === 'dark') root.setAttribute('data-theme', pref);
   else root.removeAttribute('data-theme');
-  const color = effectiveTheme(pref) === 'dark' ? '#060B14' : '#F3F5F9';
+  const color = effectiveTheme(pref) === 'dark' ? '#050505' : '#F3F6FA';
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', color));
 }
 
@@ -60,7 +57,7 @@ function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
     if (route.page === 'map' || route.page === 'dashboard' || route.page === 'progress') return 'map';
-    if (['library', 'glossary', 'playbook', 'live', 'games', 'shop', 'ranks', 'account', 'platforms'].includes(route.page)) return route.page;
+    if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if (route.kind === 'game') return 'games';
@@ -148,24 +145,6 @@ function buildShell(app) {
       xpPill.classList.add('is-bump');
     }
   }
-
-  // The Candle Sensei: header buddy wearing the equipped hat; tap for a tip.
-  const buddy = h('button', {
-    type: 'button',
-    class: 'sensei-buddy',
-    'aria-label': 'The Candle Sensei — press for a trading tip',
-    title: 'The Candle Sensei',
-    on: { click: () => {
-      sfx.click();
-      toast(SENSEI_TIPS[Math.floor(Math.random() * SENSEI_TIPS.length)], { type: 'info', duration: 4200 });
-    } },
-  });
-  const renderBuddy = (mood = 'idle') => {
-    const hat = String(store.state.cosmetics?.equipped?.hat || 'none').replace(/^hat-/, '') || 'none';
-    buddy.replaceChildren(senseiSVG({ size: 30, mood, hat }));
-  };
-  renderBuddy();
-  wireSensei(store, (mood) => renderBuddy(mood));
 
   // Sound toggle
   const soundBtn = h('button', { type: 'button', class: 'icon-btn', on: { click: () => {
@@ -271,7 +250,7 @@ function buildShell(app) {
         brandMark(28),
         h('span', { class: 'brand__word' }, 'The Trade School')),
       topNav,
-      h('div', { class: 'topbar__tools' }, xpPill, buddy, authBtn, logoutBtn, soundBtn, themeBtn, languageBtn)));
+      h('div', { class: 'topbar__tools' }, xpPill, authBtn, logoutBtn, soundBtn, themeBtn, languageBtn)));
 
   const footer = h('footer', { class: 'footer' },
     h('div', { class: 'container footer__inner' },
@@ -281,7 +260,6 @@ function buildShell(app) {
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
         h('a', { href: '#map' }, 'World map'),
         h('a', { href: '#games' }, 'Games'),
-        h('a', { href: '#shop' }, 'Credit shop'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
         h('a', { href: '#library' }, 'Library'),

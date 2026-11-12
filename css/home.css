@@ -1,0 +1,534 @@
+/* Home — "Bento Board" layout.
+   A 12-column mosaic: the cover copy and the teaching chart are separate tiles, the four
+   headline facts become a KPI strip, and Today / tracks / play styles / level are tiles.
+   Colour is deliberately quiet: a deep teal cover in light (black in dark), one neutral
+   chart tile, and neutral surfaces for everything else, with the teal accent doing the
+   pointing. Tiles carry their own ink so they read the same in Light and Dark. */
+
+.home {
+  --bento-night: #080808;
+  --bento-cover: #0C2832;
+  --bento-cover-2: #16414B;
+  --bento-cover-ink: #0A0A0A;
+  --bento-panel: #F2F2F2;
+  --bento-panel-2: #E6E6E6;
+  --bento-panel-ink: #141414;
+  --bento-cover-text: #F5F5F5;
+  --bento-r: 22px;
+  --bento-r-sm: 18px;
+
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: calc(1120px + 48px);
+  margin-inline: auto;
+  padding-block: 22px 40px;
+  padding-inline: max(24px, env(safe-area-inset-left, 0px)) max(24px, env(safe-area-inset-right, 0px));
+  align-items: stretch;
+}
+
+/* The old hero grid + -8% glow were clipped by .hero's own overflow; with the hero dissolved
+   into the mosaic they would escape the page. The tiles replace them. */
+.home .hero::before,
+.home .hero::after {
+  content: none;
+  display: none;
+}
+
+/* Sections dissolve so their tiles land on the page mosaic. */
+.home > .hero,
+.home > .today,
+.home > .tracks,
+.home > .play-way,
+.home > .home-level,
+.home > .hero > .hero__inner,
+.home > .today > .today__grid,
+.home > .tracks > .tracks__grid,
+.home > .play-way > .play-way__grid {
+  display: contents;
+}
+
+/* Sections that stay whole become single full-width tiles. */
+.home > .arcade,
+.home > .continue-wrap {
+  grid-column: 1 / -1;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding-inline: 0;
+}
+
+.home > .arcade {
+  padding-block: 10px 0;
+}
+
+/* ------------------------------------------------------------------ cover */
+
+.home .hero__copy {
+  grid-column: span 5;
+  order: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(20px, 2.4vw, 30px);
+  border-radius: var(--bento-r);
+  background:
+    radial-gradient(120% 90% at 88% 0%, var(--bento-cover-2), transparent 62%),
+    var(--bento-cover);
+  color: var(--bento-cover-text);
+}
+
+.home .hero__eyebrow {
+  margin-bottom: 12px;
+  color: rgba(245, 245, 245, 0.72);
+  font-size: 11px;
+}
+
+.home .hero__copy .hero__title {
+  color: var(--bento-cover-text);
+  font-size: clamp(2.1rem, 1.25rem + 2.1vw, 3.05rem);
+  text-shadow: none;
+}
+
+.home .hero__copy .hero__em {
+  color: var(--bento-cover-text);
+  background: none;
+  padding-inline: 0;
+  border-bottom: 2px solid rgba(245, 245, 245, 0.4);
+}
+
+.home .hero__copy .hero__lead {
+  max-width: 42ch;
+  margin-top: 14px;
+  color: rgba(245, 245, 245, 0.78);
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+
+.home .hero__copy .hero__ctas {
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 22px;
+}
+
+.home .hero__copy .btn {
+  border-color: rgba(245, 245, 245, 0.26);
+  background: transparent;
+  color: var(--bento-cover-text);
+  box-shadow: none;
+}
+
+.home .hero__copy .btn:hover {
+  border-color: rgba(245, 245, 245, 0.48);
+  background: rgba(245, 245, 245, 0.1);
+}
+
+.home .hero__copy .btn--primary,
+.home .hero__copy .btn--arcade {
+  border-color: var(--bento-panel);
+  background: var(--bento-panel);
+  color: var(--bento-cover-ink);
+  text-shadow: none;
+  box-shadow: none;
+}
+
+.home .hero__copy .btn--primary:hover,
+.home .hero__copy .btn--arcade:hover {
+  background: #FFFFFF;
+  border-color: #FFFFFF;
+  animation: none;
+}
+
+.home .hero__copy .btn--arcade::after {
+  border-color: rgba(10, 10, 10, 0.3);
+}
+
+/* ------------------------------------------------------------------ chart tile */
+
+.home .hero__chart {
+  grid-column: span 7;
+  order: 0;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--bento-r);
+  background: var(--bento-night);
+  box-shadow: none;
+  overflow: hidden;
+
+  /* Re-map the app tokens inside the dark chart tile. */
+  --text: #F2F2F2;
+  --text-2: #C8C8C8;
+  --text-3: #9A9A9A;
+  --line: #2B2B2B;
+  --grid: #1A1A1A;
+  --surface: #101010;
+  --surface-2: #181818;
+  --accent: #5AD1DC;
+  --accent-strong: #A3E8ED;
+  --accent-soft: #12343D;
+  --accent-ink: #06191D;
+  --bull: #4CE0A0;
+  --bull-strong: #7CF0BE;
+  --bull-soft: #123328;
+  --bull-ink: #04140E;
+  --bear: #FF7A8A;
+  --bear-strong: #FF9AA6;
+  --bear-soft: #3A151C;
+  --bear-ink: #1C0507;
+  --support: #4CE0A0;
+  --resistance: #FF7A8A;
+  --info: #8FB8FF;
+  --fib: #5AD1DC;
+  --ma1: #8FB8FF;
+  --ma2: #4CE0A0;
+  --ma3: #E6A0B4;
+}
+
+.home .hero__chart .hero__ticker {
+  padding: 14px 18px;
+  border-bottom-color: var(--line);
+}
+
+.home .hero__chart .hero__steps {
+  padding: 14px 18px 0;
+}
+
+.home .hero__chart .hero__caption {
+  padding: 10px 18px 16px;
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------------ facts strip */
+
+.bento-facts {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.bento-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 15px 18px;
+  border-radius: var(--bento-r-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.bento-facts dt {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bento-facts dd {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.bento-facts > div:nth-child(1) {
+  background: var(--bento-panel);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  --text: var(--bento-panel-ink);
+  --text-3: #5F5F5F;
+}
+
+.bento-facts > div:nth-child(1) dt { color: #5F5F5F; }
+.bento-facts > div:nth-child(1) dd { color: var(--bento-panel-ink); }
+
+/* ------------------------------------------------------------------ continue */
+
+.home > .continue-wrap .continue {
+  border: 0;
+  border-radius: var(--bento-r-sm);
+}
+
+/* ------------------------------------------------------------------ today */
+
+.home .today-card {
+  min-width: 0;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: var(--bento-r);
+  color: var(--text);
+}
+
+.home .today-card--daily {
+  grid-column: span 7;
+  background: var(--bento-panel);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  --text: #141414;
+  --text-2: #4F4F4F;
+  --text-3: #626262;
+  --line: rgba(0, 0, 0, 0.14);
+  --surface: #FFFFFF;
+  --surface-2: var(--bento-panel-2);
+  --accent: #0F6F7C;
+  --accent-strong: #0A5560;
+  --accent-soft: #D9EEF1;
+  --accent-ink: #FFFFFF;
+  --bull: #0E7A51;
+  --bull-strong: #0A6644;
+  --bull-soft: #D8F0E6;
+  --bull-ink: #FFFFFF;
+  --bear: #B23A3F;
+  --bear-strong: #96282D;
+  --bear-soft: #F7DBDD;
+  --warn: #A85618;
+}
+
+.home .today-card--live {
+  grid-column: span 5;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ------------------------------------------------------------------ section labels */
+
+.home > .tracks > .section-head,
+.home > .play-way > .section-head {
+  grid-column: 1 / -1;
+  margin: 14px 2px 0;
+}
+
+.home > .tracks > .section-head h2,
+.home > .play-way > .section-head h2 {
+  font-size: clamp(24px, 1.4rem + 1vw, 32px);
+}
+
+/* ------------------------------------------------------------------ tracks */
+
+.home .track-card {
+  grid-column: span 6;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--bento-r);
+  padding: clamp(20px, 2.4vw, 28px);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ------------------------------------------------------------------ play your way */
+
+.home .play-way__card {
+  grid-column: span 4;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--bento-r);
+  padding: 20px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ arcade */
+
+.home .arcade {
+  border-top: 0;
+}
+
+.home .arcade .section-head {
+  margin-bottom: 16px;
+}
+
+.home .arcade__grid {
+  gap: 16px;
+}
+
+.home .game-tile {
+  border-radius: var(--bento-r-sm);
+}
+
+/* ------------------------------------------------------------------ level */
+
+.home .level-strip {
+  grid-column: 1 / -1;
+  border: 0;
+  border-radius: var(--bento-r);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.home .level-strip__num {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* ------------------------------------------------------------------ responsive */
+
+@media (max-width: 1099.98px) {
+  .home .hero__copy .hero__title {
+    font-size: clamp(2rem, 1.1rem + 2.4vw, 2.6rem);
+  }
+
+  .home .track-card {
+    grid-column: span 12;
+  }
+
+  .home .play-way__card {
+    grid-column: span 6;
+  }
+
+  .home .play-way__card--survival {
+    grid-column: span 12;
+  }
+}
+
+@media (max-width: 959.98px) {
+  .home .hero__copy,
+  .home .hero__chart,
+  .home .today-card--daily,
+  .home .today-card--live {
+    grid-column: 1 / -1;
+  }
+
+  .home .hero__copy {
+    min-height: 0;
+  }
+
+  .home .hero__copy .hero__ctas {
+    padding-top: 18px;
+  }
+
+  .home .hero__chart .hero__canvas {
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 719.98px) {
+  .home {
+    gap: 10px;
+    padding-block: 14px 28px;
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .bento-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bento-facts dd {
+    font-size: 26px;
+  }
+
+  .home .play-way__card,
+  .home .play-way__card--survival {
+    grid-column: 1 / -1;
+  }
+
+  .home .hero__copy .hero__btn2 {
+    display: none;
+  }
+
+  .home .hero__copy .btn {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .home .hero__copy .btn--arcade {
+    font-size: 13px;
+    letter-spacing: 0.03em;
+  }
+
+  .home .today-card {
+    padding: 18px;
+  }
+}
+
+/* Dark mode removes the cover's teal cast; teal stays in the controls. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .home {
+    --bento-cover: #0B0B0B;
+    --bento-cover-2: #1C1C1C;
+  }
+}
+
+:root[data-theme="dark"] .home {
+  --bento-cover: #0B0B0B;
+  --bento-cover-2: #1C1C1C;
+}
+
+/* In dark mode the paper cards join the neutral-black surface system. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bento-facts > div:nth-child(1) {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line);
+    --text: #F3F3F3;
+    --text-3: #969696;
+    --bento-panel-ink: #F3F3F3;
+  }
+
+  :root:not([data-theme="light"]) .bento-facts > div:nth-child(1) dt { color: #969696; }
+  :root:not([data-theme="light"]) .bento-facts > div:nth-child(1) dd { color: #F3F3F3; }
+
+  :root:not([data-theme="light"]) .home .today-card--daily {
+    background: #0F0F0F;
+    box-shadow: inset 0 0 0 1px #2B2B2B;
+    --text: #F3F3F3;
+    --text-2: #C8C8C8;
+    --text-3: #969696;
+    --line: #2B2B2B;
+    --surface: #0F0F0F;
+    --surface-2: #181818;
+    --accent: #57C9D4;
+    --accent-strong: #93E3E9;
+    --accent-soft: #12313A;
+    --accent-ink: #06191D;
+    --bull: #57C9A3;
+    --bull-strong: #89DDBE;
+    --bull-soft: #102C25;
+    --bull-ink: #04140E;
+    --bear: #E98D92;
+    --bear-strong: #F6AFB3;
+    --bear-soft: #341A1F;
+    --support: #57C9A3;
+    --resistance: #E98D92;
+    --warn: #E9A06B;
+  }
+}
+
+:root[data-theme="dark"] .bento-facts > div:nth-child(1) {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  --text: #F3F3F3;
+  --text-3: #969696;
+  --bento-panel-ink: #F3F3F3;
+}
+
+:root[data-theme="dark"] .bento-facts > div:nth-child(1) dt { color: #969696; }
+:root[data-theme="dark"] .bento-facts > div:nth-child(1) dd { color: #F3F3F3; }
+
+:root[data-theme="dark"] .home .today-card--daily {
+  background: #0F0F0F;
+  box-shadow: inset 0 0 0 1px #2B2B2B;
+  --text: #F3F3F3;
+  --text-2: #C8C8C8;
+  --text-3: #969696;
+  --line: #2B2B2B;
+  --surface: #0F0F0F;
+  --surface-2: #181818;
+  --accent: #57C9D4;
+  --accent-strong: #93E3E9;
+  --accent-soft: #12313A;
+  --accent-ink: #06191D;
+  --bull: #57C9A3;
+  --bull-strong: #89DDBE;
+  --bull-soft: #102C25;
+  --bull-ink: #04140E;
+  --bear: #E98D92;
+  --bear-strong: #F6AFB3;
+  --bear-soft: #341A1F;
+  --support: #57C9A3;
+  --resistance: #E98D92;
+  --warn: #E9A06B;
+}

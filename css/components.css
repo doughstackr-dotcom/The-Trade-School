@@ -3829,7 +3829,7 @@ figcaption {
 .badge-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .badge-card {
@@ -4308,7 +4308,7 @@ figcaption {
 @media (max-width: 559.98px) {
   .badge-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
   }
 
   .badge-card {
@@ -7260,7 +7260,7 @@ figcaption {
    keep passing with one rule set. Rules live at the end so equal-specificity
    overrides win without !important. */
 
-/* Cabinet edge under the sticky chrome: cyan → magenta neon hairline. */
+/* Cabinet edge under the sticky chrome: accent gradient hairline. */
 .topbar::after {
   content: "";
   position: absolute;
@@ -7291,9 +7291,10 @@ figcaption {
   border-radius: 99px;
 }
 
-/* XP pill → neon HUD readout. */
+/* XP pill → neon HUD readout. Surface fill keeps the dark Theme's HUD look while
+   giving the light Theme a readable dark-on-light pill. */
 .xp-pill {
-  background: rgba(6, 11, 20, 0.55);
+  background: var(--surface);
   border: 1px solid color-mix(in oklab, var(--accent) 34%, var(--line));
   box-shadow: var(--glow-inset);
 }
@@ -7362,11 +7363,11 @@ figcaption {
   50% { box-shadow: 0 0 26px rgba(53, 224, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
 }
 
-/* Magenta "insert coin" variant (Daily Challenge, shop). */
+/* Accent "insert coin" variant (Daily Challenge, shop). */
 .btn--arcade-2 {
   background: var(--arcade);
   border-color: transparent;
-  color: #FFF7FB;
+  color: #F4F8FC;
   box-shadow: var(--glow-arcade);
 }
 
@@ -7456,112 +7457,10 @@ figcaption {
   text-shadow: 0 0 12px rgba(255, 79, 216, 0.5);
 }
 
-/* ================================================================ CANDLE SENSEI (v2)
-   The mascot rides CSS vars so cabinet skins recolour him with the rest of the desk. */
-
-.sensei__body {
-  fill: var(--bull);
-  filter: drop-shadow(0 0 6px rgba(41, 242, 156, 0.35));
-}
-
-.sensei__wick {
-  stroke: var(--bull);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.sensei__ink {
-  fill: var(--bull-ink);
-}
-
-.sensei__stroke {
-  stroke: var(--bull-ink);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  fill: none;
-}
-
-.sensei__hat {
-  fill: var(--accent);
-}
-
-.sensei__hat--gold {
-  fill: var(--live-indicator);
-}
-
-.sensei__hat--dark {
-  fill: var(--bg);
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-/* Header buddy. */
-.sensei-buddy {
-  display: inline-grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--surface);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s var(--ease-back);
-}
-
-.sensei-buddy:hover {
-  border-color: color-mix(in oklab, var(--bull) 55%, var(--line));
-  box-shadow: var(--glow-bull);
-  transform: translateY(-1px) rotate(-3deg);
-}
-
-/* Map guide post. */
-.sensei-guide {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px 20px;
-  max-width: 860px;
-  margin: 0 auto 56px;
-  padding: 18px 22px;
-}
-
-.sensei-guide__art {
-  flex: 0 0 auto;
-}
-
-.sensei-guide__body {
-  display: grid;
-  gap: 6px;
-  min-width: 220px;
-  flex: 1;
-}
-
-.sensei-guide__tip {
-  font-size: 1rem;
-  color: var(--text);
-}
-
-/* Results screen row. */
-.results__sensei {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 6px 0 10px;
-}
-
-.results__sensei-line {
-  font-size: 0.875rem;
-  color: var(--text-2);
-  font-style: italic;
-}
-
 /* Level-up modal. */
 .levelup {
   display: grid;
   justify-items: center;
   gap: 6px;
   text-align: center;
-}
-
-.levelup__sensei {
-  margin-bottom: 4px;
 }

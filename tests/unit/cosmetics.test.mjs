@@ -73,7 +73,6 @@ test('normalize: equipped unknown or unowned cosmetics fall back to defaults', (
   assert.equal(store.equippedOf('skin'), 'midnight', 'unknown equipped skin falls back');
   assert.equal(store.equippedOf('candles'), 'classic', 'unowned equipped palette falls back');
   assert.equal(store.equippedOf('frame'), 'frame-classic');
-  assert.equal(store.equippedOf('hat'), 'hat-none');
   assert.ok(store.state.cosmetics.owned.includes('mono'));
   assert.ok(findCosmetic('mono'));
 });

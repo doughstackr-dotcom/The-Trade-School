@@ -1892,15 +1892,10 @@ Arcade/Survival get the new mechanics. `js/core/arcade.js` is the shared kit: `B
 (`store.lifetimeXp`); lifetime XP — never the spendable balance — drives levels, so
 spending cannot slow progression. v1 progress baseline-mints its existing XP on first
 load. `js/core/cosmetics.js` is the catalogue (cabinet skins via `[data-skin]` token
-overrides, candle palettes scoped to chart surfaces via `[data-candles]`, XP pill frames,
-Sensei hats). Cosmetics persist in the same `tts-progress-v1` payload.
+overrides, candle palettes scoped to chart surfaces via `[data-candles]`, XP pill frames).
+Cosmetics persist in the same `tts-progress-v1` payload.
 
-**30.5 The Candle Sensei (`js/core/mascot.js`).** Pure-SVG mascot (moods: idle/cheer/
-wince/zen/fire; hats render from the cosmetics slot). Header buddy (tap = tip), guide
-post on the map, reacts on results screens and in the level-up modal. Games dispatch
-`tts:hit` / `tts:miss` DOM events; the mascot listens — no store coupling.
-
-**30.6 Leaderboards (`#ranks`, strictly opt-in).** `supabase/migrations/
+**30.5 Leaderboards (`#ranks`, strictly opt-in).** `supabase/migrations/
 20261010180000_leaderboards.sql` (public read, insert-own-only RLS, score ≤ 250k check,
 best-per-member view) + the `leaderboards` Edge Function (GET boards with all-time/week
 scopes; POST clamps, resolves the handle from `profiles.display_name`, prunes history

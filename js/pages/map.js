@@ -7,38 +7,7 @@ import { h, svg, icon, starRow, meter, sfx } from '../core/ui.js';
 import { TIERS, unitsOf, hashFor, findEntry, BADGES } from '../registry.js';
 import { itemButton } from '../core/track-panel.js';
 import { accountOverview, statsRow, levelCard, badgesGrid, gamesTable, resetZone } from './progress.js';
-import { senseiSVG, wireSensei, tipOfTheDay, SENSEI_TIPS } from '../core/mascot.js';
 import * as access from '../core/access.js';
-
-/** The guide post between the two trails: reacts to play, rotates tips. Created once per mount. */
-function senseiGuide(store) {
-  const art = h('span', { class: 'sensei-guide__art' });
-  const dailyTip = tipOfTheDay();
-  const bubble = h('p', { class: 'sensei-guide__tip' }, dailyTip);
-  let tipIdx = Math.max(0, SENSEI_TIPS.indexOf(dailyTip)); // so "Another tip" never repeats today's
-  const renderArt = (mood = 'zen') => {
-    const hat = String(store.state.cosmetics?.equipped?.hat || 'none').replace(/^hat-/, '') || 'none';
-    art.replaceChildren(senseiSVG({ size: 72, mood, hat, label: 'The Candle Sensei' }));
-  };
-  renderArt();
-  const unwire = wireSensei(store, (mood) => renderArt(mood));
-  const el = h('aside', { class: 'sensei-guide card', 'aria-label': 'The Candle Sensei’s tip' },
-    art,
-    h('div', { class: 'sensei-guide__body' },
-      h('p', { class: 'arcade-label' }, 'The Candle Sensei'),
-      bubble,
-      h('button', {
-        type: 'button',
-        class: 'btn btn--sm btn--ghost',
-        on: { click: () => {
-          tipIdx = (tipIdx + 1) % SENSEI_TIPS.length;
-          bubble.textContent = SENSEI_TIPS[tipIdx];
-          sfx.click();
-        } },
-      }, 'Another tip')));
-  el._unwire = unwire;
-  return el;
-}
 
 /** A unit is cleared when its lesson is done and every game has at least one star. */
 function unitDone(store, u) {
@@ -154,6 +123,7 @@ function trailSection(store, tier, tierNo, expanded) {
       on: { click: () => {
         const open = panelHost.hidden;
         panelHost.hidden = !open;
+        if (open) expanded.add(u.id); else expanded.delete(u.id);
         node.setAttribute('aria-expanded', String(open));
         node.classList.toggle('is-open', open);
         row.classList.toggle('is-open', open);
@@ -253,8 +223,10 @@ export default {
       store.award?.('dashboard-visit', { silent: true });
     } catch { /* badge may not exist */ }
     const expanded = new Set();
+    // Fill the right side of the map on arrival with the unit the learner should play next.
+    const firstOpenUnit = TIERS.flatMap((t) => unitsOf(t.id)).find((u) => !unitDone(store, u));
+    if (firstOpenUnit) expanded.add(firstOpenUnit.id);
     let live = []; // active trail observers from the latest render
-    const guide = senseiGuide(store); // survives re-renders; appended by render()
 
     const render = () => {
       for (const t of live) t.disconnect();
@@ -272,7 +244,6 @@ export default {
               'Two worlds, one winding trail each. Clear a unit to open the next; the capstones are boss stages. Off the trail, the Games hub stays free-play and your records live below.')),
           accountOverview(store, snap),
           tracks[0]?.el,
-          guide,
           tracks[1]?.el,
           levelCard(store),
           statsRow(store),
@@ -317,7 +288,6 @@ export default {
     return () => {
       for (const t of live) t.disconnect();
       live = [];
-      guide._unwire?.();
       store.off('change', onChange);
       unsubAccess?.();
       if (queued) cancelAnimationFrame(queued);

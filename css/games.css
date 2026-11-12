@@ -64,7 +64,7 @@
 .results__campaign-level { color: var(--accent-strong); font-weight: 700; }
 .results__campaign-stars { display: inline-flex; }
 .results__daily-wait { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
-.game[data-state="play"] .game__play { gap: 8px; }
+.game[data-state="play"] .game__play { gap: 12px; }
 .game[data-state="play"] .game__bar { margin-bottom: 8px; }
 .game[data-state="play"] .game__stage { min-height: 0; }
 
@@ -79,9 +79,9 @@
   gap: 0.55rem;
   padding: 0.7rem;
   border-radius: var(--radius-lg, 14px);
-  background: color-mix(in oklab, var(--surface-2, #1a1f2e) 88%, transparent);
-  border: 1px solid color-mix(in oklab, var(--border, #2a3344) 80%, transparent);
-  box-shadow: 0 8px 28px color-mix(in oklab, #000 35%, transparent);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
   width: min(100%, 280px);
 }
 .game-preview__hud {
@@ -91,13 +91,13 @@
   display: inline-flex; flex-direction: column; gap: 0.05rem;
   padding: 0.25rem 0.45rem;
   border-radius: 8px;
-  background: color-mix(in oklab, var(--surface, #0f131c) 70%, transparent);
-  border: 1px solid var(--border, #2a3344);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   font-size: 0.7rem; line-height: 1.1;
 }
-.game-preview__pill small { opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
-.game-preview__pill--score strong { color: var(--accent, #5b8def); }
-.game-preview__pill--hot strong { color: var(--bull, #22c55e); }
+.game-preview__pill small { color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.game-preview__pill--score strong { color: var(--accent-strong); }
+.game-preview__pill--hot strong { color: var(--bull-strong); }
 .game-preview__chart { border-radius: 10px; overflow: hidden; background: var(--surface, #0f131c); }
 .game-preview-chart { width: 100%; height: auto; display: block; }
 .game-preview__actions { display: flex; gap: 0.35rem; }
@@ -105,7 +105,7 @@
   flex: 1; text-align: center; font-size: 0.72rem; font-weight: 600;
   padding: 0.3rem 0.4rem; border-radius: 999px;
   background: color-mix(in oklab, var(--surface, #0f131c) 80%, transparent);
-  border: 1px solid var(--border, #2a3344);
+  border: 1px solid var(--line);
 }
 .game-preview__chip--bull { color: var(--bull, #22c55e); border-color: color-mix(in oklab, var(--bull, #22c55e) 45%, transparent); }
 .game-preview__chip--bear { color: var(--bear, #ef4444); border-color: color-mix(in oklab, var(--bear, #ef4444) 45%, transparent); }
@@ -118,7 +118,7 @@
 }
 .game-meter__track {
   flex: 1; height: 6px; border-radius: 999px;
-  background: color-mix(in oklab, var(--border, #2a3344) 70%, transparent);
+  background: color-mix(in oklab, var(--line) 70%, transparent);
   overflow: hidden;
 }
 .game-meter__fill {
@@ -135,10 +135,38 @@
   to { opacity: 1; transform: none; }
 }
 
+/* One rhythm for every game: prompts, visuals, answers and charts never touch. */
+.game__stage,
+.game-round {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.game__stage > *,
+.game-round > * {
+  margin-block: 0;
+}
+
+.game .option-grid {
+  gap: 12px;
+}
+
+.game .swipe-card__actions {
+  gap: 12px;
+}
+
+@media (max-width: 719.98px) {
+  .game__stage,
+  .game-round {
+    gap: 16px;
+  }
+}
+
 .game-flourish {
   display: flex; gap: 0.75rem; align-items: flex-start;
   margin-top: 0.75rem; padding: 0.75rem 0.9rem;
-  border-radius: 12px; border: 1px solid var(--border, #2a3344);
+  border-radius: 12px; border: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface-2, #1a1f2e) 90%, transparent);
   opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease;
 }
@@ -155,7 +183,7 @@
 .swipe-card {
   display: flex; flex-direction: column; gap: 0.7rem;
   padding: 1rem; border-radius: var(--radius-lg, 14px);
-  border: 1px solid var(--border, #2a3344);
+  border: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface-2, #1a1f2e) 92%, transparent);
   transition: transform 0.35s ease, opacity 0.35s ease;
 }
@@ -184,7 +212,7 @@
 }
 .memory-card__face {
   position: absolute; inset: 0; display: grid; place-items: center;
-  border-radius: 12px; border: 1px solid var(--border, #2a3344);
+  border-radius: 12px; border: 1px solid var(--line);
   backface-visibility: hidden; transition: transform 0.4s ease;
 }
 .memory-card__face--front {
@@ -206,7 +234,7 @@
 
 .order-desk {
   display: flex; flex-direction: column; gap: 0.4rem;
-  border-radius: 12px; border: 1px solid var(--border, #2a3344);
+  border-radius: 12px; border: 1px solid var(--line);
   background: var(--surface, #0f131c); padding: 0.55rem;
 }
 .order-desk__legend, .order-desk__row, .order-desk__mid {
@@ -231,7 +259,7 @@
 .order-desk__side { font-weight: 700; font-size: 0.7rem; letter-spacing: 0.04em; }
 .order-desk__row--ask .order-desk__side { color: var(--bear, #ef4444); }
 .order-desk__row--bid .order-desk__side { color: var(--bull, #22c55e); }
-.order-desk__depth { height: 8px; border-radius: 999px; background: color-mix(in oklab, var(--border, #2a3344) 50%, transparent); overflow: hidden; }
+.order-desk__depth { height: 8px; border-radius: 999px; background: color-mix(in oklab, var(--line) 50%, transparent); overflow: hidden; }
 .order-desk__bar { display: block; height: 100%; border-radius: inherit; }
 .order-desk__row--ask .order-desk__bar { background: color-mix(in oklab, var(--bear, #ef4444) 55%, transparent); }
 .order-desk__row--bid .order-desk__bar { background: color-mix(in oklab, var(--bull, #22c55e) 55%, transparent); }
@@ -255,7 +283,7 @@
   border-radius: 10px;
   overflow: hidden;
   background: var(--surface, #0f131c);
-  border: 1px solid var(--border, #2a3344);
+  border: 1px solid var(--line);
 }
 .daily-chart .tc-mini,
 .daily-chart .tc-candle-svg { margin-inline: auto; }
@@ -323,14 +351,13 @@
 
 /* Game HUD reads like a cabinet dashboard. */
 .hud {
-  background: rgba(6, 11, 20, 0.5);
-  border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
-  box-shadow: var(--glow-inset);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
 }
 
 .hud__value {
-  color: var(--accent-strong);
-  text-shadow: 0 0 10px rgba(53, 224, 255, 0.4);
+  color: var(--text);
 }
 
 .hud__label {
@@ -340,36 +367,41 @@
   text-transform: uppercase;
 }
 
+.hud__cell--score {
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.hud__cell--score .hud__label {
+  color: var(--accent-strong);
+}
+
 .hud__cell--score .hud__value {
   font-family: var(--font-arcade);
-  color: var(--text);
-  text-shadow: 0 0 12px rgba(53, 224, 255, 0.5);
+  color: var(--accent-strong);
 }
 
 .hud__streak.is-hot .hud__value {
   color: var(--arcade);
-  text-shadow: 0 0 12px rgba(255, 79, 216, 0.55);
 }
 
-/* Lives hearts burn. */
+/* Lives hearts. */
 .hud__hearts .icon--heart {
-  filter: drop-shadow(0 0 5px rgba(255, 92, 110, 0.65));
+  color: var(--bear);
 }
 
-/* Timer bar: cyan draining to magenta warning. */
+/* Timer bar: accent draining to the bear warning. */
 .timerbar__track {
-  background: rgba(6, 11, 20, 0.6);
-  border: 1px solid color-mix(in oklab, var(--accent) 20%, var(--line));
+  background: var(--surface-2);
+  border: 1px solid var(--line);
 }
 
 .timerbar__fill {
   background: linear-gradient(to right, var(--accent), var(--arcade));
-  box-shadow: 0 0 10px rgba(53, 224, 255, 0.5);
 }
 
 .timerbar.is-low .timerbar__fill {
   background: var(--bear);
-  box-shadow: 0 0 12px rgba(255, 92, 110, 0.65);
 }
 
 .timerbar__text {
@@ -382,10 +414,9 @@
   gap: 6px;
   margin: 0 0 14px;
   padding: 12px 14px;
-  background: rgba(6, 11, 20, 0.55);
-  border: 1px solid color-mix(in oklab, var(--arcade) 40%, var(--line));
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--glow-arcade), var(--glow-inset);
 }
 
 .bossbar__head {
@@ -401,7 +432,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--arcade);
-  text-shadow: 0 0 10px rgba(255, 79, 216, 0.5);
 }
 
 .bossbar__phase {
@@ -413,7 +443,7 @@
 .bossbar__track {
   position: relative;
   height: 14px;
-  background: rgba(255, 92, 110, 0.12);
+  background: var(--bear-soft);
   border: 1px solid color-mix(in oklab, var(--bear) 40%, var(--line));
   border-radius: 4px;
   overflow: hidden;
@@ -576,14 +606,13 @@
   border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line));
   border-radius: 99px;
   overflow: hidden;
-  background: rgba(6, 11, 20, 0.5);
+  background: var(--surface-2);
 }
 
 .blitz-bar__fill {
   display: block;
   height: 100%;
   background: linear-gradient(to right, var(--accent), var(--arcade));
-  box-shadow: 0 0 10px rgba(53, 224, 255, 0.55);
   transform-origin: left center;
 }
 
@@ -599,22 +628,21 @@
   gap: 10px 22px;
   margin: 10px 0 12px;
   padding: 10px 16px;
-  border: 1px solid color-mix(in oklab, var(--accent) 24%, var(--line));
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(6, 11, 20, 0.45);
-  box-shadow: var(--glow-inset);
+  background: var(--surface-2);
 }
 
 .rush-hud .arcade-label {
   display: block;
   margin-bottom: 2px;
+  color: var(--text-2);
 }
 
 .rush__payout {
   font-family: var(--font-arcade);
   font-size: 1.0625rem;
   color: var(--accent-strong);
-  text-shadow: 0 0 10px rgba(53, 224, 255, 0.4);
 }
 
 .rush__count {
@@ -791,10 +819,9 @@
   gap: 8px 12px;
   margin-top: 14px;
   padding: 10px 14px;
-  border: 1px solid color-mix(in oklab, var(--arcade) 35%, var(--line));
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(6, 11, 20, 0.45);
-  box-shadow: var(--glow-inset);
+  background: var(--surface-2);
 }
 
 .place-input {
@@ -808,7 +835,6 @@
 
 .place-current {
   color: var(--arcade);
-  text-shadow: 0 0 8px rgba(255, 79, 216, 0.4);
 }
 
 /* Timeframe Tower. */
@@ -914,9 +940,9 @@
   align-items: center;
   gap: 10px;
   padding: 4px 10px;
-  border: 1px solid color-mix(in oklab, var(--arcade) 30%, var(--line));
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(6, 11, 20, 0.5);
+  background: var(--surface-2);
 }
 
 .vs-strip__side {
@@ -934,7 +960,6 @@
 .vs-strip__vs {
   font-size: 0.6875rem;
   color: var(--arcade);
-  text-shadow: 0 0 8px rgba(255, 79, 216, 0.5);
 }
 
 /* The Final Trade shock warning. */
@@ -961,14 +986,13 @@
   align-items: center;
   gap: 7px;
   padding: 4px 10px;
-  border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(6, 11, 20, 0.5);
+  background: var(--surface-2);
 }
 
 .arena-armor .armor-on {
   color: var(--accent);
-  filter: drop-shadow(0 0 5px rgba(53, 224, 255, 0.6));
 }
 
 .arena-armor .armor-off {
