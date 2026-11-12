@@ -5,16 +5,16 @@ import * as access from './core/access.js';
 import { h, svg, icon, sfx, toast } from './core/ui.js';
 import { findEntry } from './registry.js';
 import { getLanguage, setLanguage, onLanguageChange, installI18n } from './core/i18n.js';
-import { clearPremiumModuleCache } from './core/premium-loader.js';
 
 // tab: false keeps an item out of the phone tab bar (it stays in the top nav and the footer);
 // wide: only in the top nav from 1180px (narrower top navs drop it; the footer keeps it).
 const NAV = [
-  { hash: 'dashboard', label: 'Dashboard', icon: 'grid' },
+  { hash: 'map', label: 'Map', icon: 'compass' },
   { hash: 'games', label: 'Games', icon: 'gamepad' },
   { hash: 'playbook', label: 'Playbook', icon: 'flag' },
   { hash: 'live', label: 'Live', icon: 'bolt', live: true },
   { hash: 'library', label: 'Library', icon: 'layers' },
+  { hash: 'glossary', label: 'Glossary', icon: 'book', tab: false, wide: true },
   { hash: 'platforms', label: 'Platforms', icon: 'spark', tab: false, wide: true },
 ];
 
@@ -49,23 +49,38 @@ function applyTheme(pref) {
   const root = document.documentElement;
   if (pref === 'light' || pref === 'dark') root.setAttribute('data-theme', pref);
   else root.removeAttribute('data-theme');
-  const color = effectiveTheme(pref) === 'dark' ? '#0B1220' : '#F3F5F9';
+  const color = effectiveTheme(pref) === 'dark' ? '#050505' : '#F3F6FA';
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', color));
 }
 
 function navKeyFor(route) {
   if (!route) return null;
   if (route.kind === 'page') {
-    // Legacy #beginner / #advanced land on dashboard with a section.
-    if (route.page === 'dashboard' || route.page === 'progress') return 'dashboard';
+    if (route.page === 'map' || route.page === 'dashboard' || route.page === 'progress') return 'map';
     if (['library', 'glossary', 'playbook', 'live', 'games', 'account', 'platforms'].includes(route.page)) return route.page;
     return null;
   }
   if (route.kind === 'game') return 'games';
-  if (route.kind === 'tool') return 'dashboard';
-  // Lessons highlight Dashboard (track nav entries removed).
-  if (route.kind === 'lesson') return 'dashboard';
+  // Lessons highlight the world map.
+  if (route.kind === 'lesson') return 'map';
   return null;
+}
+
+/** Applies equipped cosmetics (cabinet skin on <html>, candles + frame on <body>). */
+function applyCosmetics() {
+  try {
+    const c = store.state.cosmetics?.equipped || {};
+    const root = document.documentElement;
+    const body = document.body;
+    const skin = c.skin === 'midnight' ? null : c.skin;
+    if (skin) root.setAttribute('data-skin', skin);
+    else root.removeAttribute('data-skin');
+    for (const [slot, attr] of [['candles', 'data-candles'], ['frame', 'data-frame']]) {
+      const val = slot === 'candles' ? c.candles : c.frame;
+      if (val && val !== 'classic' && val !== 'frame-classic') body.setAttribute(attr, val);
+      else body.removeAttribute(attr);
+    }
+  } catch { /* storage blocked: defaults are already applied */ }
 }
 
 
@@ -114,7 +129,7 @@ function buildShell(app) {
   const lvNum = h('span', { class: 'xp-pill__lv mono' });
   const lvTitle = h('span', { class: 'xp-pill__title' });
   const lvFill = h('span', { class: 'xp-pill__fill' });
-  const xpPill = h('a', { class: 'xp-pill', href: '#dashboard' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
+  const xpPill = h('a', { class: 'xp-pill', href: '#map' }, lvNum, lvTitle, h('span', { class: 'xp-pill__meter', 'aria-hidden': 'true' }, lvFill));
 
   function renderXP(bump = false) {
     const lv = store.level();
@@ -122,7 +137,7 @@ function buildShell(app) {
     lvTitle.textContent = lv.title;
     lvFill.style.width = `${Math.round(lv.progress * 100)}%`;
     const toNext = lv.next != null ? `, ${lv.next - lv.xp} XP to ${lv.nextTitle}` : '';
-    xpPill.setAttribute('aria-label', `Level ${lv.number}, ${lv.title}. ${lv.xp} XP${toNext}. View dashboard.`);
+    xpPill.setAttribute('aria-label', `Level ${lv.number}, ${lv.title}. ${lv.xp} XP${toNext}. View world map.`);
     xpPill.title = `${lv.xp.toLocaleString()} XP${lv.next != null ? ` · ${(lv.next - lv.xp).toLocaleString()} to ${lv.nextTitle}` : ''}`;
     if (bump) {
       xpPill.classList.remove('is-bump');
@@ -243,7 +258,7 @@ function buildShell(app) {
         brandMark(22),
         h('p', null, h('strong', null, 'Educational simulations only — not financial advice.'), ' Textbook charts use generated prices; real-market charts name their data source.')),
       h('nav', { class: 'footer__links', 'aria-label': 'Footer' },
-        h('a', { href: '#dashboard' }, 'Dashboard'),
+        h('a', { href: '#map' }, 'World map'),
         h('a', { href: '#games' }, 'Games'),
         h('a', { href: '#playbook' }, 'Playbook'),
         h('a', { href: '#live' }, 'Live Market Lab'),
@@ -288,43 +303,25 @@ function boot() {
   if (!app) return;
   installI18n();
   applyTheme(store.state.settings.theme);
+  applyCosmetics();
+  store.on('cosmetics', applyCosmetics);
   try {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(store.state.settings.theme));
   } catch {
     /* old browsers */
   }
   const shell = buildShell(app);
-  let accessKey = null;
-  function replaceWithAccountSignup() {
-    const before = location.href;
-    try {
-      history.replaceState(history.state, '', '#account.signup');
-      window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: before, newURL: location.href }));
-    } catch {
-      navigate('account.signup');
-    }
-  }
   // Access gate (ARCHITECTURE §9.3): blocks paid modules when ACCESS_MODE enforces.
   function wireGate() {
     setAccessGate({
       canOpen: (entry, route) => access.canOpen(entry, route),
       access: () => access.accessInfo(),
       paywallPath: '../pages/paywall.js',
-      onUnauthenticated: (route) => {
-        access.rememberReturn(route?.key || 'home');
-        replaceWithAccountSignup();
-      },
+      // No onUnauthenticated redirect: unsigned visitors see the paywall teaser
+      // (plans + sign-in CTA) instead of a hard hide-behind-login wall.
     });
   }
   wireGate();
-  accessKey = access.routeAccessKey();
-  access.onChange(() => {
-    const next = access.routeAccessKey();
-    if (next === accessKey) return;
-    accessKey = next;
-    clearPremiumModuleCache();
-    wireGate();
-  });
   access.ready.then(() => {
     /* re-render current route once session/level is known */
     wireGate();
@@ -340,4 +337,3 @@ function boot() {
 boot();
 
 export { navigate };
-

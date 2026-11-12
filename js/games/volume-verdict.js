@@ -1,9 +1,15 @@
-// Volume Verdict — Confirm or Trap with swipe + volume chart.
+// Volume Verdict Live (v2 of Volume Verdict) — the volume call with skin in the game.
+// Practice keeps the classic study flow. Arcade and Survival add the conviction wager:
+// stake credits on your read before you call Confirm or Trap — wins bank the stake,
+// misses burn it. The stake pays bonus points on a correct call; a miss just hurts.
 import { GameShell } from '../core/game-kit.js';
 import { chartScenario } from '../core/patterns.js';
 import { gameplayPreview, decisionChart, swipeCard, verdictFlourish } from '../core/game-ui.js';
+import { h, sfx } from '../core/ui.js';
+import { Wager } from '../core/arcade.js';
 
 const TEXTBOOK_PATTERNS = ['ascending-triangle', 'descending-triangle', 'double-top', 'double-bottom', 'bull-flag', 'bear-flag'];
+const STAKES = [10, 25, 50];
 
 function textbookRound(rng, difficulty) {
   const trap = rng.chance(0.5);
@@ -33,11 +39,11 @@ export default {
       timer: { seconds: 25, perRound: true },
       howTo: [
         'Price has just broken a level. Check the volume under the breakout candle.',
-        'Strong volume supports a break; thin volume warns it may fail. Near-average or missing volume is inconclusive.',
-        'Make the volume call, then watch the reveal. Volume shifts odds; it cannot guarantee an outcome.',
+        'Arcade: stake credits on your read, then call Confirm or Trap. Strong volume supports a break; thin volume warns it may fail.',
+        'Near-average or missing volume is inconclusive — those rounds skip the wager.',
       ],
-      preview: (el) => gameplayPreview(el, { seed: 88, direction: 'up', title: 'Volume Verdict', score: 180, streak: 2, round: '2/3', showVolume: true }),
-      async onRound(g, { rng, stage, difficulty }) {
+      preview: (el) => gameplayPreview(el, { seed: 88, direction: 'up', title: 'Volume Verdict Live', score: 180, streak: 2, round: '2/3', showVolume: true }),
+      async onRound(g, { rng, stage, difficulty, style }) {
         // Real rounds are graded on the volume the player is asked to read, not on what price did
         // next (the scanner's breakout / fakeout rules ignore volume). A few charts are drawn to
         // find a clear read (≥ 1.2× or < 0.85× its average) on a Confirm or Trap side picked at
@@ -94,6 +100,16 @@ export default {
         const mixed = r.ratio != null && r.ratio >= 0.85 && r.ratio < 1.2;
         const unavailable = r.ratio == null;
         const verdict = unavailable ? 'missing' : mixed ? 'mixed' : r.trap ? 'trap' : 'confirm';
+
+        // The wager bank lives in the HUD for the whole run (Practice never sees it).
+        const wagering = style !== 'practice' && !mixed && !unavailable;
+        if (wagering && !g._volumeWager) {
+          g._volumeWager = new Wager({ bank: 300, label: 'Credits' });
+          g.hudExtra.append(g._volumeWager.el);
+        }
+        const wager = wagering ? g._volumeWager : null;
+        let stake = wager ? STAKES[0] : 0;
+
         let answered = false;
         const finish = (sayTrap) => {
           if (answered) return;
@@ -109,12 +125,27 @@ export default {
             explain = `<strong>${r.trap ? 'Trap' : 'Confirmed'}.</strong> The break came on ${r.ratio.toFixed(1)}× its 10-bar average volume (${r.trap ? 'below' : 'above'}-average participation)`
               + (agrees ? ` and ${next}.` : `, yet ${next}: volume tilts the odds, it does not decide them.`);
           }
-          if (ok) g.correct(explain);
-          else g.wrong(explain);
+          if (ok) {
+            g.correct(explain);
+            if (wager && stake > 0) {
+              g.award(stake, { reason: 'conviction', bonus: true });
+              wager.stake(stake);
+              wager.settle(true);
+            }
+          } else {
+            g.wrong(explain);
+            if (wager && stake > 0) {
+              wager.stake(stake);
+              wager.settle(false);
+              wager.add(-stake); // the burn: misses cost the bank
+              sfx.wrong();
+            }
+          }
           dc.reveal();
-          verdictFlourish(stage, { ok, title: ok ? 'Volume read' : 'Missed the tape', detail: explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 : 0 });
+          verdictFlourish(stage, { ok, title: ok ? 'Volume read' : 'Missed the tape', detail: explain.replace(/<[^>]+>/g, ' '), scoreDelta: ok ? 100 + (wager && stake > 0 ? stake : 0) : 0 });
           g.nextButton();
         };
+
         if (mixed || unavailable) {
           const quiz = g.ask({
             options: [
@@ -134,9 +165,25 @@ export default {
           });
           dc.wrap.insertBefore(quiz, dc.host);
         } else {
+          const chips = wager ? h('div', { class: 'stake-chips', role: 'radiogroup', 'aria-label': 'Stake on this call' },
+            h('span', { class: 'arcade-label stake-chips__label' }, 'Stake'),
+            STAKES.map((v, i) => h('button', {
+              type: 'button',
+              class: ['stake-chip', 'mono', i === 0 && 'is-on'],
+              role: 'radio',
+              'aria-checked': String(i === 0),
+              on: { click: (e) => {
+                stake = v;
+                chips.querySelectorAll('.stake-chip').forEach((c) => {
+                  c.classList.toggle('is-on', c === e.currentTarget);
+                  c.setAttribute('aria-checked', String(c === e.currentTarget));
+                });
+                sfx.coin();
+              } },
+            }, String(v)))) : null;
           const card = swipeCard({
             title: 'Volume call',
-            body: 'Strong participation = Confirm. Thin poke = Trap.',
+            body: wager ? 'Pick your stake, then make the call.' : 'Strong participation = Confirm. Thin poke = Trap.',
             takeLabel: 'Confirm',
             skipLabel: 'Trap',
             takeClass: 'btn--bull',
@@ -144,6 +191,7 @@ export default {
             onTake: () => finish(false),
             onSkip: () => finish(true),
           });
+          if (chips) dc.wrap.insertBefore(chips, dc.host);
           dc.wrap.insertBefore(card, dc.host);
         }
         g.setHint('Compare the breakout candle’s volume with the ten bars before it. Near-average or missing data calls for restraint.');

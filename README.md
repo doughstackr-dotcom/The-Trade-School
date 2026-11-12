@@ -15,9 +15,16 @@ in your browser.
 > are past data, never a prediction. Nothing here says a pattern "always works"; the games
 > include failed setups on purpose.
 
+## V2 — the arcade layer
+
+v2 wraps the same curriculum in an arcade: a warm ink-and-paper theme, a campaign **world
+map** (`#map`) with boss capstones, 13 redesigned games (memorize flashes, streaming charts,
+timing catches, wagers, boss battles — Practice keeps the classic study flow). See
+`docs/ARCHITECTURE.md` §30.
+
 ## Dashboard & access
 
-- **`#dashboard`** — lessons by unit, every game with skills/scores, XP summary, and shortcuts into Practice / Playbook / Live Lab.
+- **`#map`** — the v2 world map hub: campaign trails, records, badges (legacy `#dashboard`/`#progress` redirect here).
 - **`#account`** — sign in, plan status, Stripe checkout / billing portal (shows “Subscriptions not open yet” until secrets are set).
 - Access gating: `js/core/access.js` + router `setAccessGate`. Free ids include candle anatomy, candle builder, daily challenge, markets & orders, and order desk. See `docs/SECRETS.md`.
 
@@ -113,21 +120,6 @@ branch as a static site. Do not attach a custom domain unless you intend to.
 Basic browsing works without env vars. Real-market charts need the Supabase `market-data`
 edge function + Alpha Vantage secret; auth/subscribe need Stripe + SMTP (see `docs/SECRETS.md`).
 
-
-### Cloudflare Pages (free static host)
-
-Recommended Cloudflare target: **Pages**, not Workers. The website is a vanilla static ES-module
-app; runtime APIs, Stripe checkout / portal, and Stripe webhooks are already Supabase Edge
-Functions. Keeping Cloudflare as static hosting avoids moving secrets or paid Workers resources.
-
-Use Cloudflare Pages with Framework preset **None / Static HTML**, Build command
-`npm run build:cloudflare`, and Build output directory `dist` (also captured in
-`wrangler.toml`). The build copies only deployable browser assets into `dist/` so docs, tests,
-Supabase function source, and local tooling are not uploaded as public static files.
-
-Do not add Cloudflare environment variables for Stripe or Supabase secrets. Keep `STRIPE_*`,
-`SITE_URL`, market-data provider keys, and SMTP settings in Supabase / Stripe as described in
-`docs/SECRETS.md`.
 
 ## Tests
 

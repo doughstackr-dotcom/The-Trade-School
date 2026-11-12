@@ -8,7 +8,7 @@
 .affiliate {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 32px;
   padding-top: 16px;
   padding-bottom: 56px;
 }
@@ -20,15 +20,27 @@
 .aff-partners {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 30px;
 }
 
-/* -- Category sections -- */
+.aff-disclaimer {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  margin-top: var(--space-6, 1.5rem);
+}
+
+
+.aff-disclaimer p + p {
+  margin-top: 6px;
+}
+
+/* —— Category sections —— */
 
 .aff-section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 .aff-section__head {
@@ -59,15 +71,15 @@
 .aff-rail {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .aff-row {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px 16px;
-  padding: 14px 16px;
+  gap: 16px 20px;
+  padding: 16px 20px;
   box-shadow: var(--shadow);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
@@ -162,35 +174,24 @@
 .aff-row__action {
   flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  max-width: 15rem;
+  align-items: center;
 }
 
 .aff-row__cta {
   white-space: nowrap;
 }
 
-.aff-row__note {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 0.76rem;
-  line-height: 1.35;
-  text-align: right;
-}
-
 /* —— Trading bots (coming soon, demo/education) —— */
 
 .aff-section--bots {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .aff-bots {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px;
+  gap: 14px;
+  padding: 20px;
   border: 1px dashed color-mix(in oklab, var(--line) 80%, var(--text-3));
   border-radius: var(--radius, 12px);
   background: var(--surface-2);
@@ -257,16 +258,10 @@
   .aff-row__action {
     grid-area: cta;
     width: 100%;
-    max-width: none;
-    align-items: stretch;
   }
 
   .aff-row__cta {
     width: 100%;
     justify-content: center;
-  }
-
-  .aff-row__note {
-    text-align: center;
   }
 }

@@ -12,14 +12,13 @@
 //   over (SKIP_WAITING) and reloads once it controls the page.
 // <html data-sw="…"> records the outcome for tests: registered | off | unsupported | framed | error.
 import { h, svg, icon, modal, toast } from './core/ui.js';
-import { clearRegisteredWorkers, isLocalHost, workerCleanupUrl } from './sw-cleanup.js';
 
+const LOCAL_HOST = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
 const KEY_OPT = 'tts-sw';
 const KEY_DISMISS = 'tts-install-dismissed';
 const DISMISS_MS = 30 * 24 * 3600 * 1000;
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
 const OFFLINE_DEFAULT = false;
-const CUTOVER_PARAM = 'tts-sw-cutover';
 
 let deferredPrompt = null;
 let registration = null;
@@ -97,7 +96,7 @@ export function swDecision() {
     /* sandboxed */
   }
   if (origin === 'null' || !('serviceWorker' in navigator) || !window.isSecureContext) return 'unsupported';
-  const local = isLocalHost();
+  const local = LOCAL_HOST.test(location.hostname);
   if (location.protocol !== 'https:' && !local) return 'unsupported';
   const flag = queryFlag();
   if (flag === '0') return 'off';
@@ -113,20 +112,21 @@ export function swDecision() {
 
 async function unregisterAll() {
   try {
-    const hadController = !!navigator.serviceWorker.controller;
-    await clearRegisteredWorkers();
-    if (hadController) reloadAfterWorkerCleanup();
+    const regs = await navigator.serviceWorker.getRegistrations();
+    // A worker keeps controlling this page after unregister(): tell it to stop caching first.
+    for (const w of [navigator.serviceWorker.controller, ...regs.flatMap((r) => [r.active, r.waiting, r.installing])]) {
+      try {
+        w?.postMessage({ type: 'DISABLE' });
+      } catch {
+        /* gone */
+      }
+    }
+    await Promise.all(regs.map((r) => r.unregister()));
+    if (typeof caches === 'undefined') return;
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k.startsWith('tts-')).map((k) => caches.delete(k)));
   } catch {
     /* nothing registered */
-  }
-}
-
-function reloadAfterWorkerCleanup() {
-  try {
-    const href = workerCleanupUrl();
-    if (href) location.replace(href);
-  } catch {
-    try { location.reload(); } catch { /* ignore */ }
   }
 }
 
@@ -195,17 +195,6 @@ function watchRegistration(reg) {
   });
 }
 
-function cleanCutoverMarker() {
-  try {
-    const url = new URL(location.href);
-    if (!url.searchParams.has(CUTOVER_PARAM)) return;
-    url.searchParams.delete(CUTOVER_PARAM);
-    history.replaceState(history.state, '', url.href);
-  } catch {
-    /* ignore */
-  }
-}
-
 function checkForUpdate() {
   if (!registration || Date.now() - lastUpdateCheck < UPDATE_CHECK_MS) return;
   lastUpdateCheck = Date.now();
@@ -214,7 +203,6 @@ function checkForUpdate() {
 
 async function register() {
   try {
-    cleanCutoverMarker();
     const url = new URL('../sw.js', import.meta.url);
     const scope = new URL('../', import.meta.url);
     registration = await navigator.serviceWorker.register(url.href, { scope: scope.pathname, updateViaCache: 'none' });
@@ -360,7 +348,7 @@ function boot() {
   if (flag === '1') write(KEY_OPT, '1');
   if (decision === 'off') {
     setState('off');
-    if (flag === '0') write(KEY_OPT, isLocalHost() ? null : '0');
+    if (flag === '0') write(KEY_OPT, LOCAL_HOST.test(location.hostname) ? null : '0');
     // Switched off (or never opted in on localhost): remove any worker / caches left behind.
     unregisterAll();
     return;

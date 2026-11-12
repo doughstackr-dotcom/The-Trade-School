@@ -1,9 +1,14 @@
-// Trade Simulator — multi-step trade management: entry, stop, trail, journal.
+// The Final Trade (v2 of Trade Simulator) — the market fights back.
+// Practice keeps the classic desk sim. Arcade and Survival inject a scripted volatility
+// shock into the hidden tape — the boss market expands ranges against (or rarely for)
+// your plan — while THE MARKET's bar tracks your day: winning rounds damage it, losing
+// rounds heal it. Desk rules still apply: 1R risk, max 3R daily loss.
 import { GameShell } from '../core/game-kit.js';
 import { gameplayPreview, verdictFlourish } from '../core/game-ui.js';
-import { h } from '../core/ui.js';
+import { h, sfx, floatText } from '../core/ui.js';
 import { CandleChart } from '../core/chart.js';
 import { trendSeries } from '../core/data.js';
+import { BossBar } from '../core/arcade.js';
 
 function book() {
   return { equity: 25000, dayR: 0, trades: 0, wins: 0, violations: 0 };
@@ -25,6 +30,34 @@ function scenario(rng, difficulty) {
   const stop = +(entry - dir * atr).toFixed(2);
   const target = +(entry + dir * atr * (difficulty > 0.6 ? 2 : 2.5)).toFixed(2);
   return { candles: ts.candles, decisionIdx, entry, stop, target, dir };
+}
+
+/**
+ * The boss move: amplify the ranges of a few hidden candles around a shock index, biased
+ * against the plan's direction ~65% of the time (the market hunts the crowd's stops) and
+ * in its favour otherwise (the shock carries the trade). Returns the mutated tape plus
+ * the shock window for the reveal marker. Never touches the visible candles.
+ */
+function injectShock(candles, decisionIdx, dir, rng, decimals = 2) {
+  const len = candles.length;
+  const room = len - 1 - decisionIdx;
+  if (room < 6) return { candles, shockIdx: -1 };
+  const shockIdx = decisionIdx + 2 + rng.int(0, Math.max(0, room - 5));
+  const against = rng.chance(0.65) ? -1 : 1;
+  const bias = dir * against; // the direction the shock pushes price
+  const out = candles.map((c, i) => {
+    const d = i - shockIdx;
+    if (i <= decisionIdx || Math.abs(d) > 2) return c;
+    const scale = d === 0 ? 2.1 : d === 1 || d === -1 ? 1.7 : 1.35;
+    const mid = (c.h + c.l) / 2;
+    const half = (c.h - c.l) / 2 * scale;
+    const drift = bias * half * 0.8;
+    const h = +(mid + half + Math.max(0, drift)).toFixed(decimals);
+    const l = +(mid - half + Math.min(0, drift)).toFixed(decimals);
+    const cNew = +(Math.min(h, Math.max(l, c.c + drift))).toFixed(decimals);
+    return { ...c, h, l, c: cNew };
+  });
+  return { candles: out, shockIdx };
 }
 
 // Settle against the actual hidden candles. If stop and target are both touched in one candle,
@@ -56,28 +89,34 @@ export default {
   mount(root, ctx) {
     const state = book();
     const game = new GameShell(root, ctx, {
-      preview: (el) => gameplayPreview(el, { seed: 66, direction: 'up', title: 'trade-simulator', score: 200, streak: 2, round: '2/3' }),
+      preview: (el) => gameplayPreview(el, { seed: 66, direction: 'up', title: 'The Final Trade', score: 200, streak: 2, round: '2/3' }),
       rounds: 6,
       timer: { seconds: 45, perRound: true },
       howTo: [
         'Each round is a trade decision on a chart with a suggested plan.',
-        'Take it, skip it, or manage an open winner (trail / scale).',
+        'Arcade: the boss market injects volatility shocks into the hidden tape — stops get hunted. The Market bar heals on your red rounds; damage it with green ones.',
         'Desk rules: 1R risk, max 3R daily loss — revenge trades are wrong.',
       ],
-      onStart() {
+      onStart(g, { style }) {
         state.equity = 25000;
         state.dayR = 0;
         state.trades = 0;
         state.wins = 0;
         state.violations = 0;
+        if (style === 'practice') {
+          g._market = null;
+          return;
+        }
+        g._market = new BossBar({ name: 'The Market', hp: Math.max(1, g.rounds || 6), phases: [0.5] });
       },
-      async onRound(g, { rng, stage, difficulty }) {
+      async onRound(g, { rng, stage, difficulty, style }) {
         const real = await g.realRound({
           kinds: ['bull-flag', 'bear-flag', 'breakout-up', 'breakout-down'],
           before: 60,
           after: 20,
         });
         let candles, decisionIdx, dir, entry, stop, target, decimals = 2;
+        let shockIdx = -1;
         if (real) {
           candles = real.candles;
           decisionIdx = real.decisionIdx;
@@ -91,6 +130,12 @@ export default {
           const s = scenario(rng, difficulty);
           ({ candles, decisionIdx, dir, entry, stop, target } = s);
         }
+        if (style !== 'practice') {
+          const shocked = injectShock(candles, decisionIdx, dir, rng, decimals);
+          candles = shocked.candles;
+          shockIdx = shocked.shockIdx;
+        }
+        const boss = style !== 'practice' ? g._market : null;
 
         const planR = Math.round((Math.abs(target - entry) / Math.abs(entry - stop)) * 10) / 10;
         const planQ = h('p', { class: 'quiz__q' },
@@ -100,6 +145,13 @@ export default {
             h('p', null, `Desk · equity $${state.equity.toLocaleString()} · day P&L ${state.dayR.toFixed(1)}R · trades ${state.trades} · wins ${state.wins}`)),
           planQ,
         );
+        if (boss) stage.append(boss.el);
+        if (shockIdx > 0) {
+          stage.append(h('p', { class: 'shock-warning' },
+            h('span', { class: 'shock-warning__icon', 'aria-hidden': 'true' }, '⚡'),
+            'Volatility shock inbound on the hidden tape — assume your stop will be tested.'));
+          sfx.alarm();
+        }
         const host = h('div', { class: 'chart-frame' });
         stage.append(host);
         const chart = new CandleChart(host, {
@@ -155,24 +207,43 @@ export default {
           onAnswer: (ok, value) => {
             if (!ok) state.violations += 1;
             let detail = value === 'skip' ? 'No order placed; the desk remains flat.' : 'Rule-breaking action rejected by the desk; no order placed.';
+            let roundR = 0;
             if (value === 'take' || value === 'trail') {
               const result = settleTrade(candles, decisionIdx, entry, stop, target, dir, value === 'trail');
               state.trades += 1;
               state.dayR += result.r;
+              roundR = result.r;
               state.wins += result.r > 0 ? 1 : 0;
               state.equity = Math.round(state.equity * (1 + result.r * 0.01));
               chart.addMarker({ idx: result.exitIdx, position: result.r >= 0 ? 'above' : 'below', shape: 'dot', color: result.r >= 0 ? 'bull' : 'bear', text: `${result.r >= 0 ? '+' : ''}${result.r.toFixed(1)}R` });
               detail = `${result.reason}: ${result.r >= 0 ? '+' : ''}${result.r.toFixed(1)}R on the revealed chart.`;
             }
+            if (shockIdx > 0) chart.addMarker({ idx: shockIdx, position: 'above', shape: 'dot', color: 'warn', text: 'SHOCK' });
             chart.reveal({ to: candles.length, interval: 35 });
+            if (boss && !boss.dead) {
+              if (roundR > 0) {
+                boss.damage(1);
+                floatText(`-${1} conviction`, { at: boss.el, tone: 'bull' });
+              } else if (roundR < 0) {
+                boss.heal(1);
+                floatText('market regroups', { at: boss.el, tone: 'bear' });
+              }
+            }
             verdictFlourish(stage, { ok, title: ok ? 'Desk rule held' : 'Rule slip', detail, scoreDelta: ok ? 100 : 0 });
           },
         });
         stage.insertBefore(quiz, host);
         return () => chart.destroy();
       },
-      onEnd() {
-        return h('p', { class: 'callout' }, `Desk close · equity $${state.equity.toLocaleString()} · ${state.trades} trades · ${state.wins} winners · ${state.violations} rule slips.`);
+      onEnd(g, s) {
+        const parts = [`Desk close · equity $${state.equity.toLocaleString()} · ${state.trades} trades · ${state.wins} winners · ${state.violations} rule slips.`];
+        const boss = g._market;
+        if (s.style !== 'practice' && boss) {
+          parts.push(boss.dead
+            ? 'The Market broke first — you traded through the shocks and stayed in control.'
+            : `The Market still has ${boss.hp} fight left. Red rounds feed it; green rounds break it.`);
+        }
+        return h('p', { class: 'callout' }, parts[0], parts[1] ? h('br') : null, parts[1] || null);
       },
     });
     return () => game.destroy();

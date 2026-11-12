@@ -19,7 +19,7 @@ function levelLabel(level) {
   return 'Guest';
 }
 
-function unitCompletion(store, unit) {
+export function unitCompletion(store, unit) {
   const parts = [];
   if (unit.lesson) parts.push({ type: 'lesson', id: unit.lesson });
   for (const id of unit.games || []) parts.push({ type: 'game', id });
@@ -44,7 +44,7 @@ function courseCompletion(store) {
   return { done, total: total || 1, pct: total ? done / total : 0 };
 }
 
-function accountOverview(store, snap) {
+export function accountOverview(store, snap) {
   const overall = courseCompletion(store);
   const lv = store.level();
   const beginner = store.tierProgress('beginner');
@@ -127,7 +127,7 @@ function accountOverview(store, snap) {
   );
 }
 
-function levelCard(store) {
+export function levelCard(store) {
   const lv = store.level();
   const ladder = h('ol', { class: 'level-ladder' },
     LEVELS.map((L, i) => {
@@ -151,7 +151,7 @@ function levelCard(store) {
     h('div', { class: 'level-card__ladder' }, h('p', { class: 'eyebrow' }, 'Level ladder'), ladder));
 }
 
-function statsRow(store) {
+export function statsRow(store) {
   const s = store.state;
   const lessonsDone = LESSONS.filter((l) => s.lessons[l.id]?.done).length;
   const played = GAMES.filter((g) => s.games[g.id]?.plays).length;
@@ -170,7 +170,7 @@ function statsRow(store) {
       h('span', { class: 'faint stat__sub' }, daily.done ? `done today · best ${daily.best || 0}` : `best ${daily.best || 0} · play today`)));
 }
 
-function badgesGrid(store) {
+export function badgesGrid(store) {
   const earned = new Set(store.state.badges);
   const sorted = [...BADGES].sort((a, b) => Number(earned.has(b.id)) - Number(earned.has(a.id)));
   return h('ul', { class: 'badge-grid' },
@@ -198,7 +198,7 @@ function styleCell(store, g, style) {
   return h('td', { class: 'num mono style-col', title: style === 'arcade' ? 'Arcade all-time raw score across stages' : null }, fmt(st.best));
 }
 
-function gamesTable(store) {
+export function gamesTable(store) {
   const rows = GAMES.map((g) => {
     const s = store.state.games[g.id];
     const campaign = store.levelProgress?.(g.id);
@@ -227,7 +227,7 @@ function gamesTable(store) {
       h('tbody', null, rows)));
 }
 
-function resetZone(store, rerender) {
+export function resetZone(store, rerender) {
   const confirmBox = h('div', { class: 'reset__confirm', hidden: true, role: 'alertdialog', 'aria-labelledby': 'reset-q', 'aria-describedby': 'reset-d' });
   const openBtn = h('button', { type: 'button', class: 'btn', 'data-action': 'reset', on: { click: () => {
     confirmBox.hidden = false;

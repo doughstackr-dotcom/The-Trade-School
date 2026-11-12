@@ -6,7 +6,7 @@
 // player-chosen difficulty), Arcade (fixed rounds, clock, streaks) and Survival (3 lives, rounds
 // until they run out, difficulty ramps). Chart sources (§12.2): Textbook or Real market, with
 // game.realRound() / game.revealSource() for "mystery chart" rounds and a textbook fallback.
-import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast, choiceQuiz } from './ui.js';
+import { h, svg, icon, sfx, confetti, starRow, fmt, kbdHint, tierChip, reducedMotion, explainer, toast, choiceQuiz, shake, floatText as floatPopup } from './ui.js';
 import { defaultGamePreview, bindRoundMeter } from './game-ui.js';
 import { CAMPAIGN_LEVEL_COUNT, campaignProfile, campaignDifficulty } from './game-levels.js';
 import { makeRng, randomSeed, hashString } from './rng.js';
@@ -465,6 +465,12 @@ export class GameShell {
     this._renderScore(before, `+${gained}`);
     this._renderStreak(true);
     sfx.correct();
+    // Arcade juice: streak multipliers pop at the score cell; a higher tier chimes.
+    if (mult > 1) {
+      floatPopup(`×${mult}`, { at: this._scoreWrap, tone: 'arcade' });
+      if (mult > (this._lastMult || 1)) sfx.combo();
+    }
+    this._lastMult = mult;
     const notes = [
       mult > 1 ? `×${mult} streak` : '',
       this.roundCap < 1 ? `${this.isRetry ? 'retry' : 'hint'} · ${Math.round(this.roundCap * 100)}%` : '',
@@ -482,6 +488,8 @@ export class GameShell {
     this._roundWrong = true;
     this._renderStreak(false);
     sfx.wrong();
+    shake(this._play); // arcade juice: micro screen-shake on a miss
+    this._lastMult = 1;
     let note = '';
     if (this.lives != null) {
       this.loseLife(1, { silent: true });
@@ -863,6 +871,8 @@ export class GameShell {
       ? hashString(`daily:${this.id}:${this.dailyKey}`)
       : this._plays === 0 && Number.isFinite(this.ctx.seed) ? this.ctx.seed : randomSeed();
     this._plays += 1;
+    this._lastMult = 1;
+    sfx.coin(); // insert coin: every run start gets the arcade chime
     this.rng = makeRng(this.seed);
     this.roundRng = this.rng.fork('round-0');
     this.score = 0;
@@ -1329,7 +1339,7 @@ export class GameShell {
     const bar = h('div', { class: 'game__bar' }, this._barBack, this._barTitle);
 
     // intro
-    this._startBtn = h('button', { type: 'button', class: 'btn btn--primary btn--lg', 'data-action': 'start', on: { click: () => this.start(this.mode) } },
+    this._startBtn = h('button', { type: 'button', class: 'btn btn--primary btn--lg btn--arcade', 'data-action': 'start', on: { click: () => this.start(this.mode) } },
       icon('play', { size: 18 }), 'Start game');
     this._campaignEl = h('section', { class: 'game-campaign', 'aria-labelledby': `${this.id}-campaign-title` });
 

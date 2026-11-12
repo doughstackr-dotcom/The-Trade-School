@@ -10,7 +10,6 @@ import {
   peekReturn,
   canOpen,
   hasPaidAccess,
-  routeAccessKey,
 } from '../../js/core/access.js';
 
 function memStorage() {
@@ -22,26 +21,24 @@ function memStorage() {
   };
 }
 
-test('PUBLIC_PAGES keeps home, dashboard and platforms open', () => {
+test('PUBLIC_PAGES keeps home, dashboard, tools and platforms open', () => {
   for (const p of [
     'home', 'dashboard', 'progress', 'library', 'glossary',
-    'playbook', 'games', 'live', 'platforms', 'affiliate', 'account', 'paywall',
+    'playbook', 'live', 'platforms', 'affiliate', 'account', 'paywall',
   ]) {
     assert.ok(PUBLIC_PAGES.includes(p), `expected ${p} in PUBLIC_PAGES`);
   }
-  assert.equal(PUBLIC_PAGES.includes('tools'), false);
   assert.equal(PUBLIC_PAGES.includes('beginner'), false);
   assert.equal(PUBLIC_PAGES.includes('advanced'), false);
   // Legacy standalone track page removed; #beginner/#advanced → dashboard.
   assert.equal(PUBLIC_PAGES.includes('track'), false);
 });
 
-test('TEASER_PAGES are routable previews that self-gate; Platforms is not teaser-locked', () => {
-  for (const p of ['library', 'glossary', 'playbook', 'games']) {
+test('TEASER_PAGES are routable tools that self-gate; Platforms is not teaser-locked', () => {
+  for (const p of ['library', 'glossary', 'playbook']) {
     assert.ok(TEASER_PAGES.includes(p), `expected ${p} in TEASER_PAGES`);
     assert.ok(PUBLIC_PAGES.includes(p), `${p} stays publicly routable for teasers`);
   }
-  assert.equal(TEASER_PAGES.includes('tools'), false);
   assert.equal(TEASER_PAGES.includes('platforms'), false);
   assert.ok(PUBLIC_PAGES.includes('platforms'));
 });
@@ -51,7 +48,7 @@ test('hasPaidAccess is false when unsigned under enforcement', () => {
   assert.equal(hasPaidAccess(), false);
 });
 
-test('isCurriculumGated: only Beginner/Advanced lessons/games/tools (not Dashboard hub)', () => {
+test('isCurriculumGated: only Beginner/Advanced lessons/games (not Dashboard hub)', () => {
   // Standalone track pages removed — Dashboard (and section hashes) stay ungated.
   assert.equal(isCurriculumGated(null, { page: 'track', tier: 'beginner' }), false);
   assert.equal(isCurriculumGated(null, { page: 'dashboard', section: 'beginner' }), false);
@@ -67,7 +64,6 @@ test('isCurriculumGated: only Beginner/Advanced lessons/games/tools (not Dashboa
 
   assert.equal(isCurriculumGated({ type: 'lesson', tier: 'beginner', id: 'candle-anatomy' }, { kind: 'lesson' }), true);
   assert.equal(isCurriculumGated({ type: 'game', tier: 'advanced', id: 'fib-sniper' }, { kind: 'game' }), true);
-  assert.equal(isCurriculumGated({ type: 'tool', tier: 'beginner', id: 'pre-trade-checklist' }, { kind: 'tool' }), true);
   assert.equal(isCurriculumGated({ type: 'game', tier: 'both', id: 'what-next' }, { kind: 'game' }), true);
   assert.equal(isCurriculumGated(null, { kind: 'lesson', id: 'missing' }), true);
 });
@@ -76,9 +72,7 @@ test('requiredPlan: FREE_IDS stay free; tiers map to plans', () => {
   assert.equal(requiredPlan({ id: 'daily-challenge', tier: 'both' }), 'free');
   assert.equal(requiredPlan({ id: 'candle-anatomy', tier: 'beginner' }), 'beginner');
   assert.equal(requiredPlan({ id: 'chart-basics', tier: 'beginner' }), 'beginner');
-  assert.equal(requiredPlan({ id: 'pre-trade-checklist', type: 'tool', tier: 'beginner' }), 'beginner');
   assert.equal(requiredPlan({ id: 'fib-sniper', tier: 'advanced' }), 'advanced');
-  assert.equal(requiredPlan({ id: 'journal-review', type: 'tool', tier: 'advanced' }), 'advanced');
   assert.equal(requiredPlan('beginner'), 'beginner');
   assert.equal(requiredPlan('advanced'), 'advanced');
   assert.equal(requiredPlan({ tier: 'both', id: 'what-next' }), 'beginner');
@@ -129,18 +123,4 @@ test('canOpen (unsigned, enforcing): public pages yes; curriculum no', async () 
     canOpen({ type: 'game', tier: 'advanced', id: 'fib-sniper' }, { kind: 'game', id: 'fib-sniper' }),
     false,
   );
-  assert.equal(
-    canOpen({ type: 'tool', tier: 'advanced', id: 'journal-review' }, { kind: 'tool', id: 'journal-review' }),
-    false,
-  );
-});
-
-test('routeAccessKey is stable for same-entitlement token refreshes', () => {
-  const before = routeAccessKey({ user: { id: 'user-1', email: 'old@example.test' }, level: 'beginner', enforcing: true });
-  const refreshed = routeAccessKey({ user: { id: 'user-1', email: 'new@example.test' }, level: 'beginner', enforcing: true });
-  const downgraded = routeAccessKey({ user: { id: 'user-1', email: 'new@example.test' }, level: 'free', enforcing: true });
-  const signedOut = routeAccessKey({ user: null, level: null, enforcing: true });
-  assert.equal(refreshed, before);
-  assert.notEqual(downgraded, before);
-  assert.notEqual(signedOut, before);
 });

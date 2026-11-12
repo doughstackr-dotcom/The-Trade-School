@@ -1,0 +1,368 @@
+/* World map (v2): campaign trails. The winding path is drawn by js/pages/map.js from
+   the live node positions; CSS only styles it. Glow tokens collapse in Chart Paper. */
+
+.map-page .page-head {
+  margin-bottom: 32px;
+}
+
+/* Keep the account card off the first world header — they used to touch. */
+.map-page .dash-account {
+  margin-bottom: 36px;
+}
+
+.map-track {
+  margin-bottom: clamp(56px, 7vw, 80px);
+}
+
+.map-track__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 20px 32px;
+  align-items: center;
+  margin-bottom: 40px;
+  padding: clamp(20px, 4vw, 28px);
+}
+
+.map-track__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.map-track__sub {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+
+.map-track__side {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.map-track__side .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.35;
+  padding-block: 10px;
+}
+
+.map-track__pct {
+  font-size: 0.8125rem;
+}
+
+/* ---------------------------------------------------------------- trail */
+
+.trail__wrap {
+  position: relative;
+  width: 100%;
+}
+
+.trail__path {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.trail__path-dim {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3;
+  stroke-dasharray: 2 12;
+  stroke-linecap: round;
+}
+
+.trail__path-done {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(53, 224, 255, 0.55));
+}
+
+.trail {
+  list-style: none;
+  margin: 0;
+  padding: 10px 0 14px;
+  display: grid;
+  gap: clamp(36px, 4.4vw, 56px);
+  position: relative;
+}
+
+.trail__row {
+  display: grid;
+  grid-template-columns: clamp(160px, 16vw, 210px) minmax(0, 1fr);
+  gap: 16px 26px;
+  align-items: start;
+}
+
+/* The sway: alternate rows left/right so the drawn path zigzags across the full width. */
+.trail__row:nth-child(even) {
+  grid-template-columns: minmax(0, 1fr) clamp(160px, 16vw, 210px);
+}
+
+.trail__row:nth-child(even) .trail__node-col {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.trail__row:nth-child(even) .trail__panel-host {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* The boss closes the trail from the centre, its panel full-width beneath it. */
+.trail__row.is-boss .trail__node-col {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: center;
+}
+
+.trail__row.is-boss .trail__panel-host {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-top: 16px;
+}
+
+.trail__node-col {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+}
+
+.trail__node-btn {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+  transition: transform 0.15s var(--ease-back), border-color 0.15s, box-shadow 0.2s, color 0.15s;
+}
+
+.trail__node-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+}
+
+.trail__node-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.trail__node-num {
+  font-size: 20px;
+  color: var(--text);
+}
+
+/* Ready-to-play node: pulsing neon ring. */
+.trail__node-btn.is-current {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  box-shadow: var(--glow-accent);
+}
+
+.trail__node-btn.is-current::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  animation: trail-pulse 1.8s var(--ease-out) infinite;
+}
+
+@keyframes trail-pulse {
+  0% { opacity: 0.8; scale: 0.92; }
+  70% { opacity: 0; scale: 1.18; }
+  100% { opacity: 0; scale: 1.18; }
+}
+
+/* Cleared: bull glow, check/crown in green. */
+.trail__node-btn.is-done {
+  border-color: color-mix(in oklab, var(--bull) 60%, var(--line));
+  color: var(--bull);
+  box-shadow: var(--glow-bull);
+}
+
+/* Boss nodes: oversized accent cabinets. */
+.trail__node-btn.is-boss {
+  width: 96px;
+  height: 96px;
+  border-color: color-mix(in oklab, var(--arcade) 55%, var(--line));
+  color: var(--arcade);
+  box-shadow: var(--glow-arcade), var(--glow-inset);
+}
+
+.trail__node-btn.is-boss.is-done {
+  border-color: color-mix(in oklab, var(--bull) 65%, var(--arcade));
+  color: var(--bull);
+  box-shadow: var(--glow-bull), var(--glow-arcade);
+}
+
+.trail__boss-tag {
+  position: absolute;
+  bottom: -9px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklab, var(--arcade) 55%, var(--line));
+  background: var(--surface);
+  color: var(--arcade);
+}
+
+.trail__node-btn.is-locked {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.trail__node-btn.is-locked:hover {
+  transform: none;
+  border-color: var(--line);
+}
+
+.trail__node-btn.is-open {
+  border-color: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.trail__node-stars {
+  position: absolute;
+  top: calc(100% + 3px);
+}
+
+.trail__row.is-boss .trail__node-stars {
+  top: calc(100% + 7px);
+}
+
+.trail__node-label {
+  margin-top: 14px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--text-2);
+  max-width: 170px;
+}
+
+.trail__row.is-boss .trail__node-label strong {
+  color: var(--arcade);
+}
+
+/* ---------------------------------------------------------------- unit panel */
+
+.trail__panel-host {
+  min-width: 0;
+  width: 100%;
+  padding-top: 2px;
+}
+
+.trail-panel {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: trail-panel-in 0.28s var(--ease-out);
+}
+
+@keyframes trail-panel-in {
+  from { opacity: 0; translate: 0 -6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.trail-panel__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.trail-panel__lock {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 9px 12px;
+  font-size: 0.875rem;
+  color: var(--warn);
+  border: 1px dashed color-mix(in oklab, var(--warn) 45%, var(--line));
+  border-radius: var(--radius-sm);
+}
+
+.map-disclaimer {
+  padding-block: 20px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- responsive */
+
+@media (max-width: 1080px) {
+  .map-track__head {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .trail__row {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px 14px;
+  }
+
+  .trail__row:nth-child(even) {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+
+  .trail__row:nth-child(even) .trail__node-col {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .trail__row:nth-child(even) .trail__panel-host {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .trail__row.is-boss .trail__node-col {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+
+  .trail__row.is-boss .trail__panel-host {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .trail__node-btn {
+    width: 64px;
+    height: 64px;
+  }
+
+  .trail__node-btn.is-boss {
+    width: 84px;
+    height: 84px;
+  }
+
+  .trail__node-num {
+    font-size: 17px;
+  }
+
+  .trail__node-label {
+    font-size: 0.75rem;
+    max-width: 120px;
+  }
+
+  .trail-panel__items {
+    grid-template-columns: 1fr;
+  }
+}

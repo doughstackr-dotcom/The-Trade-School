@@ -333,7 +333,6 @@ export class LessonShell {
         st?.plays ? starRow(st.stars || 0, { size: 14 }) : h('span', { class: 'chip chip--accent chip--sm' }, 'New'),
         icon('arrow-right', { size: 18 }));
     });
-    const practiceCards = gameCards;
 
     return h('div', { class: 'lesson-done card card--raised' },
       h('div', { class: 'lesson-done__icon', 'aria-hidden': 'true' }, icon('check', { size: 34 })),
@@ -342,7 +341,7 @@ export class LessonShell {
       h('p', { class: 'lesson-done__xp' },
         first ? h('span', { class: 'chip chip--accent' }, icon('spark', { size: 13 }), '+50 XP') : h('span', { class: 'chip' }, 'Reviewed · XP already earned'),
         h('span', { class: 'muted' }, first ? ' Nice work. Now lock it in with practice.' : ' Good refresher. Practice keeps it sharp.')),
-      practiceCards.length ? h('div', { class: 'lesson-done__games' }, h('h3', { class: 'lesson-done__h' }, 'Practise it'), ...practiceCards) : null,
+      gameCards.length ? h('div', { class: 'lesson-done__games' }, h('h3', { class: 'lesson-done__h' }, 'Practise it'), ...gameCards) : null,
       h('div', { class: 'row lesson-done__actions' },
         gameCards.length
           ? h('a', { class: 'btn btn--primary', href: `#${hashFor(games[0].id)}` }, icon('play'), `Play ${games[0].title}`)

@@ -1,23 +1,21 @@
 // Hash router. Routes are plain tokens: #home, #library(.<id>),
 // #dashboard (#progress aliases here; #beginner / #advanced redirect here with section),
 // #glossary, #platforms (#affiliate aliases here), #playbook(.<setupId>), #games, #live,
-// #l.<lessonId>, #g.<gameId>, #t.<toolId>, #dev-chart.
+// #l.<lessonId>, #g.<gameId>, #dev-chart.
 // Modules are lazy-loaded with import() and follow the { mount(root, ctx) → cleanup } contract.
 import * as registry from '../registry.js';
-import { resolvePremiumModuleUrl } from './premium-loader.js';
 import { h, icon } from './ui.js';
 
 const PAGE_PATHS = {
   home: '../pages/home.js',
   library: '../pages/library.js',
-  // progress aliases to the merged dashboard (Progress visual shell + track panels).
-  progress: '../pages/progress.js',
+  // v2: the world map is the hub; #dashboard / #progress redirect to it (parseHash).
+  map: '../pages/map.js',
   glossary: '../pages/glossary.js',
   platforms: '../pages/affiliate.js',
   playbook: '../pages/playbook.js',
   live: '../pages/live.js',
   games: '../pages/games.js',
-  dashboard: '../pages/progress.js',
   account: '../pages/account.js',
   paywall: '../pages/paywall.js',
   'dev-chart': '../pages/dev-chart.js',
@@ -33,7 +31,6 @@ let cleanup = null;
 let renderToken = 0;
 let fallbackHash = null; // used when writing location.hash is blocked
 let started = false;
-const MODULE_VERSION = new URL(import.meta.url).search;
 
 // Optional access gate (ARCHITECTURE §9.3). Inert until something registers one, so the
 // router has no dependency on the accounts modules.
@@ -74,9 +71,13 @@ export function parseHash(hash) {
   }
   token = token.trim();
   if (!token || token === 'home') return { key: 'home', kind: 'page', page: 'home' };
-  // Legacy track hashes → unified Dashboard hub (scroll to section on mount).
+  // v2 world map is the hub; legacy dashboard/progress hashes land on it.
+  if (token === 'map' || token === 'dashboard' || token === 'progress') {
+    return { key: token === 'map' ? 'map' : token, kind: 'page', page: 'map' };
+  }
+  // Legacy track hashes → world map (scroll to the track's trail on mount).
   if (token === 'beginner' || token === 'advanced') {
-    return { key: token, kind: 'page', page: 'dashboard', section: token };
+    return { key: token, kind: 'page', page: 'map', section: token };
   }
   if (token === 'library' || token.startsWith('library.')) {
     return { key: token, kind: 'page', page: 'library', param: token.slice('library.'.length) || null };
@@ -84,21 +85,19 @@ export function parseHash(hash) {
   if (token === 'playbook' || token.startsWith('playbook.')) {
     return { key: token, kind: 'page', page: 'playbook', param: token.slice('playbook.'.length) || null };
   }
-  // #progress is an alias of #dashboard (merged progress + curriculum page).
-  if (token === 'progress') return { key: 'progress', kind: 'page', page: 'dashboard' };
   // #affiliate is an alias of #platforms (renamed partners page).
   if (token === 'affiliate') return { key: 'affiliate', kind: 'page', page: 'platforms' };
   // Older accounts hashes (Stripe cancel_url #pricing, GameShell upgrade / sign-in links) alias Unlock and Account.
   if (token === 'pricing' || token.startsWith('pricing.')) return { key: token, kind: 'page', page: 'paywall' };
   if (token === 'signin' || token === 'signup') return { key: token, kind: 'page', page: 'account', param: token === 'signup' ? 'signup' : null };
-  if (token === 'reset' || token === 'reset.update') return { key: token, kind: 'page', page: 'account', param: 'reset' };
   // Supabase Auth redirect fragments (#error=…, #access_token=…) open Account instead of echoing on the 404 card.
   if (/(^|&)(access_token|error|error_code|error_description)=/.test(token)) return { key: 'account', kind: 'page', page: 'account' };
   if (token === 'account' || token.startsWith('account.')) {
     return { key: token, kind: 'page', page: 'account', param: token.slice('account.'.length) || null };
   }
-  if (token === 'tools') return { key: token, kind: 'page', page: 'dashboard' };
-  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'dashboard' || token === 'paywall') return { key: token, kind: 'page', page: token };
+  // Retired pages: old #shop / #ranks links land on the hub rather than a 404.
+  if (token === 'shop' || token === 'ranks') return { key: token, kind: 'page', page: 'map' };
+  if (token === 'glossary' || token === 'platforms' || token === 'live' || token === 'games' || token === 'paywall') return { key: token, kind: 'page', page: token };
   // #dev-chart is a chart-rendering dev tool: localhost only; other hosts see Not found.
   if (token === 'dev-chart') {
     let local = false;
@@ -109,24 +108,21 @@ export function parseHash(hash) {
     if (local) return { key: token, kind: 'page', page: token };
   }
   if (token.startsWith('l.')) return { key: token, kind: 'lesson', id: token.slice(2) };
-  if (token === 'g.checklist-discipline') return { key: token, kind: 'page', page: 'dashboard' };
-  if (token === 'g.journal-review') return { key: token, kind: 'page', page: 'dashboard' };
   if (token.startsWith('g.')) return { key: token, kind: 'game', id: token.slice(2) };
-  if (token.startsWith('t.')) return { key: token, kind: 'page', page: 'dashboard' };
   return { key: token, kind: 'notfound' };
 }
 
 function titleFor(route, entry) {
-  if (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool') return entry ? `${entry.title} · ${SITE}` : SITE;
+  if (route.kind === 'lesson' || route.kind === 'game') return entry ? `${entry.title} · ${SITE}` : SITE;
   switch (route.page) {
     case 'home': return `${SITE} — Learn to read the market`;
     case 'library': return `Pattern Library · ${SITE}`;
     case 'glossary': return `Glossary · ${SITE}`;
     case 'platforms': return `Platforms · ${SITE}`;
     case 'playbook': return `Setup Playbook · ${SITE}`;
-    case 'live': return `Live Market Lab · ${SITE}`;
+    case 'live': return `Market hours & history · ${SITE}`;
     case 'games': return `Games · ${SITE}`;
-    case 'dashboard': return `Dashboard · ${SITE}`;
+    case 'map': return `World Map · ${SITE}`;
     case 'account': return `Account · ${SITE}`;
     case 'paywall': return `Unlock · ${SITE}`;
     case 'dev-chart': return `Chart kitchen sink · ${SITE}`;
@@ -138,9 +134,9 @@ const DEFAULT_DESC = 'Learn trading fundamentals by playing: candlesticks, suppo
 
 /** Per-route meta description for share previews and crawlers (falls back to the static tag). */
 function descriptionFor(route, entry) {
-  if (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool') {
+  if (route.kind === 'lesson' || route.kind === 'game') {
     return entry
-      ? `${entry.title} - interactive ${route.kind} in The Trade School. Educational only, not financial advice.`
+      ? `${entry.title} — interactive ${route.kind} in The Trade School: learn to read the market by playing. Educational only, not financial advice.`
       : DEFAULT_DESC;
   }
   switch (route.page) {
@@ -149,11 +145,11 @@ function descriptionFor(route, entry) {
     case 'glossary': return 'A searchable glossary of 85+ trading terms, from ask price to Wick. Educational only.';
     case 'platforms': return 'Trading platforms and tools The Trade School partners with. Some links are affiliate links. Educational only.';
     case 'playbook': return 'Rule-based chart setups with a checklist, entry, stop and target. Educational only, not financial advice.';
-    case 'live': return 'The Live Market Lab: quotes, market hours and real charts with source and delay labelled. Educational only.';
+    case 'live': return 'Market hours for the major exchanges and a short history of trading, from ancient marketplaces to electronic markets. Educational only.';
     case 'games': return 'Every game in The Trade School — drills for candlesticks, patterns, trends, Fibonacci, risk and more. Educational only.';
-    case 'dashboard': return 'Your progress across both tracks: lessons, games, XP, badges and daily streak. Educational only.';
+    case 'map': return 'Your campaign world map: trails through both tracks, boss capstones, XP, badges and records. Educational only.';
     case 'account': return 'Sign in or create a free account to open the Beginner and Advanced tracks. Educational only.';
-    case 'paywall': return 'Unlock every lesson, game and tool in the Beginner and Advanced tracks. Educational only.';
+    case 'paywall': return 'Unlock every lesson and game in the Beginner and Advanced tracks. Educational only.';
     case 'dev-chart': return 'Chart rendering dev page.';
     default: return DEFAULT_DESC;
   }
@@ -184,16 +180,16 @@ function newSeed() {
 
 function backTarget(route, entry) {
   if (entry && (entry.tier === 'beginner' || entry.tier === 'advanced' || entry.tier === 'both')) {
-    return 'dashboard';
+    return 'map';
   }
-  if (route.section === 'beginner' || route.section === 'advanced') return 'dashboard';
-  if (route.tier) return 'dashboard';
+  if (route.section === 'beginner' || route.section === 'advanced') return 'map';
+  if (route.tier) return 'map';
   return 'home';
 }
 
 function errorCard(route, entry, err, retry) {
   const back = backTarget(route, entry);
-  const backLabel = back === 'home' ? 'Back to home' : 'Back to Dashboard';
+  const backLabel = back === 'home' ? 'Back to home' : 'Back to the map';
   return h('div', { class: 'container' },
     h('div', { class: 'route-error card', role: 'alert' },
       h('div', { class: 'route-error__icon', 'aria-hidden': 'true' }, icon('info', { size: 28 })),
@@ -213,7 +209,7 @@ function notFoundCard(route) {
       h('p', { class: 'muted' }, `We couldn't find “${route.key}”. It may have moved.`),
       h('div', { class: 'row' },
         h('button', { type: 'button', class: 'btn btn--primary', on: { click: () => navigate('home') } }, icon('home'), 'Go home'),
-        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('dashboard') } }, 'Dashboard'))));
+        h('button', { type: 'button', class: 'btn', on: { click: () => navigate('map') } }, 'World map'))));
 }
 
 function skeleton() {
@@ -253,7 +249,7 @@ async function render(hash, { initial = false, retry = false } = {}) {
 
   let entry = null;
   let path = null;
-  if (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool') {
+  if (route.kind === 'lesson' || route.kind === 'game') {
     entry = registry.findEntry(route.id);
     if (entry && entry.type === route.kind) {
       path = new URL('../' + entry.path.replace(/^\.\//, ''), import.meta.url).href;
@@ -278,7 +274,7 @@ async function render(hash, { initial = false, retry = false } = {}) {
     return;
   }
 
-  // Access gate: paid lessons/games/tools show the paywall teaser (visible to unsigned + unpaid).
+  // Access gate: paid lessons/games show the paywall teaser (visible to unsigned + unpaid).
   // Optional gate.onUnauthenticated may still redirect, but the default shell leaves the
   // paywall mounted so teasers are never hidden behind a hard login wall.
   let blocked = false;
@@ -309,16 +305,9 @@ async function render(hash, { initial = false, retry = false } = {}) {
   }, 180);
 
   try {
-    if (!blocked && entry && (route.kind === 'lesson' || route.kind === 'game' || route.kind === 'tool')) {
-      const premiumUrl = await resolvePremiumModuleUrl(entry, accessInfo(), { bust: retry });
-      if (premiumUrl) path = premiumUrl;
-      if (my !== renderToken) return;
-    }
     // "Try again" re-fetches the page module itself (a failed or broken import is cached by URL);
     // shared core modules keep their URLs, so they stay single instances.
-    const canRetryWithQuery = retry && !String(path).startsWith('blob:');
-    const versionedPath = versionModulePath(path);
-    const mod = await import(canRetryWithQuery ? `${versionedPath}${versionedPath.includes('?') ? '&' : '?'}retry=${++retries}` : versionedPath);
+    const mod = await import(retry ? `${path}?retry=${++retries}` : path);
     if (my !== renderToken) return;
     const def = mod.default;
     if (!def || typeof def.mount !== 'function') throw new Error(`Module for "${route.key}" has no default export with mount().`);
@@ -361,12 +350,6 @@ async function render(hash, { initial = false, retry = false } = {}) {
     root.setAttribute('data-mounted', route.key);
     root.setAttribute('data-route-error', '1');
   }
-}
-
-function versionModulePath(path) {
-  const s = String(path);
-  if (!MODULE_VERSION || s.startsWith('blob:') || /[?#]/.test(s)) return path;
-  return `${s}${MODULE_VERSION}`;
 }
 
 /** Navigate to a hash token, e.g. navigate('g.fib-sniper'). Works even if location.hash is read-only. */

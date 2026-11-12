@@ -41,41 +41,25 @@ test('manifest: valid, relative to the site, installable icons (any + maskable) 
   assert.deepEqual(pngSize('icons/favicon-32.png'), [32, 32]);
 });
 
-test('index.html: manifest, icons, theme colours for light and dark, home-screen metas, boot loader', () => {
+test('index.html: manifest, icons, theme colours for light and dark, home-screen metas, pwa.js after main.js', () => {
   const html = read('index.html');
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest">/);
   assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon-180\.png"/);
   assert.match(html, /<link rel="icon" href="[^"]+"/, 'a favicon (the site uses an inline SVG data URI)');
-  assert.match(html, /name="theme-color" content="#F3F5F9" media="\(prefers-color-scheme: light\)"/);
-  assert.match(html, /name="theme-color" content="#0B1220" media="\(prefers-color-scheme: dark\)"/);
+  assert.match(html, /name="theme-color" content="#F3F6FA" media="\(prefers-color-scheme: light\)"/);
+  // Quiet palette: dark is the default brand theme (near-black).
+  assert.match(html, /name="theme-color" content="#050505" media="\(prefers-color-scheme: dark\)"/);
   assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /name="apple-mobile-web-app-status-bar-style"/);
   assert.match(html, /viewport-fit=cover/);
-  assert.match(html, /<script type="module" src="js\/boot\.js"><\/script>/);
-  assert.equal(html.includes('src="js/main.js"'), false, 'main.js is imported by boot.js after stale-worker cleanup');
-  assert.equal(html.includes('src="js/pwa.js"'), false, 'pwa.js is imported by boot.js after stale-worker cleanup');
-});
-
-test('boot.js: clears an unwanted existing worker before importing the app', () => {
-  const boot = read('js/boot.js');
-  const cleanup = read('js/sw-cleanup.js');
-  assert.match(boot, /clearStaleWorkerForFreshBoot/);
-  assert.match(boot, /new URL\(import\.meta\.url\)\.search/);
-  assert.match(boot, /await import\(`\.\/main\.js\$\{moduleVersion\}`\)/);
-  assert.match(boot, /await import\(`\.\/pwa\.js\$\{moduleVersion\}`\)/);
-  assert.match(cleanup, /export const CLEARED_PARAM = 'tts-sw-cleared';/);
-  assert.match(cleanup, /navigator\.serviceWorker\.controller/);
-  assert.match(cleanup, /w\?\.postMessage\(\{ type: 'DISABLE' \}\)/);
-  assert.match(cleanup, /k\.startsWith\('tts-'\)/);
-  assert.match(cleanup, /location\.replace\(href\)/);
-  assert.match(cleanup, /flag === '1'/, 'explicit ?sw=1 keeps offline mode');
-  assert.match(cleanup, /saved === '1'/, 'saved offline preference keeps offline mode');
+  const main = html.indexOf('src="js/main.js"');
+  const pwa = html.indexOf('src="js/pwa.js"');
+  assert.ok(main > 0 && pwa > main, 'pwa.js loads after main.js');
 });
 
 /** Loads sw.js in a vm with stubbed service-worker globals; returns its listeners. */
-function loadWorker(scope = 'https://example.github.io/The-Trade-School/', transform = (src) => src, overrides = {}) {
+function loadWorker(scope = 'https://example.github.io/The-Trade-School/') {
   const listeners = {};
-  const clients = overrides.clients || { claim: async () => {} };
   const self = {
     location: new URL('sw.js', scope),
     registration: { scope, navigationPreload: null },
@@ -83,24 +67,15 @@ function loadWorker(scope = 'https://example.github.io/The-Trade-School/', trans
       listeners[type] = fn;
     },
     skipWaiting: () => {},
-    clients,
+    clients: { claim: async () => {} },
   };
-  const caches = overrides.caches || { has: async () => false, match: async () => undefined, keys: async () => [], open: async () => ({ put: async () => {} }), delete: async () => true };
+  const caches = { has: async () => false, match: async () => undefined, keys: async () => [], open: async () => ({ put: async () => {} }), delete: async () => true };
   const fetch = async () => {
     throw new TypeError('offline (test)');
   };
   const ctx = vm.createContext({ self, caches, fetch, URL, Request: class { constructor(u, o) { this.url = u; Object.assign(this, o); } }, Response: class {}, Promise, setTimeout, clearTimeout, Set, console });
-  vm.runInContext(transform(read('sw.js')), ctx, { filename: 'sw.js' });
+  vm.runInContext(read('sw.js'), ctx, { filename: 'sw.js' });
   return { listeners, ctx };
-}
-
-async function runExtendable(listener, event = {}) {
-  const waits = [];
-  listener({
-    ...event,
-    waitUntil(p) { waits.push(Promise.resolve(p)); },
-  });
-  await Promise.all(waits);
 }
 
 function fetchEvent(url, { mode = 'no-cors', method = 'GET', headers = {} } = {}) {
@@ -147,74 +122,17 @@ test('sw.js: handles same-origin navigations and static assets; never cross-orig
   assert.equal(handled(`${base}sw.js`), false, 'the worker itself');
 });
 
-test('sw.js: storage-cutover paid module paths are explicitly not cacheable', () => {
-  const base = 'https://example.github.io/The-Trade-School/';
-  const { listeners } = loadWorker(base, (src) => src.replace(
-    'const NEVER_CACHE_PATHS = [];',
-    'const NEVER_CACHE_PATHS = ["js/lessons/candle-anatomy.js","js/games/fib-sniper.js"];',
-  ));
-  const handled = (url, opts) => {
-    const ev = fetchEvent(url, opts);
-    listeners.fetch(ev);
-    return ev.handled;
-  };
-  assert.equal(handled(`${base}js/lessons/candle-anatomy.js`), false, 'removed paid lesson');
-  assert.equal(handled(`${base}js/games/fib-sniper.js`), false, 'removed paid game');
-  assert.equal(handled(`${base}js/games/daily-challenge.js`), true, 'free game remains cacheable');
-  assert.equal(handled(`${base}js/core/router.js`), true, 'public core remains cacheable');
-});
-
-test('sw.js: storage cutover activates immediately and reloads existing online clients once', async () => {
-  const base = 'https://example.github.io/The-Trade-School/';
-  const navigated = [];
-  let claimed = false;
-  const clients = [
-    { url: `${base}#l.candle-anatomy`, navigate: async (url) => { navigated.push(url); } },
-    { url: `${base}?checkout=success#account`, navigate: async (url) => { navigated.push(url); } },
-    { url: `${base}?tts-sw-cutover=secure-1#home`, navigate: async (url) => { navigated.push(url); } },
-  ];
-  const deleted = [];
-  const { listeners } = loadWorker(base, (src) => src
-    .replace("const BUILD = 'dev';", "const BUILD = 'secure-1';")
-    .replace('const SECURITY_CUTOVER = false;', 'const SECURITY_CUTOVER = true;'), {
-    caches: {
-      keys: async () => ['tts-v1-old', 'tts-v1-secure-1', 'other'],
-      delete: async (key) => { deleted.push(key); return true; },
-    },
-    clients: {
-      claim: async () => { claimed = true; },
-      matchAll: async () => clients,
-    },
-  });
-  await runExtendable(listeners.activate);
-  assert.equal(claimed, true);
-  assert.deepEqual(deleted, ['tts-v1-old']);
-  assert.equal(navigated.length, 2);
-  assert.ok(navigated.every((url) => url.includes('tts-sw-cutover=secure-1')));
-  assert.ok(navigated.some((url) => url.endsWith('#l.candle-anatomy')));
-  assert.ok(navigated.some((url) => url.endsWith('#account')));
-});
-
 test('sw.js: version stamp placeholder, required shell files exist, module graph parser finds main.js imports', () => {
   const src = read('sw.js').split(String.fromCharCode(13, 10)).join(String.fromCharCode(10));
   assert.match(src, /const BUILD = 'dev';/, 'the deploy workflow replaces this exact text');
   assert.match(src, /const CACHE = `\$\{PREFIX\}\$\{VERSION\}-\$\{BUILD\}`/);
-  assert.match(src, /const NEVER_CACHE_PATHS = \[\];/, 'storage build fills this with removed paid public module paths');
-  assert.match(src, /const SECURITY_CUTOVER = false;/, 'storage build flips this for the one-time private-content cutover');
   const core = vm.runInNewContext(`${src.match(/const CORE = \[[\s\S]*?\];/)[0]}; CORE`);
   for (const p of core) if (p !== './') assert.ok(exists(p), `CORE file missing: ${p} (the worker would not install)`);
-  const installStart = src.indexOf("addEventListener('install'");
-  const activateStart = src.indexOf("addEventListener('activate'");
-  const installSrc = src.slice(installStart, activateStart);
-  assert.match(installSrc, /if \(SECURITY_CUTOVER\) await self\.skipWaiting\(\);/, 'only storage security cutovers skip waiting on install');
-  assert.match(installSrc, /done\.delete\(new URL\('js\/boot\.js'/, 'boot entry is walked from the module graph');
-  assert.match(installSrc, /done\.delete\(new URL\('js\/main\.js'/, 'boot-imported main.js is walked from the module graph');
-  assert.match(installSrc, /done\.delete\(new URL\('js\/pwa\.js'/, 'boot-imported pwa.js is walked from the module graph');
-  assert.match(installSrc, /precacheModuleGraph\(cache, \['js\/boot\.js', 'js\/main\.js', 'js\/pwa\.js'\]/, 'template dynamic imports are seeded explicitly');
+  assert.ok(!/self\.skipWaiting\(\)/.test(src.slice(src.indexOf("addEventListener('install'"), src.indexOf("addEventListener('activate'"))), 'no automatic skipWaiting on install');
   const moduleImports = vm.runInNewContext(`${src.match(/function moduleImports[\s\S]*?\n}\n/)[0]}; moduleImports`);
-  const mainFound = moduleImports(read('js/main.js'));
-  assert.ok(mainFound.includes('./core/router.js') && mainFound.includes('./core/store.js'), JSON.stringify(mainFound));
-  for (const spec of mainFound) assert.ok(exists(path.join('js', spec)), `main.js imports a missing file: ${spec}`);
+  const found = moduleImports(read('js/main.js'));
+  assert.ok(found.includes('./core/router.js') && found.includes('./core/store.js'), JSON.stringify(found));
+  for (const spec of found) assert.ok(exists(path.join('js', spec)), `main.js imports a missing file: ${spec}`);
   assert.deepEqual([...moduleImports("import './a.js';\nexport { x } from '../b.js';\nimport {\n  q,\n} from './c.js';\nconst d = import('./d.js');")].sort(), ['../b.js', './a.js', './c.js', './d.js']);
 });
 

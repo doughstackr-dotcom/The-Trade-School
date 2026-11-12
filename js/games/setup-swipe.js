@@ -1,6 +1,9 @@
-// Setup Swipe — Take or Skip with a candle thumb on each card.
+// Boss Gauntlet (v2 of Setup Swipe) — race the rival through the same deck.
+// Practice keeps the classic study flow. Arcade and Survival deal the same cards to you
+// and a rival operator who answers about half to two-thirds correctly: win a card the
+// rival misses for bonus points, and finish ahead on cards to beat the gauntlet.
 import { GameShell } from '../core/game-kit.js';
-import { h } from '../core/ui.js';
+import { h, sfx, floatText } from '../core/ui.js';
 import { gameplayPreview, swipeCard, verdictFlourish } from '../core/game-ui.js';
 
 const BANK = [
@@ -65,25 +68,40 @@ export default {
     const used = new Set();
     let current = 0;
     let ticket = null;
+    const score = { you: 0, rival: 0 };
+
+    // The versus strip lives in the HUD; hidden in Practice.
+    const youEl = h('span', { class: 'vs-strip__score mono' }, '0');
+    const rivalEl = h('span', { class: 'vs-strip__score mono' }, '0');
+    const vsStrip = h('div', { class: 'vs-strip', role: 'status', 'aria-label': 'Cards won' },
+      h('span', { class: 'vs-strip__side' }, h('span', { class: 'arcade-label' }, 'You'), youEl),
+      h('span', { class: 'vs-strip__vs font-arcade', 'aria-hidden': 'true' }, 'VS'),
+      h('span', { class: 'vs-strip__side' }, h('span', { class: 'arcade-label' }, 'Rival'), rivalEl));
+
     const game = new GameShell(root, ctx, {
       rounds: 7,
       timer: { seconds: 14, perRound: true },
       howTo: [
         'A setup brief shows its trend, level, trigger and risk. Some briefs ask you to calculate reward-to-risk.',
-        'Take it or skip it before the clock runs out.',
-        'Discipline scores: skipping a weak setup is a win.',
+        'Arcade: a rival operator plays the same deck. Take or skip before the clock — and before the rival banks the card.',
+        'Discipline scores: skipping a weak setup is a win. Finish ahead on cards to beat the gauntlet.',
       ],
-      preview: (el) => gameplayPreview(el, { seed: 55, direction: 'up', title: 'Setup Swipe', score: 180, streak: 2, round: '2/3' }),
-      onStart(g, { rng }) {
+      preview: (el) => gameplayPreview(el, { seed: 55, direction: 'up', title: 'Boss Gauntlet', score: 180, streak: 2, round: '2/3' }),
+      onStart(g, { rng, style }) {
         deck = rng.shuffle(BANK.map((_, i) => i));
         used.clear();
+        score.you = 0;
+        score.rival = 0;
+        if (style !== 'practice' && !vsStrip.isConnected) g.hudExtra.append(vsStrip);
+        vsStrip.hidden = style === 'practice';
       },
-      onRound(g, { rng, difficulty, retry, stage }) {
+      onRound(g, { rng, difficulty, retry, stage, style }) {
         if (!retry) {
           current = difficulty > 0.15 && rng.chance(0.28) ? -1 : pickQuestion(deck, used, difficulty);
           ticket = current === -1 ? riskTicket(rng) : null;
         }
         const q = current === -1 ? ticket : BANK[current];
+        const racing = style !== 'practice';
         const brief = h('div', { class: 'row row--sm', style: { padding: '0.65rem', flexWrap: 'wrap' } },
           h('span', { class: 'game-preview__pill' }, 'Trend'),
           h('span', { class: 'game-preview__pill' }, 'Level'),
@@ -96,6 +114,20 @@ export default {
           const ok = (take ? 1 : 0) === q[2];
           if (ok) g.correct(q[3]);
           else g.wrong(q[3]);
+          if (racing) {
+            const card = stage.querySelector('.swipe-card') || stage;
+            const rivalOk = rng.chance(0.5 + 0.18 * difficulty);
+            if (rivalOk) score.rival += 1;
+            if (ok) score.you += 1;
+            if (ok && !rivalOk) {
+              floatText('CARD WON', { at: card, tone: 'bull' });
+              g.award(20, { reason: 'card won', bonus: true });
+            } else if (!ok && rivalOk) {
+              floatText('RIVAL TAKES IT', { at: card, tone: 'bear' });
+            }
+            youEl.textContent = String(score.you);
+            rivalEl.textContent = String(score.rival);
+          }
           verdictFlourish(stage, { ok, title: ok ? (take ? 'Taken' : 'Skipped') : 'Misread', detail: q[3].replace(/<[^>]+>/g, ' ').slice(0, 140), scoreDelta: ok ? 100 : 0 });
           g.nextButton();
         };
@@ -111,6 +143,18 @@ export default {
           onSkip: () => finish(false),
         }));
         g.setHint(q[4]);
+      },
+      onEnd(g, s) {
+        if (s.style === 'practice') return null;
+        const won = score.you > score.rival;
+        const tie = score.you === score.rival;
+        if (won) {
+          sfx.fanfare();
+          try { g.store?.addXP?.(25, 'Rival beaten'); } catch { /* offline */ }
+        }
+        return h('p', { class: ['callout', 'gauntlet-verdict', won && 'gauntlet-verdict--win'] },
+          `Gauntlet · cards you ${score.you} — ${score.rival} rival. `,
+          won ? 'Rival beaten. +25 XP.' : tie ? 'Dead heat — the rival keeps the belt.' : 'The rival takes this one. Run it back.');
       },
     });
     return () => game.destroy();

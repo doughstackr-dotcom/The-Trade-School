@@ -1,6 +1,4 @@
 node_modules/
-dist/
-deploy-artifacts/
 tests/screenshots/
 .DS_Store
 
@@ -12,3 +10,12 @@ tests/screenshots/
 .serve-*.log
 .serve-*.err.log
 dom-verify-*.mjs
+
+# local agent-tool artifacts (not part of the site)
+.mimosa/
+.v2c/
+.video_agent/
+.zcode/
+.zcodeignore
+.serve-*.log
+.serve-*.err.log

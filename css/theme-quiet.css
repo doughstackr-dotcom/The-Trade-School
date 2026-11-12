@@ -1,0 +1,256 @@
+/* Quiet theme — the app-wide colour system.
+   Loaded last so it owns the palette: near-black (dark) / cloud white (light), one
+   ocean-teal accent, semantic green/red kept for market meaning. It also removes the
+   neon layer: no CRT scanlines, no glow halos, no magenta gradients. */
+
+:root {
+  --bg: #050505;
+  --surface: #0F0F0F;
+  --surface-2: #181818;
+  --line: #2B2B2B;
+  --grid: #1A1A1A;
+  --text: #F3F3F3;
+  --text-2: #C8C8C8;
+  --text-3: #969696;
+  --accent: #57C9D4;
+  --accent-ink: #06191D;
+  --accent-soft: #12313A;
+  --accent-strong: #93E3E9;
+  --arcade: #8FB4E8;
+  --arcade-soft: #182A3E;
+  --bull: #57C9A3;
+  --bull-soft: #102C25;
+  --bull-strong: #89DDBE;
+  --bull-ink: #04140E;
+  --bear: #E98D92;
+  --bear-soft: #341A1F;
+  --bear-strong: #F6AFB3;
+  --bear-ink: #1C0507;
+  --info: #8FB8E8;
+  --warn: #E9A06B;
+  --support: #57C9A3;
+  --resistance: #E98D92;
+  --ma1: #92B4E6;
+  --ma2: #57C9A3;
+  --ma3: #E6A0B4;
+  --fib: #57C9D4;
+  --muted: #888888;
+  --focus: #93E3E9;
+  --live-indicator: #82C6EC;
+  --live-indicator-soft: #142D3D;
+  --btn-primary: #57C9D4;
+  --btn-primary-hover: #7DD8E0;
+  --topbar-bg: rgba(5, 5, 5, 0.92);
+  --overlay: rgba(0, 0, 0, 0.76);
+
+  /* No halos. Values stay valid inside box-shadow lists. */
+  --glow-accent: 0 0 0 0 transparent;
+  --glow-arcade: 0 0 0 0 transparent;
+  --glow-bull: 0 0 0 0 transparent;
+  --glow-bear: 0 0 0 0 transparent;
+  --glow-inset: 0 0 0 0 transparent;
+  --scanline-alpha: 0;
+  --scanline-size: 0px;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-lg: 20px;
+  --shadow: 0 1px 2px rgba(1, 4, 8, 0.5), 0 12px 30px -18px rgba(1, 4, 8, 0.85);
+  --shadow-lg: 0 2px 6px rgba(1, 4, 8, 0.5), 0 26px 54px -22px rgba(1, 4, 8, 0.9);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F3F6FA;
+    --surface: #FFFFFF;
+    --surface-2: #E8EFF5;
+    --line: #D3DFE8;
+    --grid: #E5EDF3;
+    --text: #10202D;
+    --text-2: #455B6B;
+    --text-3: #687D8E;
+    --accent: #0F6F7C;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #D9EEF1;
+    --accent-strong: #0A5560;
+    --arcade: #2D5F96;
+    --arcade-soft: #DEEAF7;
+    --bull: #0E7A51;
+    --bull-soft: #D8F0E6;
+    --bull-strong: #0A6644;
+    --bull-ink: #FFFFFF;
+    --bear: #B23A3F;
+    --bear-soft: #F7DBDD;
+    --bear-strong: #96282D;
+    --bear-ink: #FFFFFF;
+    --info: #2F5FA8;
+    --warn: #A85618;
+    --support: #0E7A51;
+    --resistance: #B23A3F;
+    --ma1: #2F5FA8;
+    --ma2: #0E7A51;
+    --ma3: #9E3F59;
+    --fib: #0F6F7C;
+    --muted: #667A8B;
+    --focus: #0F6F7C;
+    --live-indicator: #1F5FA8;
+    --live-indicator-soft: #DCEAF7;
+    --btn-primary: #0F6F7C;
+    --btn-primary-hover: #0A5560;
+    --topbar-bg: rgba(243, 246, 250, 0.92);
+    --overlay: rgba(16, 32, 45, 0.42);
+    --shadow: 0 1px 2px rgba(16, 32, 45, 0.06), 0 8px 24px -14px rgba(16, 32, 45, 0.22);
+    --shadow-lg: 0 2px 4px rgba(16, 32, 45, 0.06), 0 26px 52px -24px rgba(16, 32, 45, 0.3);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #F3F6FA;
+  --surface: #FFFFFF;
+  --surface-2: #E8EFF5;
+  --line: #D3DFE8;
+  --grid: #E5EDF3;
+  --text: #10202D;
+  --text-2: #455B6B;
+  --text-3: #687D8E;
+  --accent: #0F6F7C;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #D9EEF1;
+  --accent-strong: #0A5560;
+  --arcade: #2D5F96;
+  --arcade-soft: #DEEAF7;
+  --bull: #0E7A51;
+  --bull-soft: #D8F0E6;
+  --bull-strong: #0A6644;
+  --bull-ink: #FFFFFF;
+  --bear: #B23A3F;
+  --bear-soft: #F7DBDD;
+  --bear-strong: #96282D;
+  --bear-ink: #FFFFFF;
+  --info: #2F5FA8;
+  --warn: #A85618;
+  --support: #0E7A51;
+  --resistance: #B23A3F;
+  --ma1: #2F5FA8;
+  --ma2: #0E7A51;
+  --ma3: #9E3F59;
+  --fib: #0F6F7C;
+  --muted: #667A8B;
+  --focus: #0F6F7C;
+  --live-indicator: #1F5FA8;
+  --live-indicator-soft: #DCEAF7;
+  --btn-primary: #0F6F7C;
+  --btn-primary-hover: #0A5560;
+  --topbar-bg: rgba(243, 246, 250, 0.92);
+  --overlay: rgba(16, 32, 45, 0.42);
+  --shadow: 0 1px 2px rgba(16, 32, 45, 0.06), 0 8px 24px -14px rgba(16, 32, 45, 0.22);
+  --shadow-lg: 0 2px 4px rgba(16, 32, 45, 0.06), 0 26px 52px -24px rgba(16, 32, 45, 0.3);
+}
+
+/* ---------------------------------------------------------------- no neon layer */
+
+/* CRT scanlines and the cyan/magenta vignette. */
+html::before,
+html::after {
+  background: none !important;
+  content: none !important;
+}
+
+/* Glowing type is the loudest part of the old look; the quiet theme is flat type. */
+body,
+body * {
+  text-shadow: none !important;
+}
+
+/* Hairline under the sticky chrome, in the accent instead of cyan→magenta. */
+.topbar::after {
+  background: var(--accent);
+  opacity: 0.35;
+}
+
+/* Glowing containers, meters, chips and buttons lose their halos. */
+.nav__link.is-active::after {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.xp-pill,
+.xp-pill:hover {
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.xp-pill__lv {
+  color: var(--accent-strong);
+}
+
+.xp-pill__fill,
+.meter__fill {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.btn--primary,
+.btn--primary:hover,
+.btn--arcade,
+.btn--arcade:hover,
+.btn--arcade:active,
+.btn--arcade-2,
+.chip--accent,
+.modal,
+.toast--xp,
+.toast--badge,
+.neon-frame,
+.neon-frame--arcade,
+.option.is-correct,
+.option.is-wrong {
+  box-shadow: none;
+}
+
+.btn--arcade,
+.btn--arcade:hover {
+  animation: none;
+}
+
+.btn--arcade-2 {
+  color: var(--accent-ink);
+}
+
+.neon-frame,
+.neon-frame--arcade {
+  border-color: var(--line);
+}
+
+/* The compliance strip is informative, not alarming: paper instead of a red band.
+   Re-declare at each theme's specificity so risk-ticker.css cannot repaint it. */
+.risk-ticker,
+html .risk-ticker,
+html[data-theme="light"] .risk-ticker {
+  --risk-red: var(--line);
+  --risk-red-text: var(--text-2);
+  --risk-red-bg: var(--surface);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+html[data-theme="dark"] .risk-ticker {
+  --risk-red: var(--line);
+  --risk-red-text: var(--text-2);
+  --risk-red-bg: var(--surface);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .risk-ticker {
+    --risk-red: var(--line);
+    --risk-red-text: var(--text-2);
+    --risk-red-bg: var(--surface);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+}
+
+.risk-ticker__text {
+  color: var(--risk-red-text);
+}

@@ -26,7 +26,7 @@ export const PARTNERS = [
   {
     id: 'pocket-option',
     name: 'Pocket Option',
-    category: 'binary',
+    category: 'brokers',
     description: 'Web and mobile trading platform for forex, stocks, crypto and commodities with low minimum deposits. Fast-paced, high-risk instruments — approach with care.',
     logoText: 'PO',
     logoUrl: 'assets/affiliates/pocket-option.png',
@@ -80,7 +80,6 @@ export const CATEGORIES = [
   { id: 'tools', title: 'Tools & charting', blurb: 'Charting, paper trading and strategy-building tools.' },
   { id: 'brokers', title: 'Brokers & apps', blurb: 'Brokerages and investing apps with referral links.' },
   { id: 'funded', title: 'Funded accounts', blurb: 'Prop / funded-account platforms.' },
-  { id: 'binary', title: 'Binary Options', blurb: 'Fast-paced, high-risk platforms. Review the terms carefully and only risk money you can afford to lose.' },
 ];
 
 function logoSlot(p) {
@@ -127,12 +126,6 @@ function cta(p) {
   }, 'Add link');
 }
 
-function referralNote(p) {
-  const url = typeof p.affiliateUrl === 'string' ? p.affiliateUrl.trim() : '';
-  if (!url || url === '#') return null;
-  return h('p', { class: 'aff-row__note' }, 'We may receive a referral reward if you sign up through this link.');
-}
-
 function partnerRow(p, index) {
   const n = String(index).padStart(2, '0');
   return h('article', {
@@ -146,7 +139,7 @@ function partnerRow(p, index) {
       h('h3', { class: 'aff-row__name' }, p.name),
       h('span', { class: 'chip chip--sm chip--accent' }, 'Partner')),
     h('p', { class: 'aff-row__desc' }, p.description)),
-  h('div', { class: 'aff-row__action' }, cta(p), referralNote(p)));
+  h('div', { class: 'aff-row__action' }, cta(p)));
 }
 
 function categorySection(cat, partners, startIndex) {
@@ -237,8 +230,8 @@ export default {
         h('p', { class: 'eyebrow eyebrow--accent' }, 'Partners'),
         h('h1', null, 'Platforms'),
         h('p', { class: 'lead' },
-          'Platforms and tools we partner with. Some links below are affiliate / referral links, '
-          + 'and The Trade School may receive a referral reward if you sign up through them.')),
+          'Platforms and tools we partner with. Some links below are affiliate / referral links — '
+          + 'if you sign up through them, The Trade School may earn a commission at no extra cost to you.')),
       h('section', {
         class: 'aff-partners',
         'aria-labelledby': 'aff-trading-platforms',

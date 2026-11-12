@@ -4,18 +4,7 @@ import {
   SUPABASE_URL, SUPABASE_KEY, PLANS, FREE_IDS, ACCESS_MODE, PREMIUM_SOURCE,
 } from '../config.js';
 
-const RELEASE_VERSION = (() => {
-  try {
-    return new URL(import.meta.url).searchParams.get('v') || '';
-  } catch {
-    return '';
-  }
-})();
-const VENDOR_SRC = (() => {
-  const url = new URL('../vendor/supabase.js', import.meta.url);
-  if (RELEASE_VERSION) url.searchParams.set('v', RELEASE_VERSION);
-  return url.href;
-})();
+const VENDOR_SRC = new URL('../vendor/supabase.js', import.meta.url).href;
 const LEVELS = ['free', 'beginner', 'advanced'];
 const listeners = new Set();
 
@@ -24,8 +13,6 @@ let vendorP = null;
 let session = null;
 let level = null; // null = signed out; 'free' | 'beginner' | 'advanced'
 let mode = 'offline'; // 'supabase' | 'offline'
-let recovery = false;
-let entitlementRefreshSeq = 0;
 
 function isLocalHost() {
   try {
@@ -45,6 +32,11 @@ function forceEnforceLocally() {
 }
 
 /** Whether the gate should block unpaid modules right now. */
+/** The live Supabase client once booted (null while offline / unconfigured). */
+export function supabaseClient() {
+  return client;
+}
+
 export function isEnforcing() {
   if (ACCESS_MODE === 'open') return false;
   if (ACCESS_MODE === 'enforce') return true;
@@ -66,7 +58,6 @@ function snapshot() {
     session,
     mode,
     user: session?.user ? { id: session.user.id, email: session.user.email || null } : null,
-    recovery,
     enforcing: isEnforcing(),
     premiumSource: PREMIUM_SOURCE,
   };
@@ -101,7 +92,7 @@ function loadVendor() {
   return vendorP;
 }
 
-export async function getClient() {
+async function getClient() {
   if (client) return client;
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     mode = 'offline';
@@ -119,7 +110,6 @@ export async function getClient() {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        skipAutoInitialize: true,
       },
     });
     mode = 'supabase';
@@ -162,7 +152,6 @@ async function fetchAccessLevel(c) {
 }
 
 async function refresh() {
-  const seq = ++entitlementRefreshSeq;
   const c = await getClient();
   if (!c) {
     session = null;
@@ -176,66 +165,24 @@ async function refresh() {
   } catch {
     session = null;
   }
-  if (session?.user) {
-    const nextLevel = await fetchAccessLevel(c) || 'free';
-    if (seq !== entitlementRefreshSeq) return snapshot();
-    level = nextLevel;
-  }
+  if (session?.user) level = await fetchAccessLevel(c) || 'free';
   else level = null;
   emit();
   return snapshot();
 }
 
-function sessionToken(s) {
-  return `${s?.user?.id || ''}:${s?.access_token || ''}:${s?.refresh_token || ''}`;
-}
-
-function scheduleEntitlementRefresh(c, expectedSession) {
-  const seq = ++entitlementRefreshSeq;
-  const expectedToken = sessionToken(expectedSession);
-  queueMicrotask(async () => {
-    if (!expectedSession?.user || sessionToken(session) !== expectedToken) return;
-    const nextLevel = await fetchAccessLevel(c) || 'free';
-    if (seq !== entitlementRefreshSeq || sessionToken(session) !== expectedToken) return;
-    level = nextLevel;
-    emit();
-  });
-}
-
-function routeRecovery() {
-  try {
-    if (location.hash === '#account.recovery') return;
-    const before = location.href;
-    history.replaceState(history.state, '', '#account.recovery');
-    window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: before, newURL: location.href }));
-  } catch {
-    try { location.hash = '#account.recovery'; } catch { /* ignore */ }
-  }
-}
-
 /** Resolves once the first session/access check finishes. */
 export const ready = ((async () => {
-  const c = await getClient();
+  await refresh();
+  const c = client;
   if (c?.auth?.onAuthStateChange) {
-    c.auth.onAuthStateChange((event, next) => {
-      const previousUser = session?.user?.id || null;
+    c.auth.onAuthStateChange(async (_event, next) => {
       session = next || null;
-      recovery = event === 'PASSWORD_RECOVERY';
-      if (session?.user) {
-        if (!level || previousUser !== session.user.id) level = 'free';
-        scheduleEntitlementRefresh(c, session);
-      } else {
-        ++entitlementRefreshSeq;
-        level = null;
-      }
-      if (recovery) routeRecovery();
+      if (session?.user) level = await fetchAccessLevel(c) || 'free';
+      else level = null;
       emit();
     });
   }
-  if (c?.auth?.initialize) {
-    try { await c.auth.initialize(); } catch (err) { console.warn('[access] auth initialize failed:', err?.message || err); }
-  }
-  await refresh();
   // Back from Stripe Checkout: the webhook writes the plan a few seconds later, so poll briefly
   // (refresh() emits, pages repaint), then drop ?checkout= from the URL.
   try {
@@ -296,15 +243,15 @@ export function requiredPlan(entryOrMode) {
   return 'free';
 }
 
-/** Pages anyone may open without a session (home, dashboard, auth).
+/** Pages anyone may open without a session (home, dashboard, tools, auth).
  *  library / glossary / playbook stay routable so unpaid & anonymous visitors see
  *  in-page teasers; full interaction requires hasPaidAccess() (see pages).
  *  Platforms stays fully public with no teaser lock.
  */
 export const PUBLIC_PAGES = Object.freeze([
   'home', 'account', 'paywall',
-  'dashboard', 'progress', // #progress aliases to dashboard
-  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate aliases to platforms
+  'map', 'dashboard', 'progress', // v2 hub; legacy dashboard/progress hashes redirect to the map
+  'library', 'glossary', 'playbook', 'games', 'live', 'platforms', 'affiliate', // #affiliate → platforms
   'dev-chart',
 ]);
 
@@ -349,16 +296,16 @@ export function peekReturn() {
 }
 
 /**
- * True for Beginner / Advanced lessons/games/tools (tier beginner|advanced|both).
+ * True for Beginner / Advanced lessons/games (tier beginner|advanced|both).
  * Only these are auth-gated; Home, Dashboard, Games, Library, Playbook, Live, Glossary, Platforms stay public.
  */
 export function isCurriculumGated(entry, route = null) {
   // Standalone track pages are gone; #beginner / #advanced land on public Dashboard.
   const kind = route?.kind || entry?.type;
-  if (kind === 'lesson' || kind === 'game' || kind === 'tool') {
+  if (kind === 'lesson' || kind === 'game') {
     const tier = entry?.tier;
     if (tier === 'beginner' || tier === 'advanced' || tier === 'both') return true;
-    // Unknown lesson/game/tool id - keep gated rather than leaking paid modules.
+    // Unknown lesson/game id — keep gated rather than leaking paid modules.
     if (!entry) return true;
   }
   return false;
@@ -367,7 +314,7 @@ export function isCurriculumGated(entry, route = null) {
 /**
  * True when the current user may open this route.
  * When ACCESS_MODE enforces: Home / Dashboard / Library / Playbook / Live / Glossary / Platforms stay
- * open; Beginner + Advanced lessons/games/tools need a signed-in session.
+ * open; Beginner + Advanced lessons/games need a signed-in session.
  * Signed-in free members still need the right plan for paid modules (FREE_IDS stay free).
  */
 export function canOpen(entry, route = null) {
@@ -407,10 +354,6 @@ export function accessInfo() {
   };
 }
 
-export function routeAccessKey(a = accessInfo()) {
-  return `${a.user?.id || 'anon'}:${a.level || 'none'}:${a.enforcing ? 'enforce' : 'open'}`;
-}
-
 export async function signIn({ email, password }) {
   const c = await getClient();
   if (!c) return { ok: false, error: 'Subscriptions not open yet' };
@@ -440,46 +383,7 @@ export async function signOut() {
   }
   session = null;
   level = null;
-  recovery = false;
   emit();
-}
-
-export async function sendPasswordReset(email) {
-  const c = await getClient();
-  if (!c) return { ok: false, error: 'Password reset is not available yet' };
-  try {
-    const redirectTo = (() => {
-      try {
-        const u = new URL(location.href);
-        u.hash = '';
-        u.search = '';
-        u.hash = 'account.recovery';
-        return u.href;
-      } catch {
-        return undefined;
-      }
-    })();
-    const { error } = await c.auth.resetPasswordForEmail(String(email || '').trim(), redirectTo ? { redirectTo } : undefined);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err?.message || 'Password reset is not available yet' };
-  }
-}
-
-export async function updatePassword(password) {
-  const c = await getClient();
-  if (!c || !session?.user) return { ok: false, error: 'Password recovery session is no longer active' };
-  try {
-    const { error } = await c.auth.updateUser({ password });
-    if (error) return { ok: false, error: error.message };
-    recovery = false;
-    await refresh();
-    emit();
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err?.message || 'Could not update password' };
-  }
 }
 
 /**
@@ -553,6 +457,5 @@ export default {
   ready, getAccess, onChange, can, canOpen, requiredPlan, lockLabel, accessInfo,
   signIn, signUp, signOut, checkout, openBillingPortal, refresh, isEnforcing, PUBLIC_PAGES,
   TEASER_PAGES, hasPaidAccess,
-  rememberReturn, consumeReturn, peekReturn, isCurriculumGated, routeAccessKey,
-  sendPasswordReset, updatePassword,
+  rememberReturn, consumeReturn, peekReturn, isCurriculumGated,
 };

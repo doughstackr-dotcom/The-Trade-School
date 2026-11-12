@@ -1848,3 +1848,58 @@ verified in mock mode, offline and on phone / tablet / desktop.
     via `?market=mock`, add `--no-storage`); open `/?market=mock#g.<id>` on a local server to play real
     rounds offline; `tests/visual/setups.html?kind=<id>` shows exactly what the scanner calls a
     `<id>` in the fixtures; generators and scanners are importable in node for unit tests.
+
+---
+
+## 30. V2 — the arcade layer (October 2026)
+
+v2 keeps v1's runtime (vanilla ES modules, no build, hash router, GameShell contract,
+Supabase auth/billing, PWA) and adds the game-like layer below. Dark ("Midnight
+Arcade") is now the default theme; the light theme survives as "Chart Paper" via the
+same tokens (`css/tokens.css`), so both themes keep passing the smoke suite.
+
+**30.1 Design system.** Neon cyan/magenta accents, glow/scanline tokens, Silkscreen
+pixel display face (scores, XP, cabinet labels only — never body copy), CRT overlay in
+`css/base.css` (pointer-transparent, disabled in light mode and under reduced motion).
+`css/components.css` and `css/games.css` carry an appended "arcade layer"; `js/core/ui.js`
+adds `shake()`, `floatText()` and the coin/combo/powerup/alarm/fanfare sfx. GameShell
+wires the juice for every game: combo popups at multiplier tiers, screen-shake on
+misses, insert-coin chime on run start, PRESS START button styling.
+
+**30.2 World map (`#map`).** The campaign hub: one winding SVG trail per track drawn
+from measured node positions (`js/pages/map.js`), sequential unlock (a unit opens when
+the previous is cleared — same completion rules as `tierProgress()`), capstone units as
+BOSS nodes. `#dashboard` / `#progress` / `#beginner` / `#advanced` redirect here. The
+Games hub stays free-play, so nothing is locked behind the campaign. The old dashboard's
+records sections (account, level card, stats, badges, games table, reset) are exported
+from `js/pages/progress.js` and reused below the trails.
+
+**30.3 Game redesigns (13 of 21).** Practice style keeps the v1 study flow everywhere;
+Arcade/Survival get the new mechanics. `js/core/arcade.js` is the shared kit: `BossBar`
+(damage/heal/ko, phases), `Wager` (stake bank), `readyGo`.
+- Drills: Pattern Blitz (memorize flash → dimmed recall), Trend Rush (streaming candles,
+  early calls pay more), Cross Catch (hit CATCH within 3 bars of a cross), Volume
+  Verdict Live (conviction wager with stake chips).
+- Detectives: Case Files (clue chips that cost points), Fib Sniper (click-to-place with
+  precision rings; `chart.yToPrice`), Signal Chaser (stream + fading window), Timeframe
+  Tower (3 stacked blocks), Fakeout Filter (DOUBLE DOWN arms, 2 per run).
+- Capstones: The Oracle (conviction boss bar that heals on misses, lying whispers in
+  phase 3), Boss Gauntlet (rival AI on the same deck), The Final Trade (scripted
+  volatility shocks injected into the hidden tape), Oracle Arena (streak armor converts
+  a miss into partial credit).
+
+**30.4 Candle Credits + shop (`#shop`).** Every XP earned mints one credit
+(`store.lifetimeXp`); lifetime XP — never the spendable balance — drives levels, so
+spending cannot slow progression. v1 progress baseline-mints its existing XP on first
+load. `js/core/cosmetics.js` is the catalogue (cabinet skins via `[data-skin]` token
+overrides, candle palettes scoped to chart surfaces via `[data-candles]`, XP pill frames).
+Cosmetics persist in the same `tts-progress-v1` payload.
+
+**30.5 Leaderboards (`#ranks`, strictly opt-in).** `supabase/migrations/
+20261010180000_leaderboards.sql` (public read, insert-own-only RLS, score ≤ 250k check,
+best-per-member view) + the `leaderboards` Edge Function (GET boards with all-time/week
+scopes; POST clamps, resolves the handle from `profiles.display_name`, prunes history
+to 10 rows per board). The client (`js/core/leaderboard.js`) submits via the function
+from `GameShell.finish()` only when Competitive mode is on and a handle is set; handles,
+never emails, are public. Weekly events rotate a featured game by ISO week. Until the
+migration + function are deployed, boards degrade to personal bests.

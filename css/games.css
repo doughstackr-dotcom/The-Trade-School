@@ -64,7 +64,7 @@
 .results__campaign-level { color: var(--accent-strong); font-weight: 700; }
 .results__campaign-stars { display: inline-flex; }
 .results__daily-wait { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
-.game[data-state="play"] .game__play { gap: 8px; }
+.game[data-state="play"] .game__play { gap: 12px; }
 .game[data-state="play"] .game__bar { margin-bottom: 8px; }
 .game[data-state="play"] .game__stage { min-height: 0; }
 
@@ -79,9 +79,9 @@
   gap: 0.55rem;
   padding: 0.7rem;
   border-radius: var(--radius-lg, 14px);
-  background: color-mix(in oklab, var(--surface-2, #1a1f2e) 88%, transparent);
-  border: 1px solid color-mix(in oklab, var(--border, #2a3344) 80%, transparent);
-  box-shadow: 0 8px 28px color-mix(in oklab, #000 35%, transparent);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
   width: min(100%, 280px);
 }
 .game-preview__hud {
@@ -91,13 +91,13 @@
   display: inline-flex; flex-direction: column; gap: 0.05rem;
   padding: 0.25rem 0.45rem;
   border-radius: 8px;
-  background: color-mix(in oklab, var(--surface, #0f131c) 70%, transparent);
-  border: 1px solid var(--border, #2a3344);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   font-size: 0.7rem; line-height: 1.1;
 }
-.game-preview__pill small { opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
-.game-preview__pill--score strong { color: var(--accent, #5b8def); }
-.game-preview__pill--hot strong { color: var(--bull, #22c55e); }
+.game-preview__pill small { color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.game-preview__pill--score strong { color: var(--accent-strong); }
+.game-preview__pill--hot strong { color: var(--bull-strong); }
 .game-preview__chart { border-radius: 10px; overflow: hidden; background: var(--surface, #0f131c); }
 .game-preview-chart { width: 100%; height: auto; display: block; }
 .game-preview__actions { display: flex; gap: 0.35rem; }
@@ -105,7 +105,7 @@
   flex: 1; text-align: center; font-size: 0.72rem; font-weight: 600;
   padding: 0.3rem 0.4rem; border-radius: 999px;
   background: color-mix(in oklab, var(--surface, #0f131c) 80%, transparent);
-  border: 1px solid var(--border, #2a3344);
+  border: 1px solid var(--line);
 }
 .game-preview__chip--bull { color: var(--bull, #22c55e); border-color: color-mix(in oklab, var(--bull, #22c55e) 45%, transparent); }
 .game-preview__chip--bear { color: var(--bear, #ef4444); border-color: color-mix(in oklab, var(--bear, #ef4444) 45%, transparent); }
@@ -118,7 +118,7 @@
 }
 .game-meter__track {
   flex: 1; height: 6px; border-radius: 999px;
-  background: color-mix(in oklab, var(--border, #2a3344) 70%, transparent);
+  background: color-mix(in oklab, var(--line) 70%, transparent);
   overflow: hidden;
 }
 .game-meter__fill {
@@ -135,10 +135,38 @@
   to { opacity: 1; transform: none; }
 }
 
+/* One rhythm for every game: prompts, visuals, answers and charts never touch. */
+.game__stage,
+.game-round {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.game__stage > *,
+.game-round > * {
+  margin-block: 0;
+}
+
+.game .option-grid {
+  gap: 12px;
+}
+
+.game .swipe-card__actions {
+  gap: 12px;
+}
+
+@media (max-width: 719.98px) {
+  .game__stage,
+  .game-round {
+    gap: 16px;
+  }
+}
+
 .game-flourish {
   display: flex; gap: 0.75rem; align-items: flex-start;
   margin-top: 0.75rem; padding: 0.75rem 0.9rem;
-  border-radius: 12px; border: 1px solid var(--border, #2a3344);
+  border-radius: 12px; border: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface-2, #1a1f2e) 90%, transparent);
   opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease;
 }
@@ -155,7 +183,7 @@
 .swipe-card {
   display: flex; flex-direction: column; gap: 0.7rem;
   padding: 1rem; border-radius: var(--radius-lg, 14px);
-  border: 1px solid var(--border, #2a3344);
+  border: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface-2, #1a1f2e) 92%, transparent);
   transition: transform 0.35s ease, opacity 0.35s ease;
 }
@@ -184,7 +212,7 @@
 }
 .memory-card__face {
   position: absolute; inset: 0; display: grid; place-items: center;
-  border-radius: 12px; border: 1px solid var(--border, #2a3344);
+  border-radius: 12px; border: 1px solid var(--line);
   backface-visibility: hidden; transition: transform 0.4s ease;
 }
 .memory-card__face--front {
@@ -206,7 +234,7 @@
 
 .order-desk {
   display: flex; flex-direction: column; gap: 0.4rem;
-  border-radius: 12px; border: 1px solid var(--border, #2a3344);
+  border-radius: 12px; border: 1px solid var(--line);
   background: var(--surface, #0f131c); padding: 0.55rem;
 }
 .order-desk__legend, .order-desk__row, .order-desk__mid {
@@ -231,7 +259,7 @@
 .order-desk__side { font-weight: 700; font-size: 0.7rem; letter-spacing: 0.04em; }
 .order-desk__row--ask .order-desk__side { color: var(--bear, #ef4444); }
 .order-desk__row--bid .order-desk__side { color: var(--bull, #22c55e); }
-.order-desk__depth { height: 8px; border-radius: 999px; background: color-mix(in oklab, var(--border, #2a3344) 50%, transparent); overflow: hidden; }
+.order-desk__depth { height: 8px; border-radius: 999px; background: color-mix(in oklab, var(--line) 50%, transparent); overflow: hidden; }
 .order-desk__bar { display: block; height: 100%; border-radius: inherit; }
 .order-desk__row--ask .order-desk__bar { background: color-mix(in oklab, var(--bear, #ef4444) 55%, transparent); }
 .order-desk__row--bid .order-desk__bar { background: color-mix(in oklab, var(--bull, #22c55e) 55%, transparent); }
@@ -255,7 +283,7 @@
   border-radius: 10px;
   overflow: hidden;
   background: var(--surface, #0f131c);
-  border: 1px solid var(--border, #2a3344);
+  border: 1px solid var(--line);
 }
 .daily-chart .tc-mini,
 .daily-chart .tc-candle-svg { margin-inline: auto; }
@@ -317,4 +345,657 @@
   height: auto;
   margin-inline: 0;
   display: block;
+}
+
+/* ================================================================ ARCADE HUD (v2) */
+
+/* Game HUD reads like a cabinet dashboard. */
+.hud {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.hud__value {
+  color: var(--text);
+}
+
+.hud__label {
+  font-family: var(--font-arcade);
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hud__cell--score {
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.hud__cell--score .hud__label {
+  color: var(--accent-strong);
+}
+
+.hud__cell--score .hud__value {
+  font-family: var(--font-arcade);
+  color: var(--accent-strong);
+}
+
+.hud__streak.is-hot .hud__value {
+  color: var(--arcade);
+}
+
+/* Lives hearts. */
+.hud__hearts .icon--heart {
+  color: var(--bear);
+}
+
+/* Timer bar: accent draining to the bear warning. */
+.timerbar__track {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.timerbar__fill {
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+}
+
+.timerbar.is-low .timerbar__fill {
+  background: var(--bear);
+}
+
+.timerbar__text {
+  font-family: var(--font-arcade);
+}
+
+/* Boss bar (js/core/arcade.js BossBar). */
+.bossbar {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.bossbar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bossbar__name {
+  font-family: var(--font-arcade);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--arcade);
+}
+
+.bossbar__phase {
+  font-family: var(--font-arcade);
+  font-size: 0.6875rem;
+  color: var(--text-3);
+}
+
+.bossbar__track {
+  position: relative;
+  height: 14px;
+  background: var(--bear-soft);
+  border: 1px solid color-mix(in oklab, var(--bear) 40%, var(--line));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bossbar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bear) 0 10px,
+    color-mix(in oklab, var(--bear), black 22%) 10px 20px
+  );
+  box-shadow: 0 0 12px rgba(255, 92, 110, 0.55);
+  transition: width 0.35s var(--ease-out);
+}
+
+.bossbar.is-dying .bossbar__fill {
+  animation: bossbar-flicker 0.5s steps(2, end) infinite;
+}
+
+.bossbar.is-clear .bossbar__fill {
+  background: none;
+  box-shadow: none;
+}
+
+.bossbar.is-clear {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+@keyframes bossbar-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Wager bank (arcade.js Wager). */
+.wager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in oklab, var(--warn) 38%, var(--line));
+  border-radius: var(--radius);
+  background: rgba(255, 180, 84, 0.06);
+}
+
+.wager__bank {
+  font-family: var(--font-arcade);
+  font-size: 1rem;
+  color: var(--warn);
+  text-shadow: 0 0 10px rgba(255, 180, 84, 0.45);
+}
+
+.wager__label {
+  font-family: var(--font-arcade);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.wager__stake {
+  font-family: var(--font-arcade);
+  color: var(--arcade);
+}
+
+/* READY / GO flash (arcade.js readyGo). */
+.readygo {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.readygo__text {
+  font-family: var(--font-arcade);
+  font-size: clamp(2rem, 8vw, 4rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 0 24px rgba(53, 224, 255, 0.6);
+  animation: readygo-pop 0.75s var(--ease-back) forwards;
+}
+
+.readygo__text--go {
+  color: var(--bull);
+  text-shadow: 0 0 24px rgba(41, 242, 156, 0.6);
+}
+
+@keyframes readygo-pop {
+  0% { opacity: 0; scale: 0.4; }
+  35% { opacity: 1; scale: 1.15; }
+  55% { scale: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; scale: 1.05; }
+}
+
+/* Campaign stage chips: pixel numbers, neon cleared state. */
+.game-campaign__number {
+  font-family: var(--font-arcade);
+}
+
+.game-campaign__level.is-cleared {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+.game-campaign__level.is-selected {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  box-shadow: var(--glow-accent);
+}
+
+/* Results score in pixel type. */
+.game-results__score,
+.results-score {
+  font-family: var(--font-arcade);
+  text-shadow: 0 0 16px rgba(53, 224, 255, 0.45);
+}
+
+/* ================================================================ ARCADE MECHANICS (v2)
+   Shared bits for the redesigned drill games: Pattern Blitz flash, Trend Rush /
+   Cross Catch streaming HUD + big call buttons, Volume Verdict stake chips. */
+
+/* The chart frame is the positioning context for the flash overlay. */
+.chart-frame {
+  position: relative;
+}
+
+/* Pattern Blitz: MEMORIZE overlay + shrinking bar, then the dimmed memory chart. */
+.blitz-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--bg) 38%, transparent);
+  backdrop-filter: blur(1px);
+}
+
+.blitz-flash__label {
+  font-size: 1.25rem;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(53, 224, 255, 0.5);
+  animation: arcade-blink 1.2s steps(1, end) infinite;
+}
+
+.blitz-bar {
+  width: 150px;
+  height: 10px;
+  border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line));
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.blitz-bar__fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(to right, var(--accent), var(--arcade));
+  transform-origin: left center;
+}
+
+.is-blitz-dim > *:not(.blitz-flash) {
+  filter: saturate(0.25) brightness(0.62) contrast(0.92);
+  transition: filter 0.25s;
+}
+
+/* Trend Rush / Cross Catch: streaming HUD + the big call buttons. */
+.rush-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 10px 0 12px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.rush-hud .arcade-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-2);
+}
+
+.rush__payout {
+  font-family: var(--font-arcade);
+  font-size: 1.0625rem;
+  color: var(--accent-strong);
+}
+
+.rush__count {
+  font-family: var(--font-arcade);
+  font-size: 1.0625rem;
+  color: var(--text);
+}
+
+.rush-actions {
+  margin-top: 14px;
+}
+
+.rush-option {
+  min-height: 52px;
+  font-size: 15px;
+}
+
+.rush-option--bullish .option__label {
+  color: var(--bull-strong);
+}
+
+.rush-option--bearish .option__label {
+  color: var(--bear-strong);
+}
+
+.catch-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 640px) {
+  .catch-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.catch-btn {
+  min-height: 56px;
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+}
+
+.catch-btn:hover:not(.is-locked) {
+  box-shadow: var(--glow-bull);
+}
+
+.catch-btn--pass {
+  border-color: color-mix(in oklab, var(--info) 40%, var(--line));
+}
+
+.catch-btn--pass:hover:not(.is-locked) {
+  box-shadow: var(--glow-accent);
+}
+
+/* Volume Verdict Live: stake chips. */
+.stake-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.stake-chips__label {
+  margin-right: 4px;
+}
+
+.stake-chip {
+  min-width: 52px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-arcade);
+  font-size: 0.875rem;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.stake-chip:hover {
+  border-color: color-mix(in oklab, var(--warn) 45%, var(--line));
+}
+
+.stake-chip.is-on {
+  border-color: color-mix(in oklab, var(--warn) 60%, var(--line));
+  color: var(--warn);
+  box-shadow: 0 0 10px rgba(255, 180, 84, 0.35);
+}
+
+/* ================================================================ 3B MECHANICS (v2)
+   Case Files clue table, Fib Sniper place bar + placing cursor, Timeframe Tower
+   blocks, Fakeout Filter gauntlet + double-down. */
+
+/* Case Files. */
+.case-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.case-head__boss {
+  text-shadow: 0 0 10px rgba(255, 92, 110, 0.5);
+}
+
+.clue-table {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in oklab, var(--text-3) 40%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--surface-2) 55%, transparent);
+}
+
+.clue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.clue-chip {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.clue-chip:hover {
+  border-color: color-mix(in oklab, var(--warn) 50%, var(--line));
+  color: var(--text);
+}
+
+.clue-chip.is-open {
+  border-color: color-mix(in oklab, var(--warn) 55%, var(--line));
+  color: var(--warn);
+  box-shadow: 0 0 8px rgba(255, 180, 84, 0.25);
+  cursor: default;
+}
+
+.clue-reveals {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clue-reveal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: 0.875rem;
+}
+
+.clue-reveal__text {
+  color: var(--text-2);
+}
+
+/* Fib Sniper: Bullseye. */
+.chart-frame.is-placing {
+  cursor: crosshair;
+}
+
+.place-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.place-input {
+  width: 130px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.place-current {
+  color: var(--arcade);
+}
+
+/* Timeframe Tower. */
+.tower {
+  display: flex;
+  flex-direction: column-reverse; /* block 1 at the bottom, like a real tower */
+  align-items: stretch;
+  gap: 6px;
+  max-width: 420px;
+  margin: 0 auto 16px;
+}
+
+.tower-block {
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--surface-2) 45%, transparent);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+.tower-block.is-stacked {
+  border-style: solid;
+  border-color: color-mix(in oklab, var(--bull) 55%, var(--line));
+  background: color-mix(in oklab, var(--bull-soft) 65%, var(--surface));
+  box-shadow: var(--glow-bull);
+}
+
+.tower-block.is-cracked {
+  border-style: solid;
+  border-color: color-mix(in oklab, var(--bear) 60%, var(--line));
+  background: color-mix(in oklab, var(--bear-soft) 55%, var(--surface));
+  box-shadow: var(--glow-bear);
+  animation: shake-juice 0.34s linear;
+}
+
+/* Fakeout Filter gauntlet. */
+.gauntlet-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  justify-items: stretch;
+}
+
+.gauntlet-actions .option-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 640px) {
+  .gauntlet-actions .option-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dd-btn {
+  justify-self: center;
+  min-height: 44px;
+  padding: 0 22px;
+  font-size: 0.8125rem;
+}
+
+.dd-btn.is-armed {
+  animation: arcade-btn-pulse 0.9s ease-in-out infinite;
+}
+
+.dd-btn:disabled {
+  opacity: 0.4;
+}
+
+/* ================================================================ 3C BOSS MECHANICS (v2)
+   The Oracle whisper + verdict, Boss Gauntlet versus strip, The Final Trade shock
+   warning, Oracle Arena armor. (Boss bars live in the shared .bossbar styles.) */
+
+.oracle-whisper {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 9px 14px;
+  border: 1px dashed color-mix(in oklab, var(--arcade) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--arcade-soft) 45%, transparent);
+  font-style: italic;
+  color: var(--text-2);
+}
+
+.oracle-whisper__icon {
+  font-style: normal;
+  color: var(--arcade);
+  text-shadow: 0 0 8px rgba(255, 79, 216, 0.5);
+}
+
+.oracle-verdict--gauntlet-win,
+.gauntlet-verdict--win {
+  border-color: color-mix(in oklab, var(--bull) 45%, var(--line));
+  box-shadow: var(--glow-bull);
+}
+
+/* Boss Gauntlet versus strip. */
+.vs-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.vs-strip__side {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vs-strip__score {
+  font-family: var(--font-arcade);
+  font-size: 0.9375rem;
+  color: var(--accent-strong);
+}
+
+.vs-strip__vs {
+  font-size: 0.6875rem;
+  color: var(--arcade);
+}
+
+/* The Final Trade shock warning. */
+.shock-warning {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 9px 14px;
+  border: 1px solid color-mix(in oklab, var(--warn) 55%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--warn) 8%, transparent);
+  color: var(--warn);
+  animation: arcade-blink 1.6s steps(1, end) 3;
+}
+
+.shock-warning__icon {
+  filter: drop-shadow(0 0 6px rgba(255, 180, 84, 0.6));
+}
+
+/* Oracle Arena armor readout. */
+.arena-armor {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.arena-armor .armor-on {
+  color: var(--accent);
+}
+
+.arena-armor .armor-off {
+  color: var(--text-3);
+  opacity: 0.5;
 }

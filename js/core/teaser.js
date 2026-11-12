@@ -20,7 +20,7 @@ export function toolsTeaser(pageLabel = 'This section') {
 
   const a = access.getAccess();
   const signedIn = !!a.user;
-  const price = PLANS.beginner?.price ?? 39.98;
+  const price = PLANS.beginner?.price ?? 19.99;
 
   const banner = h('section', {
     class: 'teaser-banner card card--raised',
@@ -38,7 +38,7 @@ export function toolsTeaser(pageLabel = 'This section') {
       signedIn
         ? h('a', { class: 'btn btn--primary', href: '#paywall' }, icon('lock', { size: 16 }), 'View plans')
         : h('a', { class: 'btn btn--primary', href: '#account.signup' }, icon('lock', { size: 16 }), 'Sign in to subscribe'),
-      h('a', { class: 'btn btn--ghost', href: '#dashboard' }, 'Dashboard'),
+      h('a', { class: 'btn btn--ghost', href: '#map' }, 'Map'),
       h('a', { class: 'btn btn--ghost', href: '#platforms' }, 'Platforms (free)'),
     ),
   );

@@ -3,7 +3,7 @@
  * - Versioned cache: `tts-<VERSION>-<BUILD>`. The deploy workflow stamps BUILD with the commit, so
  *   every deploy installs a new worker, which waits until the page asks it to take over (the
  *   "Update available — Reload" toast in js/pwa.js). Old caches are deleted on activate.
- * - Precache: the app shell (index.html, css, js/boot.js, js/core, js/pages, registry, config,
+ * - Precache: the app shell (index.html, css, js/main.js, js/core, js/pages, registry, config,
  *   icons, manifest) plus every same-origin stylesheet / script that index.html links. Only the
  *   core of the shell must succeed; the rest is best effort, so a missing optional file never
  *   blocks the install.
@@ -21,10 +21,6 @@ const BUILD = 'dev'; // replaced with the commit SHA by .github/workflows/pages.
 const PREFIX = 'tts-';
 const CACHE = `${PREFIX}${VERSION}-${BUILD}`;
 const NAV_TIMEOUT_MS = 6000;
-const NEVER_CACHE_PATHS = [];
-const NEVER_CACHE_ENDPOINTS = /\/functions\/v1\/premium-content(?:\/|$)/;
-const SECURITY_CUTOVER = false;
-const CUTOVER_PARAM = 'tts-sw-cutover';
 
 // The shell must precache or the install fails (and the old worker keeps serving).
 const CORE = [
@@ -33,8 +29,7 @@ const CORE = [
   'css/base.css',
   'css/components.css',
   'css/chart.css',
-  'js/boot.js',
-  'js/sw-cleanup.js',
+  'css/map.css',
   'js/main.js',
   'js/pwa.js',
   'js/registry.js',
@@ -72,7 +67,8 @@ const OPTIONAL = [
   'js/pages/live.js',
   'js/pages/account.js',
   'js/pages/paywall.js',
-  'js/pages/dashboard.js',
+  'js/pages/map.js',
+  'js/pages/progress.js',
   'js/pages/games.js',
   'js/pages/affiliate.js',
   'icons/icon-512.png',
@@ -169,26 +165,16 @@ self.addEventListener('install', (event) => {
     await cache.addAll(CORE.filter((p) => p !== './').map(freshRequest));
     // Everything the entry scripts import, then the optional list and index.html's other links.
     const done = new Set(CORE.map((p) => new URL(p, scopeUrl()).href));
-    done.delete(new URL('js/boot.js', scopeUrl()).href);
-    done.delete(new URL('js/sw-cleanup.js', scopeUrl()).href);
     done.delete(new URL('js/main.js', scopeUrl()).href);
     done.delete(new URL('js/pwa.js', scopeUrl()).href);
-    await precacheModuleGraph(cache, ['js/boot.js', 'js/main.js', 'js/pwa.js'], done);
+    await precacheModuleGraph(cache, ['js/main.js', 'js/pwa.js'], done);
     const extra = [...new Set([...OPTIONAL, ...linkedAssets(html)])]
       .map((p) => new URL(p, scopeUrl()).href)
       .filter((u) => !done.has(u));
     await Promise.all(extra.map((u) => precacheOne(cache, u).catch(() => {})));
-    if (SECURITY_CUTOVER) await self.skipWaiting();
-    // Normal updates do not skipWaiting here: they wait until the page asks (js/pwa.js update toast).
+    // No skipWaiting() here: an update waits until the page asks (js/pwa.js update toast).
   })());
 });
-
-function cutoverUrl(url) {
-  const next = new URL(url);
-  if (next.searchParams.get(CUTOVER_PARAM) === BUILD) return null;
-  next.searchParams.set(CUTOVER_PARAM, BUILD);
-  return next.href;
-}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
@@ -202,14 +188,6 @@ self.addEventListener('activate', (event) => {
       }
     }
     await self.clients.claim();
-    if (SECURITY_CUTOVER && self.clients.matchAll) {
-      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      for (const client of clients) {
-        if (!client.navigate || !client.url) continue;
-        const href = cutoverUrl(client.url);
-        if (href) client.navigate(href).catch(() => {});
-      }
-    }
   })());
 });
 
@@ -233,10 +211,7 @@ self.addEventListener('message', (event) => {
 function cacheable(url, request) {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false; // blob:, data:, chrome-extension:
   if (url.origin !== self.location.origin) return false; // Supabase, Stripe, market data, fonts
-  if (NEVER_CACHE_ENDPOINTS.test(url.pathname)) return false;
   if (PREMIUM.test(url.pathname)) return false;
-  const rel = url.pathname.slice(scopeUrl().pathname.length).replace(/^\/+/, '');
-  if (NEVER_CACHE_PATHS.includes(rel)) return false;
   if (request.headers.has('range')) return false;
   if (url.pathname.endsWith('/sw.js')) return false;
   return true;

@@ -373,3 +373,131 @@ main:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------------------------------------------------------------- arcade layer (v2)
+   CRT scanlines + vignette sit above the page (pointer-transparent), then pixel-display
+   utilities. All of it is driven by tokens: Chart Paper (light) sets --scanline-alpha 0. */
+
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, var(--scanline-alpha)) 0,
+    rgba(255, 255, 255, var(--scanline-alpha)) 1px,
+    transparent 1px,
+    transparent var(--scanline-size)
+  );
+  mix-blend-mode: overlay;
+}
+
+html::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147482999;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(2, 6, 14, 0.5) 100%),
+    linear-gradient(to right, rgba(53, 224, 255, 0.025), transparent 20%, transparent 80%, rgba(255, 79, 216, 0.025));
+}
+
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"])::after {
+    background: none;
+  }
+}
+
+html[data-theme="light"]::after {
+  background: none;
+}
+
+/* Pixel display face — scores, XP readouts, cabinet labels. Never body copy. */
+.font-arcade,
+.arcade-label {
+  font-family: var(--font-arcade);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.arcade-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Glowing display text (titles, big scores). */
+.neon-title {
+  color: var(--text);
+  text-shadow:
+    0 0 12px rgba(53, 224, 255, 0.35),
+    0 0 32px rgba(53, 224, 255, 0.18);
+}
+
+.neon-title--arcade {
+  text-shadow:
+    0 0 12px rgba(255, 79, 216, 0.35),
+    0 0 32px rgba(255, 79, 216, 0.18);
+}
+
+.neon-title--bull {
+  text-shadow:
+    0 0 12px rgba(41, 242, 156, 0.4),
+    0 0 32px rgba(41, 242, 156, 0.2);
+}
+
+/* Slow attract-mode blink (double pulse, then rest). Reduced motion unwinds it above. */
+.blink {
+  animation: arcade-blink 2.4s steps(1, end) infinite;
+}
+
+@keyframes arcade-blink {
+  0%, 8% { opacity: 1; }
+  10%, 18% { opacity: 0.25; }
+  20%, 28% { opacity: 1; }
+  30%, 100% { opacity: 1; }
+}
+
+/* Screen shake (ui.shake adds the class, then removes it). */
+.is-shaking {
+  animation: shake-juice 0.34s linear;
+}
+
+@keyframes shake-juice {
+  0%, 100% { translate: 0 0; }
+  15% { translate: -5px 2px; }
+  30% { translate: 5px -2px; }
+  45% { translate: -4px 1px; }
+  60% { translate: 3px 2px; }
+  75% { translate: -2px -1px; }
+  90% { translate: 1px 0; }
+}
+
+/* Floating score/combo popups (ui.floatText). */
+.float-text {
+  position: fixed;
+  z-index: 2147482000;
+  pointer-events: none;
+  font-family: var(--font-arcade);
+  font-size: 1.125rem;
+  font-weight: 700;
+  transform: translate(-50%, -50%);
+  animation: float-up 0.9s var(--ease-out) forwards;
+}
+
+.float-text--bull { color: var(--bull); text-shadow: 0 0 10px rgba(41, 242, 156, 0.5); }
+.float-text--bear { color: var(--bear); text-shadow: 0 0 10px rgba(255, 92, 110, 0.5); }
+.float-text--arcade { color: var(--arcade); text-shadow: 0 0 10px rgba(255, 79, 216, 0.5); }
+.float-text--accent { color: var(--accent); text-shadow: 0 0 10px rgba(53, 224, 255, 0.5); }
+
+@keyframes float-up {
+  0% { opacity: 0; scale: 0.6; }
+  18% { opacity: 1; scale: 1.12; }
+  30% { scale: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; translate: 0 -46px; }
+}
+

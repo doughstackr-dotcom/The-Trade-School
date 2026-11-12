@@ -31,7 +31,6 @@ export const UNITS = [
   { id: 'u-moving-averages', tier: 'beginner', title: 'Moving averages', lesson: 'moving-averages', games: ['cross-catcher'] },
   { id: 'u-volume', tier: 'beginner', title: 'Volume', lesson: 'volume', games: ['volume-verdict'] },
   { id: 'u-markets-orders', tier: 'beginner', title: 'Markets, orders & the spread', lesson: 'markets-orders', games: ['order-desk'] },
-  { id: 'u-discipline-basics', tier: 'beginner', title: 'Trading discipline basics', lesson: 'discipline-basics', games: [], tools: ['pre-trade-checklist'] },
   { id: 'u-beginner-capstone', tier: 'beginner', title: 'Put it together', lesson: null, games: ['what-next', 'setup-swipe', 'daily-challenge'] },
 
   { id: 'u-chart-patterns', tier: 'advanced', title: 'Reversal & continuation chart patterns', lesson: 'chart-patterns', games: ['pattern-detective'] },
@@ -40,7 +39,7 @@ export const UNITS = [
   { id: 'u-multi-timeframe', tier: 'advanced', title: 'Multi-timeframe analysis', lesson: 'multi-timeframe', games: ['timeframe-stack'] },
   { id: 'u-breakouts', tier: 'advanced', title: 'Breakouts, fakeouts & liquidity', lesson: 'breakouts', games: ['trap-or-trade'] },
   { id: 'u-confluence-risk', tier: 'advanced', title: 'Confluence, timing & risk', lesson: 'confluence-risk', games: ['risk-manager'] },
-  { id: 'u-psychology', tier: 'advanced', title: 'Trading psychology & your plan', lesson: 'psychology', games: ['tilt-control'], tools: ['journal-review'] },
+  { id: 'u-psychology', tier: 'advanced', title: 'Trading psychology & your plan', lesson: 'psychology', games: ['tilt-control'] },
   { id: 'u-advanced-capstone', tier: 'advanced', title: 'Capstone', lesson: null, games: ['what-next', 'trade-simulator', 'live-predict'] },
 ];
 
@@ -107,13 +106,6 @@ export const LESSONS = [
     blurb: 'What a market is, who is on the other side of your trade, and how market, limit and stop orders fill. Read the bid, the ask and the spread before you ever click Buy.',
     topics: ['Exchanges & brokers', 'Bid, ask & spread', 'Market orders', 'Limit & stop orders', 'Slippage'],
     path: './lessons/markets-orders.js',
-  },
-  {
-    id: 'discipline-basics', type: 'lesson', tier: 'beginner', minutes: 9,
-    title: 'Trading discipline basics',
-    blurb: 'Short scenarios and a practical pre-trade checklist for avoiding overtrading, revenge trading, FOMO, refusing losses and marrying an invalid setup.',
-    topics: ['Pre-trade checklist', 'Overtrading', 'Revenge trading', 'FOMO', 'Invalidation'],
-    path: './lessons/discipline-basics.js',
   },
   {
     id: 'chart-patterns', type: 'lesson', tier: 'advanced', minutes: 16,
@@ -201,16 +193,16 @@ export const GAMES = [
   },
   {
     id: 'pattern-flash', type: 'game', tier: 'beginner', minutes: 5, kind: 'quiz',
-    title: 'Pattern Flash',
-    blurb: 'Timed rounds: name the candlestick pattern before the clock runs out. Streaks multiply your score.',
+    title: 'Pattern Blitz',
+    blurb: 'Memorize the chart in a flash, then name the candlestick pattern from the dimmed memory. Streaks multiply your score.',
     skills: ['Candlestick patterns', 'Speed reading'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/pattern-flash.js',
   },
   {
     id: 'trend-spotter', type: 'game', tier: 'beginner', minutes: 6, kind: 'quiz',
-    title: 'Trend Spotter',
-    blurb: 'Up, down or sideways? Call the trend fast, then tag the swing highs and lows (HH, HL, LH, LL).',
+    title: 'Trend Rush',
+    blurb: 'Candles print one by one — call bullish, bearish or range before the chart finishes. Early calls pay double.',
     skills: ['Trend direction', 'Swing labels'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/trend-spotter.js',
@@ -233,32 +225,32 @@ export const GAMES = [
   },
   {
     id: 'cross-catcher', type: 'game', tier: 'beginner', minutes: 5, kind: 'simulation',
-    title: 'Cross Catcher',
-    blurb: 'A chart replays bar by bar. Hit the button when the fast MA crosses the slow MA — and call golden or death cross.',
+    title: 'Cross Catch',
+    blurb: 'The chart streams bar by bar. Hit CATCH the moment a golden or death cross completes — the exact bar pays 100.',
     skills: ['Moving averages', 'Crossovers'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/cross-catcher.js',
   },
   {
     id: 'volume-verdict', type: 'game', tier: 'beginner', minutes: 5, kind: 'swipe',
-    title: 'Volume Verdict',
-    blurb: 'Swipe right if volume confirms the move, left if it smells like a trap.',
+    title: 'Volume Verdict Live',
+    blurb: 'Stake credits on your read, then call it: does volume confirm the break, or is it a trap?',
     skills: ['Volume', 'Confirmation', 'Traps'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/volume-verdict.js',
   },
   {
     id: 'what-next', type: 'game', tier: 'both', minutes: 8, kind: 'predict',
-    title: 'What Happens Next?',
-    blurb: 'The chart freezes at a decision point. Call up, down or sideways (or long/short/wait in Advanced) and watch the reveal.',
+    title: 'The Oracle',
+    blurb: 'Boss battle of reads: her conviction bar drops on correct calls and heals on misses. Phase 3 brings her whispers — she lies.',
     skills: ['Reading context', 'Prediction', 'Trade decisions'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/what-next.js',
   },
   {
     id: 'setup-swipe', type: 'game', tier: 'both', minutes: 5, kind: 'swipe',
-    title: 'Setup Swipe',
-    blurb: 'Rapid-fire setups: swipe Take or Skip. Discipline means skipping the weak ones.',
+    title: 'Boss Gauntlet',
+    blurb: 'Race a rival operator through the same deck of setups. Take or skip fast — win the cards they miss, finish ahead to take the belt.',
     skills: ['Setup quality', 'Discipline', 'Checklists'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/setup-swipe.js',
@@ -273,8 +265,8 @@ export const GAMES = [
   },
   {
     id: 'pattern-detective', type: 'game', tier: 'advanced', minutes: 8, kind: 'draw',
-    title: 'Pattern Detective',
-    blurb: 'Identify head & shoulders, double tops, wedges, flags and more. Then mark the neckline and the target.',
+    title: 'Case Files',
+    blurb: 'Every chart is a case. Open sealed clues if you need them — each costs points — then name the pattern to close it.',
     skills: ['Chart patterns', 'Necklines', 'Measured targets'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/pattern-detective.js',
@@ -282,31 +274,31 @@ export const GAMES = [
   {
     id: 'fib-sniper', type: 'game', tier: 'advanced', minutes: 7, kind: 'draw',
     title: 'Fib Sniper',
-    blurb: 'Anchor the Fibonacci tool on the right swing, then pick the level where price will bounce.',
+    blurb: 'Place the retracement yourself: click the chart where the level sits. Precision rings pay up to 100 — dead centre is a bullseye.',
     skills: ['Fibonacci', 'Swing anchoring', 'Confluence'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/fib-sniper.js',
   },
   {
     id: 'divergence-detective', type: 'game', tier: 'advanced', minutes: 7, kind: 'quiz',
-    title: 'Divergence Detective',
-    blurb: 'Compare price with RSI and MACD. Spot bullish and bearish divergence before the turn.',
+    title: 'Signal Chaser',
+    blurb: 'The chart streams past the swing — call divergence or confirmation before the signal window fades.',
     skills: ['RSI', 'MACD', 'Divergence'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/divergence-detective.js',
   },
   {
     id: 'timeframe-stack', type: 'game', tier: 'advanced', minutes: 8, kind: 'predict',
-    title: 'Timeframe Stack',
-    blurb: 'Read weekly, daily and hourly charts together. Trade only when the timeframes agree.',
+    title: 'Timeframe Tower',
+    blurb: 'Stack three reads into one plan: the HTF lean, the LTF move, then the trade. Wrong blocks crack the tower.',
     skills: ['Multi-timeframe', 'Trend alignment'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/timeframe-stack.js',
   },
   {
     id: 'trap-or-trade', type: 'game', tier: 'advanced', minutes: 7, kind: 'predict',
-    title: 'Trap or Trade',
-    blurb: 'Price just broke the level. Trade the breakout, fade the trap, or wait for the retest?',
+    title: 'Fakeout Filter',
+    blurb: 'A gauntlet of breaks and traps. Read each freeze fast — and arm DOUBLE DOWN when you are sure. Two arms per run.',
     skills: ['Breakouts', 'Fakeouts', 'Retests'],
     styles: ALL_STYLES, sources: WITH_REAL,
     path: './games/trap-or-trade.js',
@@ -329,36 +321,19 @@ export const GAMES = [
   },
   {
     id: 'trade-simulator', type: 'game', tier: 'advanced', minutes: 12, kind: 'simulation',
-    title: 'Trade Simulator',
-    blurb: 'Replay a market bar by bar with real tools. Buy, sell, set stops and targets, and grade your trading.',
+    title: 'The Final Trade',
+    blurb: 'The boss market fights back: volatility shocks hunt your stops on the hidden tape. Trade the plan, keep the desk green, break The Market.',
     skills: ['Execution', 'Trade management', 'Journaling'],
     styles: ['practice', 'arcade'], sources: WITH_REAL,
     path: './games/trade-simulator.js',
   },
   {
     id: 'live-predict', type: 'game', tier: 'both', minutes: 6, kind: 'live',
-    title: 'Live Predict',
-    blurb: 'Real prices, right now. Read the live chart, make your call and watch the candle close.',
+    title: 'Oracle Arena',
+    blurb: 'Lock predictions on live charts and defend them with streak armor — one shield holds a wrong call without breaking your streak.',
     skills: ['Live reading', 'Prediction', 'Real markets'],
     styles: ALL_STYLES, sources: ['real'],
     path: './games/live-predict.js',
-  },
-];
-
-export const TOOLS = [
-  {
-    id: 'pre-trade-checklist', type: 'tool', tier: 'beginner', minutes: 6,
-    title: 'Pre-trade Checklist',
-    blurb: 'Work through setup quality, risk, limits and mental state before a trade. No timer, score, XP or stars.',
-    skills: ['Pre-trade checklist', 'Risk limits', 'Discipline'],
-    path: './tools/pre-trade-checklist.js',
-  },
-  {
-    id: 'journal-review', type: 'tool', tier: 'advanced', minutes: 9,
-    title: 'Journal Review',
-    blurb: 'Review journal notes locally for repeated behavior patterns and turn the evidence into one process rule. No score or game framing.',
-    skills: ['Journaling', 'Pattern review', 'Process rules'],
-    path: './tools/journal-review.js',
   },
 ];
 
@@ -399,7 +374,7 @@ export const BADGES = [
   { id: 'survivor', title: 'Survivor', description: 'Survive 15 rounds in a Survival run.', icon: 'shield' },
   { id: 'play-your-way', title: 'Play Your Way', description: 'Finish one game in Practice, Arcade and Survival.', icon: 'grid' },
   { id: 'daily-streak-7', title: 'Habit Former', description: 'Complete the Daily Challenge seven days in a row.', icon: 'flame' },
-  { id: 'dashboard-visit', title: 'Floor Manager', description: 'Open the Dashboard and survey the curriculum.', icon: 'grid' },
+  { id: 'dashboard-visit', title: 'Floor Manager', description: 'Open the world map and survey the curriculum.', icon: 'compass' },
   { id: 'first-real-chart', title: 'Tape Reader', description: 'Finish a round on a real-market chart.', icon: 'eye' },
   { id: 'streak-keeper', title: 'Steady Hand', description: 'Keep a best run streak of 5 or more.', icon: 'flame' },
 
@@ -470,7 +445,7 @@ export const PAGES = [
   { id: 'playbook', title: 'Setup Playbook', hash: 'playbook', param: true, path: './pages/playbook.js',
     blurb: 'Exact, rule-based setups: checklist, entry, stop and target, animated walk-throughs and real examples.' },
   { id: 'live', title: 'Live Market Lab', hash: 'live', param: false, path: './pages/live.js',
-    blurb: 'A live chart with indicator toggles and a plain-English read of trend, levels and patterns.' },
+    blurb: 'Market hours for major exchanges and a short history of trading, from ancient marketplaces to electronic exchanges.' },
   { id: 'platforms', title: 'Platforms', hash: 'platforms', param: false, path: './pages/affiliate.js',
     blurb: 'Trading platforms and tools we partner with — affiliate / referral links with clear placeholders until filled.' },
 ];
@@ -488,9 +463,9 @@ export const DEV_ENTRIES = [
 
 // ---------------------------------------------------------------- helpers (pure)
 
-/** Lesson, game or tool by id (has .type = 'lesson' | 'game' | 'tool'), or null. */
+/** Lesson or game by id (has .type = 'lesson' | 'game'), or null. */
 export function findEntry(id) {
-  return LESSONS.find((l) => l.id === id) || GAMES.find((g) => g.id === id) || TOOLS.find((t) => t.id === id) || DEV_ENTRIES.find((d) => d.id === id) || null;
+  return LESSONS.find((l) => l.id === id) || GAMES.find((g) => g.id === id) || DEV_ENTRIES.find((d) => d.id === id) || null;
 }
 
 export function findStyle(id) {
@@ -517,13 +492,9 @@ export function sourcesOf(id) {
   return e?.sources?.length ? e.sources : ['textbook'];
 }
 
-function unitHas(u, id) {
-  return u.lesson === id || u.games.includes(id) || (u.tools || []).includes(id);
-}
-
-/** Tiers whose units contain a lesson/game/tool id (a 'both' game may sit in one tier's units only). */
+/** Tiers whose units contain a lesson/game id (a 'both' game may sit in one tier's units only). */
 export function tiersOf(id) {
-  return [...new Set(UNITS.filter((u) => unitHas(u, id)).map((u) => u.tier))];
+  return [...new Set(UNITS.filter((u) => u.lesson === id || u.games.includes(id)).map((u) => u.tier))];
 }
 
 export function findTier(id) {
@@ -539,20 +510,19 @@ export function unitsOf(tier) {
   return UNITS.filter((u) => u.tier === tier);
 }
 
-/** The unit containing a lesson/game/tool id. For 'both'-tier games pass the preferred tier. */
+/** The unit containing a lesson/game id. For 'both'-tier games pass the preferred tier. */
 export function unitOf(id, tier = null) {
-  const matches = UNITS.filter((u) => unitHas(u, id));
+  const matches = UNITS.filter((u) => u.lesson === id || u.games.includes(id));
   if (!matches.length) return null;
   return (tier && matches.find((u) => u.tier === tier)) || matches[0];
 }
 
-/** Ordered learning path of a tier: [{ type, id, unit }] (lesson first, then games and tools). */
+/** Ordered learning path of a tier: [{ type, id, unit }] (lesson first, then its games). */
 export function learningPath(tier) {
   const out = [];
   for (const u of unitsOf(tier)) {
     if (u.lesson) out.push({ type: 'lesson', id: u.lesson, unit: u.id });
     for (const g of u.games) out.push({ type: 'game', id: g, unit: u.id });
-    for (const t of (u.tools || [])) out.push({ type: 'tool', id: t, unit: u.id });
   }
   return out;
 }
@@ -578,23 +548,17 @@ export function nextItem(id, tier = null) {
   return null;
 }
 
-/** Route hash (without '#') for a lesson, game or tool id. */
+/** Route hash (without '#') for a lesson or game id. */
 export function hashFor(id) {
   const e = findEntry(id);
   if (!e) return 'home';
-  if (e.type === 'lesson') return `l.${id}`;
-  if (e.type === 'game') return `g.${id}`;
-  if (e.type === 'tool') return `t.${id}`;
-  return 'home';
+  return (e.type === 'lesson' ? 'l.' : 'g.') + id;
 }
 
-/** Lessons / games / tools shown under a tier ('both'-tier games appear under both). */
+/** Lessons / games shown under a tier ('both'-tier games appear under both). */
 export function lessonsOf(tier) {
   return LESSONS.filter((l) => l.tier === tier);
 }
 export function gamesOf(tier) {
   return GAMES.filter((g) => g.tier === tier || g.tier === 'both');
-}
-export function toolsOf(tier) {
-  return TOOLS.filter((t) => t.tier === tier || t.tier === 'both');
 }

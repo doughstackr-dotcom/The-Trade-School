@@ -577,19 +577,6 @@ function trackCard(store, tier) {
   return sharedTrackCard(store, tier, { cta: 'dashboard' });
 }
 
-function authFirstTrackLink(returnHash, attrs = {}) {
-  if (!returnHash || !access.isEnforcing() || access.getAccess().user) return attrs;
-  return {
-    ...attrs,
-    href: '#account.signup',
-    'data-auth-return': returnHash,
-    on: {
-      ...(attrs.on || {}),
-      click: () => access.rememberReturn(returnHash),
-    },
-  };
-}
-
 function styleIcons(g) {
   const ids = stylesOf(g);
   const labels = ids.map((id) => findStyle(id)?.label || id);
@@ -651,8 +638,8 @@ export function arcadeTile(store, g, featureOrOpts = false) {
   return { tile, art };
 }
 
-/** Today: the Daily Challenge (streak) and the Live Market Lab (market status). */
-function todaySection(store, cleanups) {
+/** Today: the Daily Challenge (streak) and the market-hours guide. */
+function todaySection(store) {
   const daily = findEntry('daily-challenge');
   const d = store.dailyStatus ? store.dailyStatus() : { done: false, streak: 0, best: 0 };
   const dateText = (() => {
@@ -678,40 +665,17 @@ function todaySection(store, cleanups) {
         : h('span', { class: 'chip chip--sm chip--outline' }, d.streak ? 'Keep your streak alive' : 'Not played yet today'),
       h('span', { class: 'today-card__go' }, d.done ? 'Replay' : 'Play today’s five', icon('arrow-right', { size: 16 })))) : null;
 
-  const statusChip = h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live & replay');
-  const statusText = h('p', { class: 'today-card__text muted' }, 'Real market prices on a moving chart, with an automatic plain-English read of the trend, the nearest levels and fresh candle patterns.');
+  const statusChip = h('span', { class: 'chip chip--sm source-chip is-real' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), 'Live schedule');
+  const statusText = h('p', { class: 'today-card__text muted' }, 'See which major market sessions are open now, then trace how markets evolved from ancient marketplaces to electronic exchanges.');
   const liveCard = h('a', { class: 'today-card card card--link today-card--live', href: '#live' },
     h('div', { class: 'today-card__top' },
       h('span', { class: 'today-card__icon today-card__icon--live', 'aria-hidden': 'true' }, icon('bolt', { size: 22 })),
       h('div', { class: 'today-card__head' },
-        h('span', { class: 'eyebrow eyebrow--accent' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), ' Live now'),
-        h('strong', { class: 'today-card__title' }, 'Live Market Lab')),
+        h('span', { class: 'eyebrow eyebrow--accent' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), ' Market clock'),
+        h('strong', { class: 'today-card__title' }, 'Market hours & history')),
       null),
     statusText,
-    h('div', { class: 'today-card__foot' }, statusChip, h('span', { class: 'today-card__go' }, 'Open the lab', icon('arrow-right', { size: 16 }))));
-
-  // Market status from market.js when it is available. Nothing is fetched from here: the status
-  // reflects the last request this session (or mock mode); the lab itself connects on demand.
-  import('../core/market.js').then((m) => {
-    if (cleanups.dead) return;
-    const render = () => {
-      let st = 'online';
-      try {
-        st = m.marketStatus?.() || 'online';
-      } catch {
-        st = 'online';
-      }
-      const mock = !!m.isMockMode?.();
-      const label = mock ? 'Test data' : st === 'offline' ? 'Offline · simulated' : st === 'unconfigured' ? 'Replay mode' : 'Live & replay';
-      statusChip.className = `chip chip--sm source-chip ${st === 'offline' ? 'is-fallback' : 'is-real'}`;
-      statusChip.replaceChildren(h('span', { class: 'live-dot', 'aria-hidden': 'true', 'data-state': st === 'offline' ? 'offline' : 'live' }), label);
-    };
-    render();
-    const off = m.onMarketStatus?.(render);
-    if (typeof off === 'function') cleanups.push(off);
-  }).catch(() => {
-    /* market module unavailable: keep the static card */
-  });
+    h('div', { class: 'today-card__foot' }, statusChip, h('span', { class: 'today-card__go' }, 'Open the guide', icon('arrow-right', { size: 16 }))));
 
   return h('section', { class: 'container today', 'aria-label': 'Today' },
     h('div', { class: 'today__grid' }, dailyCard, liveCard));
@@ -750,7 +714,7 @@ function levelStrip(store) {
       ? h('span', { class: 'level-strip__badge', title: `${b.title} — ${b.description}` }, icon(b.icon, { size: 18, label: b.title }))
       : h('span', { class: 'level-strip__badge is-empty', 'aria-hidden': 'true' }, icon('lock', { size: 14 })));
   }
-  return h('section', { class: 'container section section--tight', 'aria-label': 'Your level' },
+  return        h('section', { class: 'container section section--tight home-level', 'aria-label': 'Your level' },
     h('div', { class: 'level-strip card' },
       h('div', { class: 'level-strip__lv' },
         h('span', { class: 'level-strip__num' }, h('small', { class: 'mono' }, 'LV'), String(lv.number)),
@@ -762,7 +726,7 @@ function levelStrip(store) {
       h('div', { class: 'level-strip__badges' },
         h('span', { class: 'eyebrow' }, `Badges · ${earned.length}/${BADGES.length}`),
         h('div', { class: 'level-strip__row' }, slots)),
-      h('a', { class: 'btn', href: '#dashboard' }, 'View dashboard', icon('arrow-right'))));
+      h('a', { class: 'btn', href: '#map' }, 'View the map', icon('arrow-right'))));
 }
 
 // ------------------------------------------------------------------ page
@@ -772,9 +736,9 @@ function showWelcome(store) {
   const body = h('div', { class: 'welcome-modal' },
     h('p', null, 'Short visual lessons and games teach chart reading — then you can test your eye on textbook or real-market charts.'),
     h('ol', { class: 'welcome-modal__steps' },
-      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner track; Markets, orders & the spread comes late, then Put it together (Daily Challenge stays free).'),
+      h('li', null, h('strong', null, 'Start here:'), ' Candlestick anatomy opens the Beginner trail on the world map; the capstones are boss stages (Daily Challenge stays free).'),
       h('li', null, h('strong', null, 'Play styles:'), ' Practice, Arcade, or Survival on every game.'),
-      h('li', null, h('strong', null, 'Dashboard:'), ' See the full map anytime under Dashboard.')),
+      h('li', null, h('strong', null, 'World map:'), ' Clear units to open the next; the Games hub stays free-play.')),
     h('p', { class: 'faint' }, 'Educational only — not financial advice. You can skip this tour.'),
   );
   modal({
@@ -805,18 +769,23 @@ export default {
   mount(root, ctx) {
     const { store } = ctx;
     const cleanups = [];
-    // First-visit welcome (skippable, a11y modal) waits until the auth-first gate is not active.
-    if (!access.isEnforcing()) {
-      try { showWelcome(store); } catch (err) { console.error(err); }
-    }
+    // First-visit welcome (skippable, a11y modal).
+    try { showWelcome(store); } catch (err) { console.error(err); }
     const totalLessons = UNITS.filter((u) => u.lesson).length;
+
+    // Facts sit outside the cover tile: in the mosaic they are their own row of KPI tiles.
+    const facts = h('dl', { class: 'bento-facts', 'aria-label': 'The school at a glance' },
+      h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
+      h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),
+      h('div', null, h('dt', null, 'Worlds'), h('dd', { class: 'mono' }, String(TIERS.length))),
+      h('div', null, h('dt', null, 'Bosses'), h('dd', { class: 'mono' }, '4')));
 
     const chartHost = h('figure', { class: 'hero__chart' });
     const hero = h('section', { class: 'hero' },
       h('div', { class: 'container hero__inner' },
         h('div', { class: 'hero__copy' },
-          h('p', { class: 'eyebrow eyebrow--accent hero__eyebrow' }, 'The Trade School · learn by playing'),
-          h('h1', { class: 'hero__title' },
+          h('p', { class: 'eyebrow eyebrow--accent hero__eyebrow arcade-label' }, 'The Trade School · insert coin to learn'),
+          h('h1', { class: 'hero__title neon-title' },
             h('span', { class: 'hero__line' }, 'Learn to read'), ' ',
             h('span', { class: 'hero__line' }, 'the market,'), ' ',
             h('span', { class: 'hero__line' }, h('span', { class: 'hero__em' }, 'one candle')), ' ',
@@ -824,13 +793,9 @@ export default {
           h('p', { class: 'hero__lead' },
             'Short, visual lessons and hands-on games for candlesticks, support and resistance, trend lines, chart patterns, Fibonacci, indicators and risk. Practise on clean textbook charts, then test your eye on real market history, without risking a cent.'),
           h('div', { class: 'hero__ctas' },
-            h('a', authFirstTrackLink('beginner', { class: 'btn btn--primary btn--lg', href: '#beginner' }), 'Start Beginner', icon('arrow-right')),
-            h('a', authFirstTrackLink('advanced', { class: 'btn btn--lg hero__btn2', href: '#advanced' }), 'Jump to Advanced'),
-            h('a', { class: 'btn btn--lg btn--ghost', href: '#dashboard' }, 'Open Dashboard')),
-          h('dl', { class: 'hero__facts' },
-            h('div', null, h('dt', null, 'Lessons'), h('dd', { class: 'mono' }, String(totalLessons))),
-            h('div', null, h('dt', null, 'Games'), h('dd', { class: 'mono' }, String(GAMES.length))),
-            h('div', null, h('dt', null, 'Tracks'), h('dd', { class: 'mono' }, String(TIERS.length))))),
+            h('a', { class: 'btn btn--primary btn--lg btn--arcade', href: '#beginner' }, icon('play', { size: 18 }), 'Press Start · Beginner'),
+            h('a', { class: 'btn btn--lg hero__btn2', href: '#advanced' }, 'Jump to Advanced'),
+            h('a', { class: 'btn btn--lg btn--ghost', href: '#map' }, 'Open the map'))),
         chartHost));
 
     const arcadeGrid = h('div', { class: 'arcade__grid', id: 'arcade-grid' });
@@ -880,14 +845,15 @@ export default {
     root.append(
       h('div', { class: 'home' },
         hero,
+        facts,
         continueStrip(store),
-        todaySection(store, cleanups),
+        todaySection(store),
         h('section', { class: 'container section tracks', 'aria-labelledby': 'tracks-h' },
           h('div', { class: 'section-head' },
             h('div', null,
               h('p', { class: 'eyebrow' }, 'The curriculum'),
               h('h2', { id: 'tracks-h' }, 'Two tracks, one skill set')),
-            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible - sign in or create an account to keep your place.')),
+            h('p', { class: 'muted' }, 'Start with how markets work and reading the chart. Move on to planning trades: patterns, Fibonacci, indicators, breakouts, risk and psychology. Locked lessons stay visible — open one to see the paywall teaser.')),
           tracksHost),
         playYourWay(),
         arcade,

@@ -27,7 +27,6 @@ function gameTags(e) {
 }
 
 function itemDone(store, item) {
-  if (item.type === 'tool') return true;
   return item.type === 'lesson' ? store.isLessonDone(item.id) : (store.gameStats(item.id)?.stars || 0) >= 1;
 }
 
@@ -92,7 +91,7 @@ function squiggle(done) {
     svg('polyline', { points: pts.join(' '), 'vector-effect': 'non-scaling-stroke' }));
 }
 
-function itemButton(store, type, id) {
+export function itemButton(store, type, id) {
   const e = findEntry(id);
   if (!e) return null;
   const open = canLaunch(e);
@@ -117,24 +116,7 @@ function itemButton(store, type, id) {
           ? h('span', { class: 'chip chip--sm' }, icon('lock', { size: 13 }), lockNeed || 'Members')
           : done
             ? h('span', { class: 'chip chip--bull' }, icon('check', { size: 13 }), 'Done')
-          : h('span', { class: 'item-btn__go' }, started ? 'Resume' : 'Start', icon('arrow-right', { size: 16 }))));
-  }
-  if (type === 'tool') {
-    return h('a', {
-      class: ['item-btn', 'item-btn--tool', !open && 'is-locked'],
-      href: `#${hashFor(id)}`,
-      'aria-label': open ? e.title : `${e.title} (locked - ${lockNeed || 'sign in'})`,
-      title: open ? e.title : `Locked - ${lockNeed || 'sign in or subscribe to open'}`,
-    },
-      h('span', { class: 'item-btn__icon', 'aria-hidden': 'true' }, icon(open ? 'check' : 'lock', { size: 20 })),
-      h('span', { class: 'item-btn__text' },
-        h('span', { class: 'item-btn__kind' }, `Tool · ${e.minutes} min`),
-        h('strong', { class: 'item-btn__title' }, e.title),
-        h('span', { class: 'item-btn__blurb' }, e.blurb)),
-      h('span', { class: 'item-btn__status' },
-        !open
-          ? h('span', { class: 'chip chip--sm' }, icon('lock', { size: 13 }), lockNeed || 'Members')
-          : h('span', { class: 'item-btn__go' }, 'Open', icon('arrow-right', { size: 16 }))));
+            : h('span', { class: 'item-btn__go' }, started ? 'Resume' : 'Start', icon('arrow-right', { size: 16 }))));
   }
   const s = store.gameStats(id);
   return h('a', {
